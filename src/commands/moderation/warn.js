@@ -1,5 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
-import { addWarning, getWarnings } from '../../db/index.js';
+import { addWarning, getWarnings, addModLog } from '../../db/index.js';
 
 export default {
   data: new SlashCommandBuilder()
@@ -18,6 +18,11 @@ export default {
     }
 
     addWarning(interaction.guild.id, user.id, interaction.user.id, reason);
+    addModLog({
+      guildId: interaction.guild.id, action: 'warn',
+      targetId: user.id, targetTag: user.tag,
+      moderatorId: interaction.user.id, moderatorTag: interaction.user.tag, reason,
+    });
     const total = getWarnings(interaction.guild.id, user.id).length;
 
     await user.send(`You were warned in **${interaction.guild.name}**: ${reason}`).catch(() => {});

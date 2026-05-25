@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
+import { addModLog } from '../../db/index.js';
 
 export default {
   data: new SlashCommandBuilder()
@@ -40,9 +41,20 @@ export default {
     try {
       if (seconds === 0) {
         await member.timeout(null, `Timeout removed by ${interaction.user.tag}`);
+        addModLog({
+          guildId: interaction.guild.id, action: 'untimeout',
+          targetId: user.id, targetTag: user.tag,
+          moderatorId: interaction.user.id, moderatorTag: interaction.user.tag, reason: null,
+        });
         return interaction.reply(`Removed timeout from **${user.tag}**.`);
       }
       await member.timeout(seconds * 1000, `${reason} — by ${interaction.user.tag}`);
+      addModLog({
+        guildId: interaction.guild.id, action: 'timeout',
+        targetId: user.id, targetTag: user.tag,
+        moderatorId: interaction.user.id, moderatorTag: interaction.user.tag,
+        reason: `${reason} (${seconds}s)`,
+      });
       await interaction.reply(`Timed out **${user.tag}**. Reason: ${reason}`);
     } catch (err) {
       console.error('Timeout failed:', err);

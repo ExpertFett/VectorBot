@@ -3,8 +3,12 @@ import { ChannelType } from 'discord.js';
 import {
   getConfig, setConfigValue,
   getAllCustomCommands, setCustomCommand, removeCustomCommand,
+  getAutomod, setAutomod,
+  getAllRoleMenus, getRoleMenu, createRoleMenu, updateRoleMenu, deleteRoleMenu,
+  getModLog, getAllWarnings, deleteWarningById, clearWarnings,
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
+import { postRoleMenu } from '../features/roleMenus.js';
 import { requireAuth } from './auth.js';
 
 const GUILD_ID = process.env.DISCORD_GUILD_ID;
@@ -69,7 +73,7 @@ export function apiRouter(client) {
   router.put('/config', (req, res) => {
     const b = req.body || {};
     const textCols = ['welcome_message', 'goodbye_message'];
-    const idCols = ['welcome_channel_id', 'goodbye_channel_id', 'autorole_id'];
+    const idCols = ['welcome_channel_id', 'goodbye_channel_id', 'autorole_id', 'log_channel_id'];
 
     for (const col of idCols) if (col in b) setConfigValue(GUILD_ID, col, cleanId(b[col]));
     for (const col of textCols) if (col in b) setConfigValue(GUILD_ID, col, b[col] ? String(b[col]) : null);
@@ -122,6 +126,68 @@ export function apiRouter(client) {
       console.error('Announce failed:', err.message);
       res.status(500).json({ error: 'send_failed' });
     }
+  });
+
+  // --- auto-moderation ---
+  router.get('/automod', (req, res) => res.json(getAutomod(GUILD_ID)));
+  router.put('/automod', (req, res) => res.json(setAutomod(GUILD_ID, req.body || {})));
+
+  // --- role menus ---
+  router.get('/role-menus', (req, res) => res.json(getAllRoleMenus(GUILD_ID)));
+
+  router.post('/role-menus', (req, res) => {
+    const { title = '', description = '', channel_id = null, buttons = [] } = req.body || {};
+    const id = createRoleMenu(GUILD_ID, { title, description, channel_id: cleanId(channel_id), buttons });
+    res.json(getRoleMenu(id));
+  });
+
+  router.put('/role-menus/:id', (req, res) => {
+    const id = Number(req.params.id);
+    const existing = getRoleMenu(id);
+    if (!existing || existing.guild_id !== GUILD_ID) return res.status(404).json({ error: 'not_found' });
+    const { title = '', description = '', channel_id = null, buttons = [] } = req.body || {};
+    res.json(updateRoleMenu(id, GUILD_ID, { title, description, channel_id: cleanId(channel_id), buttons }));
+  });
+
+  router.delete('/role-menus/:id', (req, res) => {
+    res.json({ ok: deleteRoleMenu(Number(req.params.id), GUILD_ID) > 0 });
+  });
+
+  router.post('/role-menus/:id/post', async (req, res) => {
+    const id = Number(req.params.id);
+    const menu = getRoleMenu(id);
+    if (!menu || menu.guild_id !== GUILD_ID) return res.status(404).json({ error: 'not_found' });
+    if (!menu.channel_id) return res.status(400).json({ error: 'no_channel' });
+    try {
+      const messageId = await postRoleMenu(client, menu);
+      res.json({ ok: true, message_id: messageId });
+    } catch (err) {
+      console.error('Post role menu failed:', err.message);
+      res.status(500).json({ error: err.message === 'invalid_channel' ? 'invalid_channel' : 'post_failed' });
+    }
+  });
+
+  // --- moderation panel ---
+  router.get('/modlog', (req, res) => res.json(getModLog(GUILD_ID, 100)));
+
+  router.get('/warnings', (req, res) => {
+    const guild = client.guilds.cache.get(GUILD_ID);
+    const tag = (id) => guild?.members.cache.get(id)?.user?.tag || null;
+    res.json(getAllWarnings(GUILD_ID).map((w) => ({
+      ...w,
+      user_tag: tag(w.user_id),
+      moderator_tag: tag(w.moderator_id),
+    })));
+  });
+
+  router.delete('/warnings/:id', (req, res) => {
+    res.json({ ok: deleteWarningById(GUILD_ID, Number(req.params.id)) > 0 });
+  });
+
+  router.post('/warnings/clear', (req, res) => {
+    const userId = cleanId(req.body?.user_id);
+    if (!userId) return res.status(400).json({ error: 'missing_user' });
+    res.json({ cleared: clearWarnings(GUILD_ID, userId) });
   });
 
   return router;

@@ -1,8 +1,21 @@
 import { Events, MessageFlags } from 'discord.js';
+import { handleRoleButton } from '../features/roleMenus.js';
 
 export default {
   name: Events.InteractionCreate,
   async execute(interaction, client) {
+    // Button interactions (role menus)
+    if (interaction.isButton()) {
+      if (interaction.customId.startsWith('rolemenu:')) {
+        try {
+          await handleRoleButton(interaction);
+        } catch (err) {
+          console.error('Role button handler error:', err);
+        }
+      }
+      return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     const command = client.commands.get(interaction.commandName);

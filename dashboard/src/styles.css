@@ -129,7 +129,33 @@ a.dc-title { color: #00a8fc; }
 .cmd-preview { flex: 1; color: var(--muted); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-actions { display: flex; gap: 12px; }
 
+/* Automod multi-check */
+.multicheck {
+  max-height: 200px; overflow-y: auto; border: 1px solid var(--border);
+  border-radius: 6px; padding: 8px 10px; background: var(--input);
+}
+.multicheck .checkbox { font-weight: 400; font-size: 0.85rem; margin-bottom: 4px; }
+
+/* Role menu button rows */
+.rolebtn-row { display: grid; grid-template-columns: 1.4fr 1fr 70px 1fr auto; gap: 8px; align-items: center; margin-bottom: 6px; }
+.rolebtn-row select, .rolebtn-row input { margin-top: 0; }
+.emoji-in { text-align: center; }
+
+/* Mod log table */
+.modlog { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.modlog th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+.modlog td { padding: 7px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.modlog tr:last-child td { border-bottom: none; }
+.nowrap { white-space: nowrap; }
+.tag { background: var(--bg); padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
+
+/* Warning groups */
+.warn-group { margin-bottom: 14px; }
+.warn-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.warn-head .danger { margin-left: auto; }
+
 @media (max-width: 760px) {
   .app { grid-template-columns: 1fr; }
   .embed-area, .row2 { grid-template-columns: 1fr; }
+  .rolebtn-row { grid-template-columns: 1fr 1fr; }
 }

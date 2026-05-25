@@ -1,6 +1,7 @@
 import { Events } from 'discord.js';
 import { getCustomCommand } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
+import { checkMessage } from '../automod/index.js';
 
 const PREFIX = process.env.COMMAND_PREFIX || '!';
 
@@ -8,6 +9,10 @@ export default {
   name: Events.MessageCreate,
   async execute(message) {
     if (message.author.bot || !message.guild) return;
+
+    // Auto-moderation runs first; if it acted on the message, stop.
+    if (await checkMessage(message)) return;
+
     if (!message.content.startsWith(PREFIX)) return;
 
     const name = message.content.slice(PREFIX.length).trim().split(/\s+/)[0]?.toLowerCase();

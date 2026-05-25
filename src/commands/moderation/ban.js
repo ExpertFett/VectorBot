@@ -1,4 +1,5 @@
 import { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } from 'discord.js';
+import { addModLog } from '../../db/index.js';
 
 export default {
   data: new SlashCommandBuilder()
@@ -34,6 +35,11 @@ export default {
       await interaction.guild.bans.create(user.id, {
         reason: `${reason} — by ${interaction.user.tag}`,
         deleteMessageSeconds: deleteDays * 86400,
+      });
+      addModLog({
+        guildId: interaction.guild.id, action: 'ban',
+        targetId: user.id, targetTag: user.tag,
+        moderatorId: interaction.user.id, moderatorTag: interaction.user.tag, reason,
       });
       await interaction.reply(`Banned **${user.tag}**. Reason: ${reason}`);
     } catch (err) {
