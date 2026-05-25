@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { ChannelType } from 'discord.js';
+import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import {
   getConfig, setConfigValue,
   getAllCustomCommands, setCustomCommand, removeCustomCommand,
@@ -12,12 +12,16 @@ import {
   getStickies, setSticky, deleteSticky,
   createGiveaway, getGiveaways, getGiveaway, deleteGiveaway, getGiveawayEntryCount,
   getYoutubeSubs, createYoutubeSub, deleteYoutubeSub,
+  createSocialSub, getSocialSubs, deleteSocialSub,
+  createStatChannel, getStatChannels, deleteStatChannel,
+  getInviteLeaderboard, getPersonalization, setPersonalization,
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 import { postRoleMenu } from '../features/roleMenus.js';
 import { postVerifyPanel } from '../features/verification.js';
 import { postTicketPanel } from '../features/tickets.js';
 import { postGiveaway, endGiveawayAndAnnounce, rerollGiveaway } from '../features/giveaways.js';
+import { STAT_TYPES, computeStat } from '../features/stats.js';
 import { requireAuth } from './auth.js';
 
 const NAME_RE = /^[a-z0-9_-]{1,32}$/;
@@ -159,7 +163,7 @@ export function apiRouter(client) {
   router.post('/announce', async (req, res) => {
     const { channel_id, content, embed } = req.body || {};
     const channel = client.channels.cache.get(cleanId(channel_id));
-    if (!channel?.isTextBased()) return res.status(400).json({ error: 'invalid_channel' });
+    if (!channel?.isTextBased() || channel.guildId !== req.guildId) return res.status(400).json({ error: 'invalid_channel' });
 
     const payload = {};
     if (content) payload.content = String(content);
@@ -366,6 +370,74 @@ export function apiRouter(client) {
     res.json({ ok: true, id });
   });
   router.delete('/youtube/:id', (req, res) => res.json({ ok: deleteYoutubeSub(Number(req.params.id), req.guildId) > 0 }));
+
+  // --- social alerts (reddit / rss / twitch / kick) ---
+  router.get('/social', (req, res) => res.json(getSocialSubs(req.guildId)));
+  router.post('/social', (req, res) => {
+    const b = req.body || {};
+    const platform = b.platform;
+    const query = String(b.query || '').trim().replace(/^\/?r\//i, ''); // tolerate "r/foo"
+    const channel = cleanId(b.discord_channel_id);
+    if (!['reddit', 'rss', 'twitch', 'kick'].includes(platform) || !query) return res.status(400).json({ error: 'invalid' });
+    if (!channel) return res.status(400).json({ error: 'missing_channel' });
+    if (platform === 'twitch' && (!process.env.TWITCH_CLIENT_ID || !process.env.TWITCH_CLIENT_SECRET)) {
+      return res.status(400).json({ error: 'twitch_not_configured' });
+    }
+    const id = createSocialSub(req.guildId, { platform, query, discord_channel_id: channel, mention_role_id: cleanId(b.mention_role_id) });
+    res.json({ ok: true, id });
+  });
+  router.delete('/social/:id', (req, res) => res.json({ ok: deleteSocialSub(Number(req.params.id), req.guildId) > 0 }));
+
+  // --- stats counter channels ---
+  router.get('/stats', (req, res) => res.json(getStatChannels(req.guildId)));
+  router.post('/stats', async (req, res) => {
+    const type = req.body?.type || 'members';
+    const template = (req.body?.template || 'Members: {count}').slice(0, 90);
+    if (!STAT_TYPES.includes(type)) return res.status(400).json({ error: 'invalid_type' });
+    const guild = client.guilds.cache.get(req.guildId);
+    if (!guild) return res.status(503).json({ error: 'bot_not_in_guild' });
+    try {
+      const value = computeStat(guild, type, null);
+      const channel = await guild.channels.create({
+        name: template.replace('{count}', value.toLocaleString()),
+        type: ChannelType.GuildVoice,
+        permissionOverwrites: [{ id: guild.id, deny: [PermissionFlagsBits.Connect] }],
+      });
+      const id = createStatChannel(req.guildId, { channel_id: channel.id, type, template });
+      res.json({ ok: true, id });
+    } catch (err) {
+      console.error('Stat channel create failed:', err.message);
+      res.status(500).json({ error: 'create_failed' });
+    }
+  });
+  router.delete('/stats/:id', async (req, res) => {
+    const s = getStatChannels(req.guildId).find((x) => x.id === Number(req.params.id));
+    deleteStatChannel(Number(req.params.id), req.guildId);
+    if (s) { const ch = client.channels.cache.get(s.channel_id); if (ch) await ch.delete('Stat channel removed').catch(() => {}); }
+    res.json({ ok: true });
+  });
+
+  // --- invite tracker ---
+  router.get('/invites', (req, res) => {
+    const guild = client.guilds.cache.get(req.guildId);
+    const tag = (id) => guild?.members.cache.get(id)?.user?.tag || null;
+    res.json(getInviteLeaderboard(req.guildId).map((r) => ({ ...r, tag: tag(r.inviter_id) })));
+  });
+
+  // --- personalizer ---
+  router.get('/personalizer', (req, res) => res.json(getPersonalization(req.guildId)));
+  router.put('/personalizer', async (req, res) => {
+    const b = req.body || {};
+    const saved = setPersonalization(req.guildId, {
+      bot_nickname: b.bot_nickname ? String(b.bot_nickname).slice(0, 32) : null,
+      embed_color: Number.isFinite(b.embed_color) ? b.embed_color : null,
+    });
+    const guild = client.guilds.cache.get(req.guildId);
+    if (guild?.members?.me) {
+      try { await guild.members.me.setNickname(saved.bot_nickname || null); } catch { /* missing perm */ }
+    }
+    res.json(saved);
+  });
 
   return router;
 }

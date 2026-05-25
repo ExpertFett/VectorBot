@@ -14,6 +14,11 @@ import Sticky from './pages/Sticky.jsx';
 import Tickets from './pages/Tickets.jsx';
 import Giveaways from './pages/Giveaways.jsx';
 import YouTube from './pages/YouTube.jsx';
+import Social from './pages/Social.jsx';
+import Stats from './pages/Stats.jsx';
+import EmbedPanel from './pages/EmbedPanel.jsx';
+import Invites from './pages/Invites.jsx';
+import Personalizer from './pages/Personalizer.jsx';
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -63,10 +68,15 @@ export default function App() {
           <NavLink to="/rolemenus">Reaction Roles</NavLink>
           <NavLink to="/scheduled">Scheduled Messages</NavLink>
           <NavLink to="/sticky">Sticky Messages</NavLink>
+          <NavLink to="/embed">Send Embed</NavLink>
           <NavLink to="/tickets">Tickets</NavLink>
           <NavLink to="/giveaways">Giveaways</NavLink>
           <NavLink to="/youtube">YouTube</NavLink>
+          <NavLink to="/social">Social Alerts</NavLink>
+          <NavLink to="/stats">Stats Channels</NavLink>
+          <NavLink to="/invites">Invite Tracker</NavLink>
           <NavLink to="/moderation">Moderation</NavLink>
+          <NavLink to="/personalizer">Personalizer</NavLink>
         </nav>
         <div className="user">
           {user.avatar && <img src={user.avatar} alt="" />}
@@ -83,10 +93,15 @@ export default function App() {
           <Route path="/rolemenus" element={<RoleMenus />} />
           <Route path="/scheduled" element={<ScheduledMessages />} />
           <Route path="/sticky" element={<Sticky />} />
+          <Route path="/embed" element={<EmbedPanel />} />
           <Route path="/tickets" element={<Tickets />} />
           <Route path="/giveaways" element={<Giveaways />} />
           <Route path="/youtube" element={<YouTube />} />
+          <Route path="/social" element={<Social />} />
+          <Route path="/stats" element={<Stats />} />
+          <Route path="/invites" element={<Invites />} />
           <Route path="/moderation" element={<Moderation />} />
+          <Route path="/personalizer" element={<Personalizer />} />
           <Route path="*" element={<Navigate to="/welcome" replace />} />
         </Routes>
       </main>

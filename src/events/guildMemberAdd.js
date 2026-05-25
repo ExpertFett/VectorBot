@@ -2,10 +2,14 @@ import { Events } from 'discord.js';
 import { getConfig } from '../db/index.js';
 import { applyPlaceholders } from '../util/format.js';
 import { buildEmbed } from '../util/embed.js';
+import { detectInviteUsed } from '../features/invites.js';
 
 export default {
   name: Events.GuildMemberAdd,
   async execute(member) {
+    // Attribute the join to an invite before anything else (invite tracker).
+    await detectInviteUsed(member).catch(() => {});
+
     const config = getConfig(member.guild.id);
 
     // Auto-role

@@ -1,4 +1,5 @@
 import { Events, ActivityType } from 'discord.js';
+import { cacheAllInvites } from '../features/invites.js';
 
 export default {
   name: Events.ClientReady,
@@ -26,5 +27,8 @@ export default {
         console.error('Failed to sync home-guild commands:', err.message);
       }
     }
+
+    // Cache invites in every guild so we can attribute joins (invite tracker).
+    await cacheAllInvites(client);
   },
 };

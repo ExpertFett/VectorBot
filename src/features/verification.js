@@ -1,8 +1,8 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags } from 'discord.js';
-import { getVerification, setVerification } from '../db/index.js';
+import { getVerification, setVerification, getPersonalization } from '../db/index.js';
 
-export function buildVerifyMessage(cfg) {
-  const embed = new EmbedBuilder().setColor(0x23a55a)
+export function buildVerifyMessage(cfg, accent = 0x23a55a) {
+  const embed = new EmbedBuilder().setColor(accent)
     .setTitle(cfg.title || 'Verify')
     .setDescription(cfg.description || 'Click the button below to verify.');
   const row = new ActionRowBuilder().addComponents(
@@ -18,7 +18,8 @@ export async function postVerifyPanel(client, guildId) {
     || (await client.channels.fetch(cfg.channel_id).catch(() => null));
   if (!channel?.isTextBased()) throw new Error('invalid_channel');
 
-  const payload = buildVerifyMessage(cfg);
+  const accent = getPersonalization(guildId).embed_color ?? 0x23a55a;
+  const payload = buildVerifyMessage(cfg, accent);
   if (cfg.message_id) {
     const existing = await channel.messages.fetch(cfg.message_id).catch(() => null);
     if (existing) { await existing.edit(payload); return existing.id; }

@@ -4,11 +4,11 @@ import {
 } from 'discord.js';
 import {
   getTicketsConfig, setTicketsConfig, createTicket,
-  getOpenTicketByOpener, getTicketByChannel, closeTicket,
+  getOpenTicketByOpener, getTicketByChannel, closeTicket, getPersonalization,
 } from '../db/index.js';
 
-export function buildPanelMessage(cfg) {
-  const embed = new EmbedBuilder().setColor(0x5865f2)
+export function buildPanelMessage(cfg, accent = 0x5865f2) {
+  const embed = new EmbedBuilder().setColor(accent)
     .setTitle(cfg.title || 'Support')
     .setDescription(cfg.description || 'Open a ticket.');
   const row = new ActionRowBuilder().addComponents(
@@ -24,7 +24,8 @@ export async function postTicketPanel(client, guildId) {
     || (await client.channels.fetch(cfg.panel_channel_id).catch(() => null));
   if (!channel?.isTextBased()) throw new Error('invalid_channel');
 
-  const payload = buildPanelMessage(cfg);
+  const accent = getPersonalization(guildId).embed_color ?? 0x5865f2;
+  const payload = buildPanelMessage(cfg, accent);
   if (cfg.panel_message_id) {
     const existing = await channel.messages.fetch(cfg.panel_message_id).catch(() => null);
     if (existing) { await existing.edit(payload); return existing.id; }
@@ -67,9 +68,10 @@ export async function handleOpenTicket(interaction) {
       new ButtonBuilder().setCustomId('ticket:close').setLabel('Close ticket').setStyle(ButtonStyle.Danger).setEmoji('🔒')
     );
     const mention = cfg.support_role_id ? `<@&${cfg.support_role_id}> ` : '';
+    const accent = getPersonalization(guild.id).embed_color ?? 0x5865f2;
     await channel.send({
       content: `${interaction.user} ${mention}`.trim(),
-      embeds: [new EmbedBuilder().setColor(0x5865f2).setDescription(cfg.open_message)],
+      embeds: [new EmbedBuilder().setColor(accent).setDescription(cfg.open_message)],
       components: [closeRow],
     });
     await interaction.editReply(`Ticket created: ${channel}`);

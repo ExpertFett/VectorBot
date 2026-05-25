@@ -20,6 +20,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,    // privileged: "!" custom-command triggers
     GatewayIntentBits.GuildModeration,
+    GatewayIntentBits.GuildInvites,      // invite tracker
   ],
 });
 

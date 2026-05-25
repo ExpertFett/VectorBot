@@ -68,5 +68,18 @@ export const api = {
   createYoutube: (data) => req('POST', '/api/youtube', data),
   deleteYoutube: (id) => req('DELETE', `/api/youtube/${id}`),
 
+  getSocial: () => req('GET', '/api/social'),
+  createSocial: (data) => req('POST', '/api/social', data),
+  deleteSocial: (id) => req('DELETE', `/api/social/${id}`),
+
+  getStats: () => req('GET', '/api/stats'),
+  createStat: (data) => req('POST', '/api/stats', data),
+  deleteStat: (id) => req('DELETE', `/api/stats/${id}`),
+
+  getInvites: () => req('GET', '/api/invites'),
+
+  getPersonalizer: () => req('GET', '/api/personalizer'),
+  savePersonalizer: (data) => req('PUT', '/api/personalizer', data),
+
   logout: () => req('POST', '/auth/logout'),
 };

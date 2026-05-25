@@ -158,11 +158,44 @@ db.exec(`
   );
 `);
 
+// --- batch 4 schema ---
+ensureColumn('guild_config', 'bot_nickname', 'TEXT'); // personalizer nickname
+ensureColumn('guild_config', 'embed_color', 'INTEGER'); // personalizer accent color
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS social_subs (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id           TEXT NOT NULL,
+    platform           TEXT NOT NULL,
+    query              TEXT NOT NULL,
+    discord_channel_id TEXT NOT NULL,
+    mention_role_id    TEXT,
+    last_seen          TEXT,
+    created_at         INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS stat_channels (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id   TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    type       TEXT NOT NULL,
+    template   TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS invite_counts (
+    guild_id   TEXT NOT NULL,
+    inviter_id TEXT NOT NULL,
+    count      INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (guild_id, inviter_id)
+  );
+`);
+
 const ALLOWED_CONFIG_COLUMNS = new Set([
   'welcome_channel_id', 'welcome_message', 'welcome_embed',
   'goodbye_channel_id', 'goodbye_message', 'goodbye_embed',
   'autorole_id', 'log_channel_id', 'automod',
-  'verification', 'tickets',
+  'verification', 'tickets', 'bot_nickname', 'embed_color',
 ]);
 
 // --- guild config helpers ---
@@ -451,5 +484,51 @@ export function getYoutubeSubs(guildId) { return selectYtByGuild.all(guildId); }
 export function getAllYoutubeSubs() { return selectAllYt.all(); }
 export function deleteYoutubeSub(id, guildId) { return deleteYtStmt.run(id, guildId).changes; }
 export function setYoutubeLastVideo(id, videoId) { setYtLastStmt.run(videoId, id); }
+
+// --- social subscriptions (reddit / rss / twitch / kick) ---
+const insertSocial = db.prepare('INSERT INTO social_subs (guild_id, platform, query, discord_channel_id, mention_role_id, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+const selectSocialByGuild = db.prepare('SELECT * FROM social_subs WHERE guild_id = ? ORDER BY created_at DESC');
+const selectAllSocial = db.prepare('SELECT * FROM social_subs');
+const deleteSocialStmt = db.prepare('DELETE FROM social_subs WHERE id = ? AND guild_id = ?');
+const setSocialSeenStmt = db.prepare('UPDATE social_subs SET last_seen = ? WHERE id = ?');
+export function createSocialSub(guildId, { platform, query, discord_channel_id, mention_role_id = null }) {
+  return Number(insertSocial.run(guildId, platform, query, discord_channel_id, mention_role_id, Date.now()).lastInsertRowid);
+}
+export function getSocialSubs(guildId) { return selectSocialByGuild.all(guildId); }
+export function getAllSocialSubs() { return selectAllSocial.all(); }
+export function deleteSocialSub(id, guildId) { return deleteSocialStmt.run(id, guildId).changes; }
+export function setSocialLastSeen(id, value) { setSocialSeenStmt.run(value, id); }
+
+// --- stat counter channels ---
+const insertStat = db.prepare('INSERT INTO stat_channels (guild_id, channel_id, type, template, created_at) VALUES (?, ?, ?, ?, ?)');
+const selectStatsByGuild = db.prepare('SELECT * FROM stat_channels WHERE guild_id = ? ORDER BY created_at ASC');
+const selectAllStats = db.prepare('SELECT * FROM stat_channels');
+const deleteStatStmt = db.prepare('DELETE FROM stat_channels WHERE id = ? AND guild_id = ?');
+export function createStatChannel(guildId, { channel_id, type, template }) {
+  return Number(insertStat.run(guildId, channel_id, type, template, Date.now()).lastInsertRowid);
+}
+export function getStatChannels(guildId) { return selectStatsByGuild.all(guildId); }
+export function getAllStatChannels() { return selectAllStats.all(); }
+export function deleteStatChannel(id, guildId) { return deleteStatStmt.run(id, guildId).changes; }
+
+// --- invite tracker ---
+const incInvite = db.prepare(`
+  INSERT INTO invite_counts (guild_id, inviter_id, count) VALUES (?, ?, 1)
+  ON CONFLICT(guild_id, inviter_id) DO UPDATE SET count = count + 1
+`);
+const selectInvites = db.prepare('SELECT * FROM invite_counts WHERE guild_id = ? ORDER BY count DESC LIMIT 100');
+export function incrementInvite(guildId, inviterId) { incInvite.run(guildId, inviterId); }
+export function getInviteLeaderboard(guildId) { return selectInvites.all(guildId); }
+
+// --- personalizer ---
+export function getPersonalization(guildId) {
+  const c = getConfig(guildId);
+  return { bot_nickname: c.bot_nickname || null, embed_color: c.embed_color ?? null };
+}
+export function setPersonalization(guildId, { bot_nickname, embed_color }) {
+  setConfigValue(guildId, 'bot_nickname', bot_nickname || null);
+  setConfigValue(guildId, 'embed_color', Number.isFinite(embed_color) ? embed_color : null);
+  return getPersonalization(guildId);
+}
 
 export default db;

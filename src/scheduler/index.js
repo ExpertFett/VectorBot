@@ -6,10 +6,14 @@ import {
 import { buildEmbed } from '../util/embed.js';
 import { endGiveawayAndAnnounce } from '../features/giveaways.js';
 import { pollYoutube } from '../features/youtube.js';
+import { pollSocial } from '../features/social.js';
+import { updateStatChannels } from '../features/stats.js';
 
 const TICK_MS = 20_000;
-const YT_EVERY_TICKS = 15; // ~5 minutes
-let ytCounter = 0;
+const FEED_EVERY_TICKS = 15; // ~5 minutes (YouTube + social)
+const STATS_EVERY_TICKS = 30; // ~10 minutes (channel-rename rate limits)
+let feedCounter = 0;
+let statsCounter = 0;
 
 async function resolveChannel(client, id) {
   return client.channels.cache.get(id) || (await client.channels.fetch(id).catch(() => null));
@@ -47,10 +51,17 @@ async function tick(client) {
     await endGiveawayAndAnnounce(client, g).catch((e) => console.error('Giveaway end error:', e.message));
   }
 
-  // YouTube polling (every ~5 min)
-  if (++ytCounter >= YT_EVERY_TICKS) {
-    ytCounter = 0;
+  // Feeds: YouTube + social (every ~5 min)
+  if (++feedCounter >= FEED_EVERY_TICKS) {
+    feedCounter = 0;
     await pollYoutube(client).catch((e) => console.error('YouTube poll error:', e.message));
+    await pollSocial(client).catch((e) => console.error('Social poll error:', e.message));
+  }
+
+  // Stats counter channels (every ~10 min)
+  if (++statsCounter >= STATS_EVERY_TICKS) {
+    statsCounter = 0;
+    await updateStatChannels(client).catch((e) => console.error('Stats update error:', e.message));
   }
 }
 

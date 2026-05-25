@@ -1,13 +1,14 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags } from 'discord.js';
 import {
   getGiveaway, getGiveawayEntries, getGiveawayEntryCount,
-  setGiveawayMessage, endGiveaway, toggleGiveawayEntry,
+  setGiveawayMessage, endGiveaway, toggleGiveawayEntry, getPersonalization,
 } from '../db/index.js';
 
 export function buildGiveawayMessage(g, count = 0, ended = false, winners = []) {
+  const accent = getPersonalization(g.guild_id).embed_color ?? 0x5865f2;
   const embed = new EmbedBuilder()
     .setTitle(`🎉 Giveaway: ${g.prize}`)
-    .setColor(ended ? 0x57606a : 0x5865f2);
+    .setColor(ended ? 0x57606a : accent);
   if (ended) {
     embed.setDescription(winners.length ? `Winner(s): ${winners.map((id) => `<@${id}>`).join(', ')}` : 'No valid entries — no winner.');
   } else {
