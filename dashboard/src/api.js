@@ -39,5 +39,32 @@ export const api = {
   deleteWarning: (id) => req('DELETE', `/api/warnings/${id}`),
   clearWarnings: (userId) => req('POST', '/api/warnings/clear', { user_id: userId }),
 
+  getVerification: () => req('GET', '/api/verification'),
+  saveVerification: (data) => req('PUT', '/api/verification', data),
+  postVerification: () => req('POST', '/api/verification/post'),
+
+  getTickets: () => req('GET', '/api/tickets'),
+  saveTickets: (data) => req('PUT', '/api/tickets', data),
+  postTickets: () => req('POST', '/api/tickets/post'),
+
+  getScheduled: () => req('GET', '/api/scheduled'),
+  createScheduled: (data) => req('POST', '/api/scheduled', data),
+  updateScheduled: (id, data) => req('PUT', `/api/scheduled/${id}`, data),
+  deleteScheduled: (id) => req('DELETE', `/api/scheduled/${id}`),
+
+  getStickies: () => req('GET', '/api/stickies'),
+  saveSticky: (data) => req('PUT', '/api/stickies', data),
+  deleteSticky: (channelId) => req('DELETE', `/api/stickies/${channelId}`),
+
+  getGiveaways: () => req('GET', '/api/giveaways'),
+  createGiveaway: (data) => req('POST', '/api/giveaways', data),
+  endGiveaway: (id) => req('POST', `/api/giveaways/${id}/end`),
+  rerollGiveaway: (id) => req('POST', `/api/giveaways/${id}/reroll`),
+  deleteGiveaway: (id) => req('DELETE', `/api/giveaways/${id}`),
+
+  getYoutube: () => req('GET', '/api/youtube'),
+  createYoutube: (data) => req('POST', '/api/youtube', data),
+  deleteYoutube: (id) => req('DELETE', `/api/youtube/${id}`),
+
   logout: () => req('POST', '/auth/logout'),
 };

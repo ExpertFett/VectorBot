@@ -4,6 +4,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { Client, Collection, GatewayIntentBits } from 'discord.js';
 import { startWebServer } from './web/server.js';
+import { startScheduler } from './scheduler/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -68,6 +69,9 @@ await loadEvents();
 
 // Web dashboard runs in the same process and shares the bot client + database.
 startWebServer(client);
+
+// Background scheduler for scheduled messages, reminders, giveaways, YouTube polling.
+startScheduler(client);
 
 process.on('unhandledRejection', (err) => console.error('Unhandled rejection:', err));
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 
 const STYLES = ['Primary', 'Secondary', 'Success', 'Danger'];
-const BLANK = { id: null, title: '', description: '', channel_id: '', buttons: [] };
+const BLANK = { id: null, title: '', description: '', channel_id: '', buttons: [], type: 'buttons', max_values: 1 };
 
 export default function RoleMenus() {
   const [menus, setMenus] = useState(null);
@@ -31,6 +31,8 @@ export default function RoleMenus() {
       description: editing.description,
       channel_id: editing.channel_id || null,
       buttons: editing.buttons.filter((b) => b.role_id),
+      type: editing.type || 'buttons',
+      max_values: Math.max(1, Number(editing.max_values) || 1),
     };
     try {
       const saved = editing.id ? await api.updateRoleMenu(editing.id, payload) : await api.createRoleMenu(payload);
@@ -69,6 +71,19 @@ export default function RoleMenus() {
             {guild.channels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}
           </select>
         </label>
+        <div className="row2">
+          <label>Menu style
+            <select value={editing.type || 'buttons'} onChange={(e) => setEditing({ ...editing, type: e.target.value })}>
+              <option value="buttons">Buttons</option>
+              <option value="dropdown">Dropdown</option>
+            </select>
+          </label>
+          {editing.type === 'dropdown' && (
+            <label>Max roles selectable
+              <input type="number" min="1" value={editing.max_values || 1} onChange={(e) => setEditing({ ...editing, max_values: +e.target.value })} />
+            </label>
+          )}
+        </div>
 
         <div className="fields-head">
           <span>Buttons ({editing.buttons.length}/25)</span>

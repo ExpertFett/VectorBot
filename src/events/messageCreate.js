@@ -2,6 +2,7 @@ import { Events } from 'discord.js';
 import { getCustomCommand } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 import { checkMessage } from '../automod/index.js';
+import { maybeRepostSticky } from '../features/sticky.js';
 
 const PREFIX = process.env.COMMAND_PREFIX || '!';
 
@@ -12,6 +13,9 @@ export default {
 
     // Auto-moderation runs first; if it acted on the message, stop.
     if (await checkMessage(message)) return;
+
+    // Re-post any sticky message for this channel (throttled internally).
+    maybeRepostSticky(message).catch(() => {});
 
     if (!message.content.startsWith(PREFIX)) return;
 

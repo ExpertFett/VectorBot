@@ -1,18 +1,29 @@
 import { Events, MessageFlags } from 'discord.js';
-import { handleRoleButton } from '../features/roleMenus.js';
+import { handleRoleButton, handleRoleSelect } from '../features/roleMenus.js';
+import { handleVerify } from '../features/verification.js';
+import { handleOpenTicket, handleCloseTicket } from '../features/tickets.js';
+import { handleGiveawayButton } from '../features/giveaways.js';
 
 export default {
   name: Events.InteractionCreate,
   async execute(interaction, client) {
-    // Button interactions (role menus)
-    if (interaction.isButton()) {
-      if (interaction.customId.startsWith('rolemenu:')) {
-        try {
-          await handleRoleButton(interaction);
-        } catch (err) {
-          console.error('Role button handler error:', err);
-        }
+    // Component interactions (buttons + select menus)
+    try {
+      if (interaction.isButton()) {
+        const id = interaction.customId;
+        if (id.startsWith('rolemenu:')) return await handleRoleButton(interaction);
+        if (id === 'verify:grant') return await handleVerify(interaction);
+        if (id === 'ticket:open') return await handleOpenTicket(interaction);
+        if (id === 'ticket:close') return await handleCloseTicket(interaction);
+        if (id.startsWith('giveaway:')) return await handleGiveawayButton(interaction);
+        return;
       }
+      if (interaction.isStringSelectMenu()) {
+        if (interaction.customId.startsWith('rolemenu:')) return await handleRoleSelect(interaction);
+        return;
+      }
+    } catch (err) {
+      console.error('Component interaction error:', err);
       return;
     }
 

@@ -1,5 +1,8 @@
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags } from 'discord.js';
-import { setRoleMenuMessage } from '../db/index.js';
+import {
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
+  StringSelectMenuBuilder, MessageFlags,
+} from 'discord.js';
+import { setRoleMenuMessage, getRoleMenu } from '../db/index.js';
 
 const STYLE_MAP = {
   Primary: ButtonStyle.Primary,
@@ -11,13 +14,31 @@ const STYLE_MAP = {
 export function buildMenuMessage(menu) {
   const embed = new EmbedBuilder().setColor(0x5865f2);
   if (menu.title) embed.setTitle(menu.title);
-  embed.setDescription(menu.description || 'Click a button to toggle a role.');
+  embed.setDescription(menu.description || 'Pick a role below.');
+
+  const entries = (menu.buttons || []).filter((b) => b.role_id).slice(0, 25);
+
+  if (menu.type === 'dropdown') {
+    if (entries.length === 0) return { embeds: [embed], components: [] };
+    const options = entries.map((b) => {
+      const o = { label: (b.label || 'Role').slice(0, 100), value: b.role_id };
+      if (b.emoji) o.emoji = b.emoji;
+      return o;
+    });
+    const maxValues = Math.min(Math.max(menu.max_values || 1, 1), options.length);
+    const select = new StringSelectMenuBuilder()
+      .setCustomId(`rolemenu:${menu.id}`)
+      .setPlaceholder('Select your roles')
+      .setMinValues(0)
+      .setMaxValues(maxValues)
+      .addOptions(options);
+    return { embeds: [embed], components: [new ActionRowBuilder().addComponents(select)] };
+  }
 
   const rows = [];
-  const buttons = (menu.buttons || []).filter((b) => b.role_id).slice(0, 25);
-  for (let i = 0; i < buttons.length; i += 5) {
+  for (let i = 0; i < entries.length; i += 5) {
     const row = new ActionRowBuilder();
-    for (const b of buttons.slice(i, i + 5)) {
+    for (const b of entries.slice(i, i + 5)) {
       const btn = new ButtonBuilder()
         .setCustomId(`rolemenu:${menu.id}:${b.role_id}`)
         .setLabel(b.label || 'Role')
@@ -79,4 +100,28 @@ export async function handleRoleButton(interaction) {
     console.error('Role button error:', err.message);
     await interaction.reply({ content: 'Failed to update your roles.', flags: MessageFlags.Ephemeral });
   }
+}
+
+// Dropdown (string select) role menu: selected options become the member's set
+// among this menu's roles; unselected ones are removed.
+export async function handleRoleSelect(interaction) {
+  const menu = getRoleMenu(Number(interaction.customId.split(':')[1]));
+  if (!menu) return interaction.reply({ content: 'This menu no longer exists.', flags: MessageFlags.Ephemeral });
+
+  const menuRoleIds = (menu.buttons || []).map((b) => b.role_id).filter(Boolean);
+  const selected = new Set(interaction.values);
+  const me = interaction.guild.members.me;
+  const member = interaction.member;
+  const changes = [];
+
+  for (const roleId of menuRoleIds) {
+    const role = interaction.guild.roles.cache.get(roleId);
+    if (!role || (me && role.position >= me.roles.highest.position)) continue;
+    const has = member.roles.cache.has(roleId);
+    try {
+      if (selected.has(roleId) && !has) { await member.roles.add(roleId, 'Role menu'); changes.push(`+${role.name}`); }
+      else if (!selected.has(roleId) && has) { await member.roles.remove(roleId, 'Role menu'); changes.push(`−${role.name}`); }
+    } catch { /* hierarchy/permission */ }
+  }
+  await interaction.reply({ content: changes.length ? `Updated: ${changes.join(', ')}` : 'No changes.', flags: MessageFlags.Ephemeral });
 }

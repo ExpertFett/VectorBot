@@ -77,10 +77,92 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_modlog_guild ON mod_log (guild_id, created_at);
 `);
 
+// --- batch 3 schema ---
+ensureColumn('role_menus', 'type', "TEXT NOT NULL DEFAULT 'buttons'"); // 'buttons' | 'dropdown'
+ensureColumn('role_menus', 'max_values', 'INTEGER NOT NULL DEFAULT 1');
+ensureColumn('guild_config', 'verification', 'TEXT'); // JSON
+ensureColumn('guild_config', 'tickets', 'TEXT');       // JSON
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS scheduled_messages (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id         TEXT NOT NULL,
+    channel_id       TEXT NOT NULL,
+    content          TEXT,
+    embed            TEXT,
+    type             TEXT NOT NULL DEFAULT 'once',
+    interval_seconds INTEGER,
+    next_run         INTEGER NOT NULL,
+    enabled          INTEGER NOT NULL DEFAULT 1,
+    created_at       INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_sched_due ON scheduled_messages (enabled, next_run);
+
+  CREATE TABLE IF NOT EXISTS reminders (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id   TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    user_id    TEXT NOT NULL,
+    message    TEXT,
+    remind_at  INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders (remind_at);
+
+  CREATE TABLE IF NOT EXISTS sticky_messages (
+    channel_id      TEXT PRIMARY KEY,
+    guild_id        TEXT NOT NULL,
+    content         TEXT,
+    embed           TEXT,
+    last_message_id TEXT,
+    enabled         INTEGER NOT NULL DEFAULT 1
+  );
+
+  CREATE TABLE IF NOT EXISTS tickets (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id   TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    opener_id  TEXT NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'open',
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS giveaways (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id   TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    message_id TEXT,
+    prize      TEXT NOT NULL,
+    winners    INTEGER NOT NULL DEFAULT 1,
+    ends_at    INTEGER NOT NULL,
+    ended      INTEGER NOT NULL DEFAULT 0,
+    host_id    TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_giveaways_due ON giveaways (ended, ends_at);
+
+  CREATE TABLE IF NOT EXISTS giveaway_entries (
+    giveaway_id INTEGER NOT NULL,
+    user_id     TEXT NOT NULL,
+    PRIMARY KEY (giveaway_id, user_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS youtube_subs (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id           TEXT NOT NULL,
+    youtube_channel_id TEXT NOT NULL,
+    discord_channel_id TEXT NOT NULL,
+    mention_role_id    TEXT,
+    last_video_id      TEXT,
+    created_at         INTEGER NOT NULL
+  );
+`);
+
 const ALLOWED_CONFIG_COLUMNS = new Set([
   'welcome_channel_id', 'welcome_message', 'welcome_embed',
   'goodbye_channel_id', 'goodbye_message', 'goodbye_embed',
   'autorole_id', 'log_channel_id', 'automod',
+  'verification', 'tickets',
 ]);
 
 // --- guild config helpers ---
@@ -189,27 +271,27 @@ export function setAutomod(guildId, obj) {
 
 // --- role menus ---
 const insertRoleMenu = db.prepare(
-  'INSERT INTO role_menus (guild_id, channel_id, title, description, buttons, created_at) VALUES (?, ?, ?, ?, ?, ?)'
+  'INSERT INTO role_menus (guild_id, channel_id, title, description, buttons, type, max_values, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
 );
 const selectRoleMenu = db.prepare('SELECT * FROM role_menus WHERE id = ?');
 const selectRoleMenus = db.prepare('SELECT * FROM role_menus WHERE guild_id = ? ORDER BY created_at DESC');
 const deleteRoleMenuStmt = db.prepare('DELETE FROM role_menus WHERE id = ? AND guild_id = ?');
 const setRoleMenuMsgStmt = db.prepare('UPDATE role_menus SET channel_id = ?, message_id = ? WHERE id = ?');
 const updateRoleMenuStmt = db.prepare(
-  'UPDATE role_menus SET title = ?, description = ?, buttons = ?, channel_id = ? WHERE id = ? AND guild_id = ?'
+  'UPDATE role_menus SET title = ?, description = ?, buttons = ?, channel_id = ?, type = ?, max_values = ? WHERE id = ? AND guild_id = ?'
 );
 
-const parseMenu = (row) => (row ? { ...row, buttons: safeParse(row.buttons, []) } : null);
 const safeParse = (s, fallback) => { try { return s ? JSON.parse(s) : fallback; } catch { return fallback; } };
+const parseMenu = (row) => (row ? { ...row, buttons: safeParse(row.buttons, []) } : null);
 
-export function createRoleMenu(guildId, { channel_id = null, title = '', description = '', buttons = [] }) {
-  const info = insertRoleMenu.run(guildId, channel_id, title, description, JSON.stringify(buttons), Date.now());
+export function createRoleMenu(guildId, { channel_id = null, title = '', description = '', buttons = [], type = 'buttons', max_values = 1 }) {
+  const info = insertRoleMenu.run(guildId, channel_id, title, description, JSON.stringify(buttons), type, max_values, Date.now());
   return Number(info.lastInsertRowid);
 }
 export function getRoleMenu(id) { return parseMenu(selectRoleMenu.get(id)); }
 export function getAllRoleMenus(guildId) { return selectRoleMenus.all(guildId).map(parseMenu); }
-export function updateRoleMenu(id, guildId, { title, description, buttons, channel_id }) {
-  updateRoleMenuStmt.run(title, description, JSON.stringify(buttons || []), channel_id, id, guildId);
+export function updateRoleMenu(id, guildId, { title, description, buttons, channel_id, type = 'buttons', max_values = 1 }) {
+  updateRoleMenuStmt.run(title, description, JSON.stringify(buttons || []), channel_id, type, max_values, id, guildId);
   return getRoleMenu(id);
 }
 export function setRoleMenuMessage(id, channelId, messageId) {
@@ -234,5 +316,140 @@ const selectAllWarnings = db.prepare('SELECT * FROM warnings WHERE guild_id = ? 
 const deleteWarningByIdStmt = db.prepare('DELETE FROM warnings WHERE guild_id = ? AND id = ?');
 export function getAllWarnings(guildId) { return selectAllWarnings.all(guildId); }
 export function deleteWarningById(guildId, id) { return deleteWarningByIdStmt.run(guildId, id).changes; }
+
+// --- verification & tickets config (JSON in guild_config) ---
+const DEFAULT_VERIFICATION = {
+  enabled: false, channel_id: null, role_id: null, message_id: null,
+  title: 'Verify', description: 'Click the button below to verify and gain access to the server.',
+  button_label: 'Verify',
+};
+const DEFAULT_TICKETS = {
+  enabled: false, panel_channel_id: null, panel_message_id: null, category_id: null, support_role_id: null,
+  title: 'Support', description: 'Click the button below to open a private ticket with the staff team.',
+  button_label: 'Open Ticket',
+  open_message: 'Thanks for opening a ticket — staff will be with you shortly. Use the button to close it when done.',
+};
+
+export function getVerification(guildId) {
+  return { ...DEFAULT_VERIFICATION, ...safeParse(getConfig(guildId).verification, {}) };
+}
+export function setVerification(guildId, obj) {
+  const merged = { ...getVerification(guildId), ...obj };
+  setConfigValue(guildId, 'verification', JSON.stringify(merged));
+  return merged;
+}
+export function getTicketsConfig(guildId) {
+  return { ...DEFAULT_TICKETS, ...safeParse(getConfig(guildId).tickets, {}) };
+}
+export function setTicketsConfig(guildId, obj) {
+  const merged = { ...getTicketsConfig(guildId), ...obj };
+  setConfigValue(guildId, 'tickets', JSON.stringify(merged));
+  return merged;
+}
+
+// --- tickets table ---
+const insertTicket = db.prepare('INSERT INTO tickets (guild_id, channel_id, opener_id, created_at) VALUES (?, ?, ?, ?)');
+const selectOpenTicketByOpener = db.prepare("SELECT * FROM tickets WHERE guild_id = ? AND opener_id = ? AND status = 'open'");
+const selectTicketByChannel = db.prepare('SELECT * FROM tickets WHERE channel_id = ?');
+const closeTicketStmt = db.prepare("UPDATE tickets SET status = 'closed' WHERE channel_id = ?");
+export function createTicket(guildId, channelId, openerId) {
+  return Number(insertTicket.run(guildId, channelId, openerId, Date.now()).lastInsertRowid);
+}
+export function getOpenTicketByOpener(guildId, openerId) { return selectOpenTicketByOpener.get(guildId, openerId); }
+export function getTicketByChannel(channelId) { return selectTicketByChannel.get(channelId); }
+export function closeTicket(channelId) { return closeTicketStmt.run(channelId).changes; }
+
+// --- scheduled messages ---
+const insertSched = db.prepare('INSERT INTO scheduled_messages (guild_id, channel_id, content, embed, type, interval_seconds, next_run, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+const selectScheds = db.prepare('SELECT * FROM scheduled_messages WHERE guild_id = ? ORDER BY created_at DESC');
+const selectSchedDue = db.prepare('SELECT * FROM scheduled_messages WHERE enabled = 1 AND next_run <= ?');
+const updateSchedStmt = db.prepare('UPDATE scheduled_messages SET channel_id = ?, content = ?, embed = ?, type = ?, interval_seconds = ?, next_run = ?, enabled = ? WHERE id = ? AND guild_id = ?');
+const deleteSchedStmt = db.prepare('DELETE FROM scheduled_messages WHERE id = ? AND guild_id = ?');
+const advanceSchedStmt = db.prepare('UPDATE scheduled_messages SET next_run = ? WHERE id = ?');
+const disableSchedStmt = db.prepare('UPDATE scheduled_messages SET enabled = 0 WHERE id = ?');
+const parseSched = (r) => (r ? { ...r, embed: safeParse(r.embed, null), enabled: !!r.enabled } : null);
+export function createScheduled(guildId, d) {
+  return Number(insertSched.run(guildId, d.channel_id, d.content ?? null, d.embed ? JSON.stringify(d.embed) : null, d.type || 'once', d.interval_seconds ?? null, d.next_run, d.enabled ? 1 : 0, Date.now()).lastInsertRowid);
+}
+export function getScheduledAll(guildId) { return selectScheds.all(guildId).map(parseSched); }
+export function getScheduledDue(now) { return selectSchedDue.all(now).map(parseSched); }
+export function updateScheduled(id, guildId, d) {
+  updateSchedStmt.run(d.channel_id, d.content ?? null, d.embed ? JSON.stringify(d.embed) : null, d.type || 'once', d.interval_seconds ?? null, d.next_run, d.enabled ? 1 : 0, id, guildId);
+}
+export function deleteScheduled(id, guildId) { return deleteSchedStmt.run(id, guildId).changes; }
+export function advanceScheduled(id, nextRun) { advanceSchedStmt.run(nextRun, id); }
+export function disableScheduled(id) { disableSchedStmt.run(id); }
+
+// --- reminders ---
+const insertReminder = db.prepare('INSERT INTO reminders (guild_id, channel_id, user_id, message, remind_at, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+const selectRemindersDue = db.prepare('SELECT * FROM reminders WHERE remind_at <= ?');
+const deleteReminderStmt = db.prepare('DELETE FROM reminders WHERE id = ?');
+export function addReminder(d) { return Number(insertReminder.run(d.guildId, d.channelId, d.userId, d.message, d.remindAt, Date.now()).lastInsertRowid); }
+export function getRemindersDue(now) { return selectRemindersDue.all(now); }
+export function deleteReminderById(id) { return deleteReminderStmt.run(id).changes; }
+
+// --- sticky messages ---
+const upsertSticky = db.prepare(`
+  INSERT INTO sticky_messages (channel_id, guild_id, content, embed, enabled) VALUES (?, ?, ?, ?, ?)
+  ON CONFLICT(channel_id) DO UPDATE SET content = excluded.content, embed = excluded.embed, enabled = excluded.enabled
+`);
+const selectSticky = db.prepare('SELECT * FROM sticky_messages WHERE channel_id = ?');
+const selectStickies = db.prepare('SELECT * FROM sticky_messages WHERE guild_id = ?');
+const deleteStickyStmt = db.prepare('DELETE FROM sticky_messages WHERE channel_id = ? AND guild_id = ?');
+const setStickyLastStmt = db.prepare('UPDATE sticky_messages SET last_message_id = ? WHERE channel_id = ?');
+const parseSticky = (r) => (r ? { ...r, embed: safeParse(r.embed, null), enabled: !!r.enabled } : null);
+export function setSticky(guildId, channelId, { content, embed, enabled = true }) {
+  upsertSticky.run(channelId, guildId, content ?? null, embed ? JSON.stringify(embed) : null, enabled ? 1 : 0);
+  return parseSticky(selectSticky.get(channelId));
+}
+export function getSticky(channelId) { return parseSticky(selectSticky.get(channelId)); }
+export function getStickies(guildId) { return selectStickies.all(guildId).map(parseSticky); }
+export function deleteSticky(channelId, guildId) { return deleteStickyStmt.run(channelId, guildId).changes; }
+export function setStickyLastMessage(channelId, messageId) { setStickyLastStmt.run(messageId, channelId); }
+
+// --- giveaways ---
+const insertGiveaway = db.prepare('INSERT INTO giveaways (guild_id, channel_id, prize, winners, ends_at, host_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+const selectGiveaway = db.prepare('SELECT * FROM giveaways WHERE id = ?');
+const selectGiveaways = db.prepare('SELECT * FROM giveaways WHERE guild_id = ? ORDER BY created_at DESC');
+const selectGiveawaysDue = db.prepare('SELECT * FROM giveaways WHERE ended = 0 AND ends_at <= ?');
+const setGiveawayMsgStmt = db.prepare('UPDATE giveaways SET message_id = ? WHERE id = ?');
+const markGiveawayEndedStmt = db.prepare('UPDATE giveaways SET ended = 1 WHERE id = ?');
+const rescheduleGiveawayStmt = db.prepare('UPDATE giveaways SET ends_at = ?, ended = 0 WHERE id = ?');
+const deleteGiveawayStmt = db.prepare('DELETE FROM giveaways WHERE id = ? AND guild_id = ?');
+const insertEntry = db.prepare('INSERT OR IGNORE INTO giveaway_entries (giveaway_id, user_id) VALUES (?, ?)');
+const deleteEntryStmt = db.prepare('DELETE FROM giveaway_entries WHERE giveaway_id = ? AND user_id = ?');
+const countEntries = db.prepare('SELECT COUNT(*) AS n FROM giveaway_entries WHERE giveaway_id = ?');
+const selectEntries = db.prepare('SELECT user_id FROM giveaway_entries WHERE giveaway_id = ?');
+const hasEntryStmt = db.prepare('SELECT 1 FROM giveaway_entries WHERE giveaway_id = ? AND user_id = ?');
+export function createGiveaway(guildId, { channel_id, prize, winners = 1, ends_at, host_id }) {
+  return Number(insertGiveaway.run(guildId, channel_id, prize, winners, ends_at, host_id ?? null, Date.now()).lastInsertRowid);
+}
+export function getGiveaway(id) { return selectGiveaway.get(id); }
+export function getGiveaways(guildId) { return selectGiveaways.all(guildId); }
+export function getGiveawaysDue(now) { return selectGiveawaysDue.all(now); }
+export function setGiveawayMessage(id, messageId) { setGiveawayMsgStmt.run(messageId, id); }
+export function endGiveaway(id) { markGiveawayEndedStmt.run(id); }
+export function rescheduleGiveaway(id, endsAt) { rescheduleGiveawayStmt.run(endsAt, id); }
+export function deleteGiveaway(id, guildId) { return deleteGiveawayStmt.run(id, guildId).changes; }
+export function toggleGiveawayEntry(giveawayId, userId) {
+  if (hasEntryStmt.get(giveawayId, userId)) { deleteEntryStmt.run(giveawayId, userId); return false; }
+  insertEntry.run(giveawayId, userId); return true;
+}
+export function getGiveawayEntryCount(id) { return countEntries.get(id).n; }
+export function getGiveawayEntries(id) { return selectEntries.all(id).map((r) => r.user_id); }
+
+// --- youtube subscriptions ---
+const insertYt = db.prepare('INSERT INTO youtube_subs (guild_id, youtube_channel_id, discord_channel_id, mention_role_id, created_at) VALUES (?, ?, ?, ?, ?)');
+const selectYtByGuild = db.prepare('SELECT * FROM youtube_subs WHERE guild_id = ? ORDER BY created_at DESC');
+const selectAllYt = db.prepare('SELECT * FROM youtube_subs');
+const deleteYtStmt = db.prepare('DELETE FROM youtube_subs WHERE id = ? AND guild_id = ?');
+const setYtLastStmt = db.prepare('UPDATE youtube_subs SET last_video_id = ? WHERE id = ?');
+export function createYoutubeSub(guildId, { youtube_channel_id, discord_channel_id, mention_role_id = null }) {
+  return Number(insertYt.run(guildId, youtube_channel_id, discord_channel_id, mention_role_id, Date.now()).lastInsertRowid);
+}
+export function getYoutubeSubs(guildId) { return selectYtByGuild.all(guildId); }
+export function getAllYoutubeSubs() { return selectAllYt.all(); }
+export function deleteYoutubeSub(id, guildId) { return deleteYtStmt.run(id, guildId).changes; }
+export function setYoutubeLastVideo(id, videoId) { setYtLastStmt.run(videoId, id); }
 
 export default db;
