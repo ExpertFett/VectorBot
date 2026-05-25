@@ -5,7 +5,10 @@ const ADMINISTRATOR = 0x8n;
 const MANAGE_GUILD = 0x20n;
 
 export function getBaseUrl() {
-  return (process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\/$/, '');
+  let base = (process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`).trim().replace(/\/+$/, '');
+  // Tolerate BASE_URL set without a scheme (e.g. "myapp.up.railway.app").
+  if (!/^https?:\/\//i.test(base)) base = `https://${base}`;
+  return base;
 }
 
 export function getRedirectUri() {
