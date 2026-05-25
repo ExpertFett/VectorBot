@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 
 const PLATFORMS = [
+  { value: 'youtube', label: 'YouTube', hint: 'channel ID (UC…)' },
   { value: 'reddit', label: 'Reddit', hint: 'subreddit name, e.g. hoggit' },
   { value: 'rss', label: 'RSS feed', hint: 'full feed URL (covers TikTok/IG/X via an RSS bridge)' },
   { value: 'twitch', label: 'Twitch (go-live)', hint: 'channel login name' },

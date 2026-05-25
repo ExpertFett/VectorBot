@@ -13,7 +13,6 @@ import ScheduledMessages from './pages/ScheduledMessages.jsx';
 import Sticky from './pages/Sticky.jsx';
 import Tickets from './pages/Tickets.jsx';
 import Giveaways from './pages/Giveaways.jsx';
-import YouTube from './pages/YouTube.jsx';
 import Social from './pages/Social.jsx';
 import Stats from './pages/Stats.jsx';
 import EmbedPanel from './pages/EmbedPanel.jsx';
@@ -71,7 +70,6 @@ export default function App() {
           <NavLink to="/embed">Send Embed</NavLink>
           <NavLink to="/tickets">Tickets</NavLink>
           <NavLink to="/giveaways">Giveaways</NavLink>
-          <NavLink to="/youtube">YouTube</NavLink>
           <NavLink to="/social">Social Alerts</NavLink>
           <NavLink to="/stats">Stats Channels</NavLink>
           <NavLink to="/invites">Invite Tracker</NavLink>
@@ -96,7 +94,6 @@ export default function App() {
           <Route path="/embed" element={<EmbedPanel />} />
           <Route path="/tickets" element={<Tickets />} />
           <Route path="/giveaways" element={<Giveaways />} />
-          <Route path="/youtube" element={<YouTube />} />
           <Route path="/social" element={<Social />} />
           <Route path="/stats" element={<Stats />} />
           <Route path="/invites" element={<Invites />} />

@@ -191,11 +191,31 @@ db.exec(`
   );
 `);
 
+// --- batch 5 schema (embed options + invite log) ---
+ensureColumn('role_menus', 'embed', 'TEXT');          // optional custom embed JSON
+ensureColumn('giveaways', 'image', 'TEXT');           // optional embed image
+ensureColumn('giveaways', 'description', 'TEXT');     // optional extra description
+ensureColumn('guild_config', 'invite_log_channel', 'TEXT');
+
+// One-time: fold existing YouTube subs into social_subs as platform 'youtube'.
+{
+  const ytRows = db.prepare('SELECT * FROM youtube_subs').all();
+  if (ytRows.length) {
+    const insSoc = db.prepare('INSERT INTO social_subs (guild_id, platform, query, discord_channel_id, mention_role_id, last_seen, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    const delYt = db.prepare('DELETE FROM youtube_subs WHERE id = ?');
+    for (const r of ytRows) {
+      insSoc.run(r.guild_id, 'youtube', r.youtube_channel_id, r.discord_channel_id, r.mention_role_id, r.last_video_id, r.created_at || Date.now());
+      delYt.run(r.id);
+    }
+    console.log(`Migrated ${ytRows.length} YouTube sub(s) into social_subs.`);
+  }
+}
+
 const ALLOWED_CONFIG_COLUMNS = new Set([
   'welcome_channel_id', 'welcome_message', 'welcome_embed',
   'goodbye_channel_id', 'goodbye_message', 'goodbye_embed',
   'autorole_id', 'log_channel_id', 'automod',
-  'verification', 'tickets', 'bot_nickname', 'embed_color',
+  'verification', 'tickets', 'bot_nickname', 'embed_color', 'invite_log_channel',
 ]);
 
 // --- guild config helpers ---
@@ -304,27 +324,27 @@ export function setAutomod(guildId, obj) {
 
 // --- role menus ---
 const insertRoleMenu = db.prepare(
-  'INSERT INTO role_menus (guild_id, channel_id, title, description, buttons, type, max_values, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  'INSERT INTO role_menus (guild_id, channel_id, title, description, buttons, type, max_values, embed, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
 );
 const selectRoleMenu = db.prepare('SELECT * FROM role_menus WHERE id = ?');
 const selectRoleMenus = db.prepare('SELECT * FROM role_menus WHERE guild_id = ? ORDER BY created_at DESC');
 const deleteRoleMenuStmt = db.prepare('DELETE FROM role_menus WHERE id = ? AND guild_id = ?');
 const setRoleMenuMsgStmt = db.prepare('UPDATE role_menus SET channel_id = ?, message_id = ? WHERE id = ?');
 const updateRoleMenuStmt = db.prepare(
-  'UPDATE role_menus SET title = ?, description = ?, buttons = ?, channel_id = ?, type = ?, max_values = ? WHERE id = ? AND guild_id = ?'
+  'UPDATE role_menus SET title = ?, description = ?, buttons = ?, channel_id = ?, type = ?, max_values = ?, embed = ? WHERE id = ? AND guild_id = ?'
 );
 
 const safeParse = (s, fallback) => { try { return s ? JSON.parse(s) : fallback; } catch { return fallback; } };
-const parseMenu = (row) => (row ? { ...row, buttons: safeParse(row.buttons, []) } : null);
+const parseMenu = (row) => (row ? { ...row, buttons: safeParse(row.buttons, []), embed: safeParse(row.embed, null) } : null);
 
-export function createRoleMenu(guildId, { channel_id = null, title = '', description = '', buttons = [], type = 'buttons', max_values = 1 }) {
-  const info = insertRoleMenu.run(guildId, channel_id, title, description, JSON.stringify(buttons), type, max_values, Date.now());
+export function createRoleMenu(guildId, { channel_id = null, title = '', description = '', buttons = [], type = 'buttons', max_values = 1, embed = null }) {
+  const info = insertRoleMenu.run(guildId, channel_id, title, description, JSON.stringify(buttons), type, max_values, embed ? JSON.stringify(embed) : null, Date.now());
   return Number(info.lastInsertRowid);
 }
 export function getRoleMenu(id) { return parseMenu(selectRoleMenu.get(id)); }
 export function getAllRoleMenus(guildId) { return selectRoleMenus.all(guildId).map(parseMenu); }
-export function updateRoleMenu(id, guildId, { title, description, buttons, channel_id, type = 'buttons', max_values = 1 }) {
-  updateRoleMenuStmt.run(title, description, JSON.stringify(buttons || []), channel_id, type, max_values, id, guildId);
+export function updateRoleMenu(id, guildId, { title, description, buttons, channel_id, type = 'buttons', max_values = 1, embed = null }) {
+  updateRoleMenuStmt.run(title, description, JSON.stringify(buttons || []), channel_id, type, max_values, embed ? JSON.stringify(embed) : null, id, guildId);
   return getRoleMenu(id);
 }
 export function setRoleMenuMessage(id, channelId, messageId) {
@@ -441,7 +461,7 @@ export function deleteSticky(channelId, guildId) { return deleteStickyStmt.run(c
 export function setStickyLastMessage(channelId, messageId) { setStickyLastStmt.run(messageId, channelId); }
 
 // --- giveaways ---
-const insertGiveaway = db.prepare('INSERT INTO giveaways (guild_id, channel_id, prize, winners, ends_at, host_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+const insertGiveaway = db.prepare('INSERT INTO giveaways (guild_id, channel_id, prize, winners, ends_at, host_id, image, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
 const selectGiveaway = db.prepare('SELECT * FROM giveaways WHERE id = ?');
 const selectGiveaways = db.prepare('SELECT * FROM giveaways WHERE guild_id = ? ORDER BY created_at DESC');
 const selectGiveawaysDue = db.prepare('SELECT * FROM giveaways WHERE ended = 0 AND ends_at <= ?');
@@ -454,8 +474,8 @@ const deleteEntryStmt = db.prepare('DELETE FROM giveaway_entries WHERE giveaway_
 const countEntries = db.prepare('SELECT COUNT(*) AS n FROM giveaway_entries WHERE giveaway_id = ?');
 const selectEntries = db.prepare('SELECT user_id FROM giveaway_entries WHERE giveaway_id = ?');
 const hasEntryStmt = db.prepare('SELECT 1 FROM giveaway_entries WHERE giveaway_id = ? AND user_id = ?');
-export function createGiveaway(guildId, { channel_id, prize, winners = 1, ends_at, host_id }) {
-  return Number(insertGiveaway.run(guildId, channel_id, prize, winners, ends_at, host_id ?? null, Date.now()).lastInsertRowid);
+export function createGiveaway(guildId, { channel_id, prize, winners = 1, ends_at, host_id, image = null, description = null }) {
+  return Number(insertGiveaway.run(guildId, channel_id, prize, winners, ends_at, host_id ?? null, image, description, Date.now()).lastInsertRowid);
 }
 export function getGiveaway(id) { return selectGiveaway.get(id); }
 export function getGiveaways(guildId) { return selectGiveaways.all(guildId); }

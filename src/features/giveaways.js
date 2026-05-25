@@ -9,12 +9,14 @@ export function buildGiveawayMessage(g, count = 0, ended = false, winners = []) 
   const embed = new EmbedBuilder()
     .setTitle(`🎉 Giveaway: ${g.prize}`)
     .setColor(ended ? 0x57606a : accent);
+  const intro = g.description ? `${g.description}\n\n` : '';
   if (ended) {
-    embed.setDescription(winners.length ? `Winner(s): ${winners.map((id) => `<@${id}>`).join(', ')}` : 'No valid entries — no winner.');
+    embed.setDescription(`${intro}${winners.length ? `Winner(s): ${winners.map((id) => `<@${id}>`).join(', ')}` : 'No valid entries — no winner.'}`);
   } else {
-    embed.setDescription(`Click the button to enter!\nEnds <t:${Math.floor(g.ends_at / 1000)}:R>\nWinners: **${g.winners}**`);
+    embed.setDescription(`${intro}Click the button to enter!\nEnds <t:${Math.floor(g.ends_at / 1000)}:R>\nWinners: **${g.winners}**`);
     embed.setFooter({ text: `${count} ${count === 1 ? 'entry' : 'entries'}` });
   }
+  if (g.image) { try { embed.setImage(g.image); } catch { /* invalid url */ } }
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId(`giveaway:${g.id}`).setLabel('Enter 🎉').setStyle(ButtonStyle.Primary).setDisabled(ended)
   );

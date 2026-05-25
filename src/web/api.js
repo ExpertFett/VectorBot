@@ -125,7 +125,7 @@ export function apiRouter(client) {
   router.put('/config', (req, res) => {
     const b = req.body || {};
     const textCols = ['welcome_message', 'goodbye_message'];
-    const idCols = ['welcome_channel_id', 'goodbye_channel_id', 'autorole_id', 'log_channel_id'];
+    const idCols = ['welcome_channel_id', 'goodbye_channel_id', 'autorole_id', 'log_channel_id', 'invite_log_channel'];
 
     for (const col of idCols) if (col in b) setConfigValue(req.guildId, col, cleanId(b[col]));
     for (const col of textCols) if (col in b) setConfigValue(req.guildId, col, b[col] ? String(b[col]) : null);
@@ -188,8 +188,8 @@ export function apiRouter(client) {
   router.get('/role-menus', (req, res) => res.json(getAllRoleMenus(req.guildId)));
 
   router.post('/role-menus', (req, res) => {
-    const { title = '', description = '', channel_id = null, buttons = [], type = 'buttons', max_values = 1 } = req.body || {};
-    const id = createRoleMenu(req.guildId, { title, description, channel_id: cleanId(channel_id), buttons, type, max_values });
+    const { title = '', description = '', channel_id = null, buttons = [], type = 'buttons', max_values = 1, embed = null } = req.body || {};
+    const id = createRoleMenu(req.guildId, { title, description, channel_id: cleanId(channel_id), buttons, type, max_values, embed });
     res.json(getRoleMenu(id));
   });
 
@@ -197,8 +197,8 @@ export function apiRouter(client) {
     const id = Number(req.params.id);
     const existing = getRoleMenu(id);
     if (!existing || existing.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
-    const { title = '', description = '', channel_id = null, buttons = [], type = 'buttons', max_values = 1 } = req.body || {};
-    res.json(updateRoleMenu(id, req.guildId, { title, description, channel_id: cleanId(channel_id), buttons, type, max_values }));
+    const { title = '', description = '', channel_id = null, buttons = [], type = 'buttons', max_values = 1, embed = null } = req.body || {};
+    res.json(updateRoleMenu(id, req.guildId, { title, description, channel_id: cleanId(channel_id), buttons, type, max_values, embed }));
   });
 
   router.delete('/role-menus/:id', (req, res) => {
@@ -333,6 +333,7 @@ export function apiRouter(client) {
     const id = createGiveaway(req.guildId, {
       channel_id: channelId, prize: String(b.prize), winners: Math.max(1, Number(b.winners) || 1),
       ends_at: Date.now() + Math.max(30, Number(b.duration_seconds)) * 1000, host_id: req.session.user.id,
+      image: b.image || null, description: b.description || null,
     });
     try {
       await postGiveaway(client, getGiveaway(id));
@@ -378,7 +379,7 @@ export function apiRouter(client) {
     const platform = b.platform;
     const query = String(b.query || '').trim().replace(/^\/?r\//i, ''); // tolerate "r/foo"
     const channel = cleanId(b.discord_channel_id);
-    if (!['reddit', 'rss', 'twitch', 'kick'].includes(platform) || !query) return res.status(400).json({ error: 'invalid' });
+    if (!['reddit', 'rss', 'twitch', 'kick', 'youtube'].includes(platform) || !query) return res.status(400).json({ error: 'invalid' });
     if (!channel) return res.status(400).json({ error: 'missing_channel' });
     if (platform === 'twitch' && (!process.env.TWITCH_CLIENT_ID || !process.env.TWITCH_CLIENT_SECRET)) {
       return res.status(400).json({ error: 'twitch_not_configured' });
@@ -437,6 +438,19 @@ export function apiRouter(client) {
       try { await guild.members.me.setNickname(saved.bot_nickname || null); } catch { /* missing perm */ }
     }
     res.json(saved);
+  });
+
+  // Change the bot's avatar — GLOBAL (one bot, one avatar across all servers), rate-limited.
+  router.post('/bot-avatar', async (req, res) => {
+    const url = req.body?.url;
+    if (!url || !/^https?:\/\//i.test(url)) return res.status(400).json({ error: 'invalid_url' });
+    try {
+      await client.user.setAvatar(url);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('Avatar update failed:', err.message);
+      res.status(400).json({ error: 'avatar_failed' });
+    }
   });
 
   return router;

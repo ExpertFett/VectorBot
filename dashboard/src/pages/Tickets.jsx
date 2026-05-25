@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import EmbedBuilder from '../components/EmbedBuilder.jsx';
+import EmbedPreview from '../components/EmbedPreview.jsx';
 
 export default function Tickets() {
   const [cfg, setCfg] = useState(null);
@@ -53,9 +55,20 @@ export default function Tickets() {
             {guild.roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
           </select>
         </label>
-        <label>Panel title<input value={cfg.title || ''} onChange={(e) => set({ title: e.target.value })} /></label>
-        <label>Panel description<textarea rows={2} value={cfg.description || ''} onChange={(e) => set({ description: e.target.value })} /></label>
         <label>Button label<input value={cfg.button_label || ''} onChange={(e) => set({ button_label: e.target.value })} /></label>
+
+        <label className="checkbox"><input type="checkbox" checked={!!cfg.embed} onChange={(e) => set({ embed: e.target.checked ? (cfg.embed || {}) : null })} /> Use a custom panel embed</label>
+        {cfg.embed ? (
+          <div className="embed-area">
+            <EmbedBuilder value={cfg.embed} onChange={(v) => set({ embed: v })} />
+            <div className="preview-col"><div className="preview-label">Preview</div><EmbedPreview embed={cfg.embed} /></div>
+          </div>
+        ) : (
+          <>
+            <label>Panel title<input value={cfg.title || ''} onChange={(e) => set({ title: e.target.value })} /></label>
+            <label>Panel description<textarea rows={2} value={cfg.description || ''} onChange={(e) => set({ description: e.target.value })} /></label>
+          </>
+        )}
         <label>Opening message (shown inside a new ticket)<textarea rows={2} value={cfg.open_message || ''} onChange={(e) => set({ open_message: e.target.value })} /></label>
         <div className="actions"><button className="btn" onClick={post}>Save &amp; Post panel</button></div>
       </section>

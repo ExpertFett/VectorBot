@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 
-const BLANK = { channel_id: '', prize: '', winners: 1, value: 1, unit: 3600 };
+const BLANK = { channel_id: '', prize: '', winners: 1, value: 1, unit: 3600, description: '', image: '' };
 
 export default function Giveaways() {
   const [list, setList] = useState(null);
@@ -17,7 +17,7 @@ export default function Giveaways() {
   const create = async () => {
     if (!form.channel_id || !form.prize) return setStatus('Channel and prize are required.');
     try {
-      await api.createGiveaway({ channel_id: form.channel_id, prize: form.prize, winners: form.winners, duration_seconds: Math.max(30, (form.value || 1) * form.unit) });
+      await api.createGiveaway({ channel_id: form.channel_id, prize: form.prize, winners: form.winners, duration_seconds: Math.max(30, (form.value || 1) * form.unit), description: form.description || null, image: form.image || null });
       setStatus('Started ✓'); setForm(BLANK); load();
     } catch (e) { setStatus('Failed: ' + (e.body?.error || e.message)); }
   };
@@ -50,6 +50,8 @@ export default function Giveaways() {
             </div>
           </label>
         </div>
+        <label>Description (optional)<textarea rows={2} value={form.description} placeholder="Extra text shown above the entry details" onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>
+        <label>Image URL (optional)<input value={form.image} placeholder="https://…" onChange={(e) => setForm({ ...form, image: e.target.value })} /></label>
         <div className="actions"><button className="btn" onClick={create}>Start giveaway</button></div>
       </section>
       <section className="card">

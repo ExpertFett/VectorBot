@@ -6,9 +6,10 @@ import {
   getTicketsConfig, setTicketsConfig, createTicket,
   getOpenTicketByOpener, getTicketByChannel, closeTicket, getPersonalization,
 } from '../db/index.js';
+import { buildEmbed } from '../util/embed.js';
 
 export function buildPanelMessage(cfg, accent = 0x5865f2) {
-  const embed = new EmbedBuilder().setColor(accent)
+  const embed = (cfg.embed && buildEmbed(cfg.embed)) || new EmbedBuilder().setColor(accent)
     .setTitle(cfg.title || 'Support')
     .setDescription(cfg.description || 'Open a ticket.');
   const row = new ActionRowBuilder().addComponents(

@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import EmbedBuilder from '../components/EmbedBuilder.jsx';
+import EmbedPreview from '../components/EmbedPreview.jsx';
 
 const STYLES = ['Primary', 'Secondary', 'Success', 'Danger'];
-const BLANK = { id: null, title: '', description: '', channel_id: '', buttons: [], type: 'buttons', max_values: 1 };
+const BLANK = { id: null, title: '', description: '', channel_id: '', buttons: [], type: 'buttons', max_values: 1, embed: null };
 
 export default function RoleMenus() {
   const [menus, setMenus] = useState(null);
@@ -33,6 +35,7 @@ export default function RoleMenus() {
       buttons: editing.buttons.filter((b) => b.role_id),
       type: editing.type || 'buttons',
       max_values: Math.max(1, Number(editing.max_values) || 1),
+      embed: editing.embed || null,
     };
     try {
       const saved = editing.id ? await api.updateRoleMenu(editing.id, payload) : await api.createRoleMenu(payload);
@@ -61,10 +64,20 @@ export default function RoleMenus() {
 
       <section className="card">
         <h2>{editing.id ? 'Edit menu' : 'New role menu'}</h2>
-        <label>Title<input value={editing.title} placeholder="Pick your roles"
-          onChange={(e) => setEditing({ ...editing, title: e.target.value })} /></label>
-        <label>Description<textarea rows={2} value={editing.description} placeholder="Click a button to toggle a role."
-          onChange={(e) => setEditing({ ...editing, description: e.target.value })} /></label>
+        <label className="checkbox"><input type="checkbox" checked={!!editing.embed} onChange={(e) => setEditing({ ...editing, embed: e.target.checked ? (editing.embed || {}) : null })} /> Use a custom embed</label>
+        {editing.embed ? (
+          <div className="embed-area">
+            <EmbedBuilder value={editing.embed} onChange={(v) => setEditing({ ...editing, embed: v })} />
+            <div className="preview-col"><div className="preview-label">Preview</div><EmbedPreview embed={editing.embed} /></div>
+          </div>
+        ) : (
+          <>
+            <label>Title<input value={editing.title} placeholder="Pick your roles"
+              onChange={(e) => setEditing({ ...editing, title: e.target.value })} /></label>
+            <label>Description<textarea rows={2} value={editing.description} placeholder="Click a button to toggle a role."
+              onChange={(e) => setEditing({ ...editing, description: e.target.value })} /></label>
+          </>
+        )}
         <label>Channel
           <select value={editing.channel_id} onChange={(e) => setEditing({ ...editing, channel_id: e.target.value })}>
             <option value="">— choose —</option>

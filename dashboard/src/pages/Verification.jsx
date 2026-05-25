@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import EmbedBuilder from '../components/EmbedBuilder.jsx';
+import EmbedPreview from '../components/EmbedPreview.jsx';
 
 export default function Verification() {
   const [cfg, setCfg] = useState(null);
@@ -47,9 +49,20 @@ export default function Verification() {
             </select>
           </label>
         </div>
-        <label>Title<input value={cfg.title || ''} onChange={(e) => set({ title: e.target.value })} /></label>
-        <label>Description<textarea rows={3} value={cfg.description || ''} onChange={(e) => set({ description: e.target.value })} /></label>
         <label>Button label<input value={cfg.button_label || ''} onChange={(e) => set({ button_label: e.target.value })} /></label>
+
+        <label className="checkbox"><input type="checkbox" checked={!!cfg.embed} onChange={(e) => set({ embed: e.target.checked ? (cfg.embed || {}) : null })} /> Use a custom embed</label>
+        {cfg.embed ? (
+          <div className="embed-area">
+            <EmbedBuilder value={cfg.embed} onChange={(v) => set({ embed: v })} />
+            <div className="preview-col"><div className="preview-label">Preview</div><EmbedPreview embed={cfg.embed} /></div>
+          </div>
+        ) : (
+          <>
+            <label>Title<input value={cfg.title || ''} onChange={(e) => set({ title: e.target.value })} /></label>
+            <label>Description<textarea rows={3} value={cfg.description || ''} onChange={(e) => set({ description: e.target.value })} /></label>
+          </>
+        )}
         <div className="actions"><button className="btn" onClick={post}>Save &amp; Post panel</button></div>
       </section>
     </div>

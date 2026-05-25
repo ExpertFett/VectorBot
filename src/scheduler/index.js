@@ -5,7 +5,6 @@ import {
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 import { endGiveawayAndAnnounce } from '../features/giveaways.js';
-import { pollYoutube } from '../features/youtube.js';
 import { pollSocial } from '../features/social.js';
 import { updateStatChannels } from '../features/stats.js';
 

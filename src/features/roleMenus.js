@@ -3,6 +3,7 @@ import {
   StringSelectMenuBuilder, MessageFlags,
 } from 'discord.js';
 import { setRoleMenuMessage, getRoleMenu } from '../db/index.js';
+import { buildEmbed } from '../util/embed.js';
 
 const STYLE_MAP = {
   Primary: ButtonStyle.Primary,
@@ -12,9 +13,12 @@ const STYLE_MAP = {
 };
 
 export function buildMenuMessage(menu) {
-  const embed = new EmbedBuilder().setColor(0x5865f2);
-  if (menu.title) embed.setTitle(menu.title);
-  embed.setDescription(menu.description || 'Pick a role below.');
+  let embed = menu.embed ? buildEmbed(menu.embed) : null;
+  if (!embed) {
+    embed = new EmbedBuilder().setColor(0x5865f2);
+    if (menu.title) embed.setTitle(menu.title);
+    embed.setDescription(menu.description || 'Pick a role below.');
+  }
 
   const entries = (menu.buttons || []).filter((b) => b.role_id).slice(0, 25);
 

@@ -1,4 +1,8 @@
-import { getAllSocialSubs, setSocialLastSeen } from '../db/index.js';
+import { EmbedBuilder } from 'discord.js';
+import { getAllSocialSubs, setSocialLastSeen, getPersonalization } from '../db/index.js';
+import { fetchLatestVideo } from './youtube.js';
+
+const NEW_ITEM_PLATFORMS = new Set(['reddit', 'rss', 'youtube']);
 
 const UA = 'VectorBot/1.0 (+https://github.com/ExpertFett/VectorBot)';
 
@@ -65,20 +69,35 @@ async function resolveChannel(client, id) {
   return client.channels.cache.get(id) || (await client.channels.fetch(id).catch(() => null));
 }
 
+async function fetchNewItem(sub) {
+  if (sub.platform === 'reddit') return fetchReddit(sub.query);
+  if (sub.platform === 'rss') return fetchRss(sub.query);
+  if (sub.platform === 'youtube') {
+    const v = await fetchLatestVideo(sub.query);
+    return v && { id: v.videoId, title: v.title, url: v.url, label: `New video${v.author ? ` from ${v.author}` : ''}` };
+  }
+  return null;
+}
+
 export async function pollSocial(client) {
   for (const sub of getAllSocialSubs()) {
     try {
       const channel = await resolveChannel(client, sub.discord_channel_id);
       if (!channel?.isTextBased()) continue;
-      const mention = sub.mention_role_id ? `<@&${sub.mention_role_id}> ` : '';
+      const content = sub.mention_role_id ? `<@&${sub.mention_role_id}>` : undefined;
+      const accent = getPersonalization(sub.guild_id).embed_color ?? 0x5865f2;
 
-      if (sub.platform === 'reddit' || sub.platform === 'rss') {
-        const item = sub.platform === 'reddit' ? await fetchReddit(sub.query) : await fetchRss(sub.query);
+      if (NEW_ITEM_PLATFORMS.has(sub.platform)) {
+        const item = await fetchNewItem(sub);
         if (!item) continue;
         if (!sub.last_seen) { setSocialLastSeen(sub.id, item.id); continue; } // baseline
         if (item.id === sub.last_seen) continue;
         setSocialLastSeen(sub.id, item.id);
-        await channel.send(`${mention}📰 ${item.label}: **${item.title}**\n${item.url}`).catch(() => {});
+        const embed = new EmbedBuilder().setColor(accent)
+          .setAuthor({ name: item.label.slice(0, 256) })
+          .setTitle((item.title || 'New post').slice(0, 256));
+        if (item.url) embed.setURL(item.url);
+        await channel.send({ content, embeds: [embed] }).catch(() => {});
       } else if (sub.platform === 'twitch' || sub.platform === 'kick') {
         const data = sub.platform === 'twitch' ? await fetchTwitch(sub.query) : await fetchKick(sub.query);
         if (!data) continue;
@@ -88,7 +107,11 @@ export async function pollSocial(client) {
         setSocialLastSeen(sub.id, state);
         if (data.live) {
           const plat = sub.platform === 'twitch' ? 'Twitch' : 'Kick';
-          await channel.send(`${mention}🔴 **${sub.query}** is now LIVE on ${plat}!${data.title ? ` — ${data.title}` : ''}\n${data.url}`).catch(() => {});
+          const embed = new EmbedBuilder().setColor(0xe91916)
+            .setTitle(`🔴 ${sub.query} is live on ${plat}`.slice(0, 256))
+            .setURL(data.url);
+          if (data.title) embed.setDescription(data.title.slice(0, 4096));
+          await channel.send({ content, embeds: [embed] }).catch(() => {});
         }
       }
     } catch (err) {

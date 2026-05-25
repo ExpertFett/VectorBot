@@ -5,6 +5,7 @@ const toHex = (n) => (typeof n === 'number' ? '#' + (n & 0xffffff).toString(16).
 
 export default function Personalizer() {
   const [cfg, setCfg] = useState(null);
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [status, setStatus] = useState('');
 
   useEffect(() => { api.getPersonalizer().then(setCfg).catch((e) => setStatus(e.message)); }, []);
@@ -16,6 +17,13 @@ export default function Personalizer() {
       setCfg(await api.savePersonalizer({ bot_nickname: cfg.bot_nickname || null, embed_color: cfg.embed_color }));
       setStatus('Saved ✓');
     } catch (e) { setStatus('Save failed: ' + (e.body?.error || e.message)); }
+  };
+
+  const updateAvatar = async () => {
+    if (!avatarUrl) return setStatus('Enter an image URL.');
+    setStatus('Updating avatar…');
+    try { await api.setBotAvatar(avatarUrl); setStatus('Avatar updated ✓ (may take a moment to show)'); }
+    catch (e) { setStatus('Avatar failed: ' + (e.body?.error === 'avatar_failed' ? 'Discord rejected it (bad image or rate-limited).' : (e.body?.error || e.message))); }
   };
 
   return (
@@ -34,6 +42,13 @@ export default function Personalizer() {
           <input type="color" value={toHex(cfg.embed_color)}
             onChange={(e) => setCfg({ ...cfg, embed_color: parseInt(e.target.value.slice(1), 16) })} />
         </label>
+      </section>
+
+      <section className="card">
+        <h2>Bot avatar</h2>
+        <p className="muted"><b>Global:</b> the bot has one avatar across <i>every</i> server it’s in — changing it here changes it everywhere. Discord rate-limits avatar changes, so don’t spam it.</p>
+        <label>Image URL<input value={avatarUrl} placeholder="https://… (png/jpg)" onChange={(e) => setAvatarUrl(e.target.value)} /></label>
+        <div className="actions"><button className="btn" onClick={updateAvatar}>Update avatar</button></div>
       </section>
     </div>
   );

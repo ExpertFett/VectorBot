@@ -80,6 +80,7 @@ export const api = {
 
   getPersonalizer: () => req('GET', '/api/personalizer'),
   savePersonalizer: (data) => req('PUT', '/api/personalizer', data),
+  setBotAvatar: (url) => req('POST', '/api/bot-avatar', { url }),
 
   logout: () => req('POST', '/auth/logout'),
 };

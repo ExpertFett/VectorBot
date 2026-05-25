@@ -1,4 +1,4 @@
-import { incrementInvite } from '../db/index.js';
+import { incrementInvite, getConfig } from '../db/index.js';
 
 // guildId -> Map(code -> uses)
 const cache = new Map();
@@ -42,5 +42,15 @@ export async function detectInviteUsed(member) {
     if ((inv.uses ?? 0) > (before.get(inv.code) ?? 0)) { used = inv; break; }
   }
   cache.set(guild.id, new Map(current.map((i) => [i.code, i.uses ?? 0])));
-  if (used?.inviter) incrementInvite(guild.id, used.inviter.id);
+  if (!used?.inviter) return;
+
+  incrementInvite(guild.id, used.inviter.id);
+
+  const logChannelId = getConfig(guild.id).invite_log_channel;
+  if (logChannelId) {
+    const ch = guild.channels.cache.get(logChannelId);
+    if (ch?.isTextBased()) {
+      ch.send(`📨 **${member.user.tag}** joined — invited by <@${used.inviter.id}> (invite \`${used.code}\`).`).catch(() => {});
+    }
+  }
 }
