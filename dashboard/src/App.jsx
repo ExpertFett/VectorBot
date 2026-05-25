@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { api } from './api.js';
 import Login from './pages/Login.jsx';
+import ServerPicker from './pages/ServerPicker.jsx';
 import Welcome from './pages/Welcome.jsx';
 import Commands from './pages/Commands.jsx';
 import Automod from './pages/Automod.jsx';
@@ -17,27 +18,43 @@ import YouTube from './pages/YouTube.jsx';
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
+  const [guild, setGuild] = useState(null);
+  const [picking, setPicking] = useState(false);
 
-  useEffect(() => {
+  const refresh = () =>
     api.me()
-      .then(setUser)
+      .then((u) => {
+        setUser(u);
+        if (u?.selectedGuildId) api.guild().then(setGuild).catch(() => setGuild(null));
+      })
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
-  }, []);
+
+  useEffect(() => { refresh(); }, []);
 
   if (loading) return <div className="center muted">Loading…</div>;
   if (!user) return <Login />;
-  if (!user.canManage) return <Login noAccess user={user} />;
 
-  const logout = async () => {
-    try { await api.logout(); } catch { /* ignore */ }
-    setUser(null);
-  };
+  if (!user.selectedGuildId || picking) {
+    return (
+      <ServerPicker
+        onSelected={() => { setPicking(false); setLoading(true); refresh(); }}
+        onCancel={user.selectedGuildId ? () => setPicking(false) : null}
+      />
+    );
+  }
+
+  const logout = async () => { try { await api.logout(); } catch { /* ignore */ } setUser(null); };
 
   return (
     <div className="app">
       <aside className="sidebar">
         <div className="brand">Vector<span>Bot</span></div>
+        <button className="server-switch" onClick={() => setPicking(true)} title="Switch server">
+          {guild?.icon && <img src={guild.icon} alt="" />}
+          <span>{guild?.name || 'Server'}</span>
+          <span className="switch-icon">⇄</span>
+        </button>
         <nav>
           <NavLink to="/welcome">Welcome &amp; Roles</NavLink>
           <NavLink to="/verification">Verification</NavLink>

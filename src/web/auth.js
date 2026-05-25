@@ -2,8 +2,6 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { buildAuthUrl, exchangeCode, fetchUser, fetchUserGuilds, canManageGuild } from './oauth.js';
 
-const GUILD_ID = process.env.DISCORD_GUILD_ID;
-
 export const authRouter = Router();
 
 authRouter.get('/login', (req, res) => {
@@ -28,7 +26,13 @@ authRouter.get('/callback', async (req, res) => {
       fetchUser(token.access_token),
       fetchUserGuilds(token.access_token),
     ]);
-    const canManage = canManageGuild(guilds.find((g) => g.id === GUILD_ID));
+
+    // All guilds where this user has Manage Server / Admin / is owner.
+    const manageable = guilds.filter(canManageGuild).map((g) => ({
+      id: g.id,
+      name: g.name,
+      icon: g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png` : null,
+    }));
 
     req.session.user = {
       id: user.id,
@@ -36,9 +40,10 @@ authRouter.get('/callback', async (req, res) => {
       avatar: user.avatar
         ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`
         : null,
-      canManage,
     };
-    res.redirect(canManage ? '/' : '/?error=no_access');
+    req.session.manageable = manageable;
+    req.session.guildId = null;
+    res.redirect(manageable.length ? '/' : '/?error=no_servers');
   } catch (err) {
     console.error('OAuth callback error:', err.message);
     res.redirect('/?error=oauth_failed');
@@ -50,6 +55,6 @@ authRouter.post('/logout', (req, res) => {
 });
 
 export function requireAuth(req, res, next) {
-  if (req.session?.user?.canManage) return next();
+  if (req.session?.user) return next();
   res.status(401).json({ error: 'unauthorized' });
 }

@@ -17,6 +17,8 @@ async function req(method, path, body) {
 
 export const api = {
   me: () => req('GET', '/api/me'),
+  guilds: () => req('GET', '/api/guilds'),
+  selectGuild: (guildId) => req('POST', '/api/select-guild', { guild_id: guildId }),
   guild: () => req('GET', '/api/guild'),
   getConfig: () => req('GET', '/api/config'),
   saveConfig: (data) => req('PUT', '/api/config', data),
