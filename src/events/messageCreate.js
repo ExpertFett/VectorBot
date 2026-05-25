@@ -1,5 +1,6 @@
 import { Events } from 'discord.js';
 import { getCustomCommand } from '../db/index.js';
+import { buildEmbed } from '../util/embed.js';
 
 const PREFIX = process.env.COMMAND_PREFIX || '!';
 
@@ -15,7 +16,13 @@ export default {
     const cmd = getCustomCommand(message.guild.id, name);
     if (!cmd) return;
 
-    await message.channel.send(cmd.response).catch((err) =>
+    const payload = {};
+    if (cmd.response) payload.content = cmd.response;
+    const embed = cmd.embed ? buildEmbed(cmd.embed) : null;
+    if (embed) payload.embeds = [embed];
+    if (!payload.content && !payload.embeds) return;
+
+    await message.channel.send(payload).catch((err) =>
       console.error(`Custom command "${name}" send failed:`, err.message)
     );
   },

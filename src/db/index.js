@@ -39,9 +39,20 @@ db.exec(`
   );
 `);
 
+// Idempotent column migrations (SQLite has no "ADD COLUMN IF NOT EXISTS").
+function ensureColumn(table, column, type) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
+}
+ensureColumn('guild_config', 'welcome_embed', 'TEXT'); // JSON embed for welcome
+ensureColumn('guild_config', 'goodbye_embed', 'TEXT'); // JSON embed for goodbye
+ensureColumn('custom_commands', 'embed', 'TEXT');       // optional JSON embed reply
+
 const ALLOWED_CONFIG_COLUMNS = new Set([
-  'welcome_channel_id', 'welcome_message',
-  'goodbye_channel_id', 'goodbye_message',
+  'welcome_channel_id', 'welcome_message', 'welcome_embed',
+  'goodbye_channel_id', 'goodbye_message', 'goodbye_embed',
   'autorole_id', 'log_channel_id',
 ]);
 
@@ -84,24 +95,30 @@ export function clearWarnings(guildId, userId) {
 
 // --- custom command helpers ---
 const upsertCommand = db.prepare(`
-  INSERT INTO custom_commands (guild_id, name, response, created_by, created_at)
-  VALUES (?, ?, ?, ?, ?)
-  ON CONFLICT(guild_id, name) DO UPDATE SET response = excluded.response
+  INSERT INTO custom_commands (guild_id, name, response, embed, created_by, created_at)
+  VALUES (?, ?, ?, ?, ?, ?)
+  ON CONFLICT(guild_id, name) DO UPDATE SET response = excluded.response, embed = excluded.embed
 `);
 const selectCommand = db.prepare('SELECT * FROM custom_commands WHERE guild_id = ? AND name = ?');
-const selectCommands = db.prepare(
+const selectCommandNames = db.prepare(
   'SELECT name FROM custom_commands WHERE guild_id = ? ORDER BY name ASC'
+);
+const selectAllCommands = db.prepare(
+  'SELECT * FROM custom_commands WHERE guild_id = ? ORDER BY name ASC'
 );
 const deleteCommand = db.prepare('DELETE FROM custom_commands WHERE guild_id = ? AND name = ?');
 
-export function setCustomCommand(guildId, name, response, createdBy) {
-  upsertCommand.run(guildId, name, response, createdBy, Date.now());
+export function setCustomCommand(guildId, name, { response = null, embed = null }, createdBy) {
+  upsertCommand.run(guildId, name, response, embed, createdBy, Date.now());
 }
 export function getCustomCommand(guildId, name) {
   return selectCommand.get(guildId, name);
 }
 export function listCustomCommands(guildId) {
-  return selectCommands.all(guildId).map((r) => r.name);
+  return selectCommandNames.all(guildId).map((r) => r.name);
+}
+export function getAllCustomCommands(guildId) {
+  return selectAllCommands.all(guildId);
 }
 export function removeCustomCommand(guildId, name) {
   return deleteCommand.run(guildId, name).changes;

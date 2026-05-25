@@ -23,7 +23,7 @@ export default {
       });
     }
 
-    setCustomCommand(interaction.guild.id, name, response, interaction.user.id);
+    setCustomCommand(interaction.guild.id, name, { response }, interaction.user.id);
     await interaction.reply({ content: `Saved. Trigger it with \`${PREFIX}${name}\`.`, flags: MessageFlags.Ephemeral });
   },
 };

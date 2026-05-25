@@ -3,6 +3,7 @@ import { readdirSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { Client, Collection, GatewayIntentBits } from 'discord.js';
+import { startWebServer } from './web/server.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -64,6 +65,9 @@ async function loadEvents() {
 
 await loadCommands();
 await loadEvents();
+
+// Web dashboard runs in the same process and shares the bot client + database.
+startWebServer(client);
 
 process.on('unhandledRejection', (err) => console.error('Unhandled rejection:', err));
 

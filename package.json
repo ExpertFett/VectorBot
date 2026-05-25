@@ -6,13 +6,17 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/index.js",
-    "deploy": "node --disable-warning=ExperimentalWarning src/deploy-commands.js"
+    "deploy": "node --disable-warning=ExperimentalWarning src/deploy-commands.js",
+    "build": "npm --prefix dashboard install && npm --prefix dashboard run build",
+    "dashboard": "npm --prefix dashboard run dev"
   },
   "engines": {
     "node": ">=23.4"
   },
   "dependencies": {
     "discord.js": "^14.16.3",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0"
   }
 }

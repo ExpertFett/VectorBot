@@ -1,1 +1,1 @@
-worker: node --disable-warning=ExperimentalWarning src/index.js
+web: node --disable-warning=ExperimentalWarning src/index.js
