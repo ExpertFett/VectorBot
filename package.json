@@ -1,0 +1,18 @@
+{
+  "name": "dcs-community-bot",
+  "version": "0.1.0",
+  "description": "Mee6-style Discord bot for a DCS community: moderation, welcome/auto-role, custom commands, utilities.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/index.js",
+    "deploy": "node --disable-warning=ExperimentalWarning src/deploy-commands.js"
+  },
+  "engines": {
+    "node": ">=23.4"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7"
+  }
+}
