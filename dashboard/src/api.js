@@ -82,5 +82,12 @@ export const api = {
   savePersonalizer: (data) => req('PUT', '/api/personalizer', data),
   setBotAvatar: (url) => req('POST', '/api/bot-avatar', { url }),
 
+  getEvents: () => req('GET', '/api/events'),
+  createEvent: (data) => req('POST', '/api/events', data),
+  updateEvent: (id, data) => req('PUT', `/api/events/${id}`, data),
+  postEvent: (id) => req('POST', `/api/events/${id}/post`),
+  cancelEvent: (id) => req('POST', `/api/events/${id}/cancel`),
+  deleteEvent: (id) => req('DELETE', `/api/events/${id}`),
+
   logout: () => req('POST', '/auth/logout'),
 };

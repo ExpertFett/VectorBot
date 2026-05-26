@@ -3,6 +3,7 @@ import { handleRoleButton, handleRoleSelect } from '../features/roleMenus.js';
 import { handleVerify } from '../features/verification.js';
 import { handleOpenTicket, handleCloseTicket } from '../features/tickets.js';
 import { handleGiveawayButton } from '../features/giveaways.js';
+import { handleEventButton } from '../features/events.js';
 
 export default {
   name: Events.InteractionCreate,
@@ -16,6 +17,7 @@ export default {
         if (id === 'ticket:open') return await handleOpenTicket(interaction);
         if (id === 'ticket:close') return await handleCloseTicket(interaction);
         if (id.startsWith('giveaway:')) return await handleGiveawayButton(interaction);
+        if (id.startsWith('event:')) return await handleEventButton(interaction);
         return;
       }
       if (interaction.isStringSelectMenu()) {

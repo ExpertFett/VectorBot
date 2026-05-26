@@ -2,6 +2,7 @@ import {
   getScheduledDue, advanceScheduled, disableScheduled,
   getRemindersDue, deleteReminderById,
   getGiveawaysDue,
+  getEventsToRemind, markEventReminded, getSignups,
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 import { endGiveawayAndAnnounce } from '../features/giveaways.js';
@@ -48,6 +49,17 @@ async function tick(client) {
   // Giveaways ending
   for (const g of getGiveawaysDue(now)) {
     await endGiveawayAndAnnounce(client, g).catch((e) => console.error('Giveaway end error:', e.message));
+  }
+
+  // Event step reminders
+  for (const event of getEventsToRemind(now)) {
+    const channel = await resolveChannel(client, event.channel_id);
+    const signups = getSignups(event.id);
+    if (channel?.isTextBased() && signups.length) {
+      const pings = signups.map((s) => `<@${s.user_id}>`).join(' ');
+      await channel.send(`⏰ **${event.title}** starts <t:${Math.floor(event.start_at / 1000)}:R> — ${pings}`).catch(() => {});
+    }
+    markEventReminded(event.id);
   }
 
   // Feeds: YouTube + social (every ~5 min)

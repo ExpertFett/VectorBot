@@ -15,12 +15,14 @@ import {
   createSocialSub, getSocialSubs, deleteSocialSub,
   createStatChannel, getStatChannels, deleteStatChannel,
   getInviteLeaderboard, getPersonalization, setPersonalization,
+  createEvent, getEvent, getEvents, updateEvent, deleteEvent, setEventStatus, getSignups,
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 import { postRoleMenu } from '../features/roleMenus.js';
 import { postVerifyPanel } from '../features/verification.js';
 import { postTicketPanel } from '../features/tickets.js';
 import { postGiveaway, endGiveawayAndAnnounce, rerollGiveaway } from '../features/giveaways.js';
+import { postEvent } from '../features/events.js';
 import { STAT_TYPES, computeStat } from '../features/stats.js';
 import { requireAuth } from './auth.js';
 
@@ -439,6 +441,63 @@ export function apiRouter(client) {
     }
     res.json(saved);
   });
+
+  // --- events (mission scheduler) ---
+  const sanitizeRoles = (roles) => (Array.isArray(roles) ? roles : [])
+    .filter((r) => r && r.label)
+    .slice(0, 20)
+    .map((r) => ({ label: String(r.label).slice(0, 80), emoji: r.emoji ? String(r.emoji).slice(0, 64) : '', limit: Math.max(0, Number(r.limit) || 0) }));
+
+  router.get('/events', (req, res) =>
+    res.json(getEvents(req.guildId).map((e) => ({ ...e, signups: getSignups(e.id) }))));
+
+  router.post('/events', (req, res) => {
+    const b = req.body || {};
+    if (!b.title || !b.start_at) return res.status(400).json({ error: 'missing_fields' });
+    const start = new Date(b.start_at).getTime();
+    if (!Number.isFinite(start)) return res.status(400).json({ error: 'bad_date' });
+    const id = createEvent(req.guildId, {
+      channel_id: cleanId(b.channel_id), title: String(b.title), description: b.description || null,
+      mission: b.mission || null, map: b.map || null, image: b.image || null,
+      start_at: start, reminder_minutes: Math.max(0, Number(b.reminder_minutes) || 0),
+      roles: sanitizeRoles(b.roles), created_by: req.session.user.id,
+    });
+    res.json({ ok: true, id });
+  });
+
+  router.put('/events/:id', (req, res) => {
+    const id = Number(req.params.id);
+    const existing = getEvent(id);
+    if (!existing || existing.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
+    const b = req.body || {};
+    const start = new Date(b.start_at).getTime();
+    if (!b.title || !Number.isFinite(start)) return res.status(400).json({ error: 'bad_input' });
+    updateEvent(id, req.guildId, {
+      channel_id: cleanId(b.channel_id), title: String(b.title), description: b.description || null,
+      mission: b.mission || null, map: b.map || null, image: b.image || null,
+      start_at: start, reminder_minutes: Math.max(0, Number(b.reminder_minutes) || 0),
+      roles: sanitizeRoles(b.roles),
+    });
+    res.json({ ok: true });
+  });
+
+  router.post('/events/:id/post', async (req, res) => {
+    const event = getEvent(Number(req.params.id));
+    if (!event || event.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
+    if (!event.channel_id) return res.status(400).json({ error: 'no_channel' });
+    try { res.json({ ok: true, message_id: await postEvent(client, event) }); }
+    catch (err) { res.status(400).json({ error: err.message === 'invalid_channel' ? 'invalid_channel' : 'post_failed' }); }
+  });
+
+  router.post('/events/:id/cancel', async (req, res) => {
+    const event = getEvent(Number(req.params.id));
+    if (!event || event.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
+    setEventStatus(event.id, req.guildId, 'cancelled');
+    try { if (event.message_id) await postEvent(client, getEvent(event.id)); } catch { /* ignore */ }
+    res.json({ ok: true });
+  });
+
+  router.delete('/events/:id', (req, res) => res.json({ ok: deleteEvent(Number(req.params.id), req.guildId) > 0 }));
 
   // Change the bot's avatar — GLOBAL (one bot, one avatar across all servers), rate-limited.
   router.post('/bot-avatar', async (req, res) => {

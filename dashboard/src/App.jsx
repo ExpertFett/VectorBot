@@ -18,6 +18,7 @@ import Stats from './pages/Stats.jsx';
 import EmbedPanel from './pages/EmbedPanel.jsx';
 import Invites from './pages/Invites.jsx';
 import Personalizer from './pages/Personalizer.jsx';
+import Events from './pages/Events.jsx';
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -60,6 +61,7 @@ export default function App() {
           <span className="switch-icon">⇄</span>
         </button>
         <nav>
+          <NavLink to="/events">Mission Events</NavLink>
           <NavLink to="/welcome">Welcome &amp; Roles</NavLink>
           <NavLink to="/verification">Verification</NavLink>
           <NavLink to="/commands">Custom Commands</NavLink>
@@ -84,6 +86,7 @@ export default function App() {
       </aside>
       <main className="content">
         <Routes>
+          <Route path="/events" element={<Events />} />
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/verification" element={<Verification />} />
           <Route path="/commands" element={<Commands />} />

@@ -189,6 +189,34 @@ db.exec(`
     count      INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (guild_id, inviter_id)
   );
+
+  CREATE TABLE IF NOT EXISTS events (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id         TEXT NOT NULL,
+    channel_id       TEXT,
+    message_id       TEXT,
+    title            TEXT NOT NULL,
+    description      TEXT,
+    mission          TEXT,
+    map              TEXT,
+    image            TEXT,
+    start_at         INTEGER NOT NULL,
+    reminder_minutes INTEGER NOT NULL DEFAULT 0,
+    reminded         INTEGER NOT NULL DEFAULT 0,
+    roles            TEXT NOT NULL DEFAULT '[]',
+    status           TEXT NOT NULL DEFAULT 'scheduled',
+    created_by       TEXT,
+    created_at       INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_events_guild ON events (guild_id, start_at);
+
+  CREATE TABLE IF NOT EXISTS event_signups (
+    event_id   INTEGER NOT NULL,
+    user_id    TEXT NOT NULL,
+    role_label TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (event_id, user_id)
+  );
 `);
 
 // --- batch 5 schema (embed options + invite log) ---
@@ -550,5 +578,59 @@ export function setPersonalization(guildId, { bot_nickname, embed_color }) {
   setConfigValue(guildId, 'embed_color', Number.isFinite(embed_color) ? embed_color : null);
   return getPersonalization(guildId);
 }
+
+// --- events (mission scheduler) ---
+const insertEvent = db.prepare(`
+  INSERT INTO events (guild_id, channel_id, title, description, mission, map, image, start_at, reminder_minutes, roles, created_by, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+const selectEvent = db.prepare('SELECT * FROM events WHERE id = ?');
+const selectEventsByGuild = db.prepare('SELECT * FROM events WHERE guild_id = ? ORDER BY start_at ASC');
+const updateEventStmt = db.prepare(`
+  UPDATE events SET channel_id = ?, title = ?, description = ?, mission = ?, map = ?, image = ?, start_at = ?, reminder_minutes = ?, roles = ?
+  WHERE id = ? AND guild_id = ?
+`);
+const setEventMsgStmt = db.prepare('UPDATE events SET channel_id = ?, message_id = ? WHERE id = ?');
+const setEventStatusStmt = db.prepare('UPDATE events SET status = ? WHERE id = ? AND guild_id = ?');
+const markRemindedStmt = db.prepare('UPDATE events SET reminded = 1 WHERE id = ?');
+const deleteEventStmt = db.prepare('DELETE FROM events WHERE id = ? AND guild_id = ?');
+const selectEventsToRemind = db.prepare(
+  "SELECT * FROM events WHERE status = 'scheduled' AND reminded = 0 AND reminder_minutes > 0 AND ? >= (start_at - reminder_minutes * 60000) AND ? < start_at"
+);
+const parseEvent = (r) => (r ? { ...r, roles: safeParse(r.roles, []) } : null);
+
+export function createEvent(guildId, d) {
+  return Number(insertEvent.run(
+    guildId, d.channel_id ?? null, d.title, d.description ?? null, d.mission ?? null, d.map ?? null,
+    d.image ?? null, d.start_at, d.reminder_minutes ?? 0, JSON.stringify(d.roles || []), d.created_by ?? null, Date.now()
+  ).lastInsertRowid);
+}
+export function getEvent(id) { return parseEvent(selectEvent.get(id)); }
+export function getEvents(guildId) { return selectEventsByGuild.all(guildId).map(parseEvent); }
+export function updateEvent(id, guildId, d) {
+  updateEventStmt.run(d.channel_id ?? null, d.title, d.description ?? null, d.mission ?? null, d.map ?? null, d.image ?? null, d.start_at, d.reminder_minutes ?? 0, JSON.stringify(d.roles || []), id, guildId);
+  return getEvent(id);
+}
+export function setEventMessage(id, channelId, messageId) { setEventMsgStmt.run(channelId, messageId, id); }
+export function setEventStatus(id, guildId, status) { return setEventStatusStmt.run(status, id, guildId).changes; }
+export function markEventReminded(id) { markRemindedStmt.run(id); }
+export function deleteEvent(id, guildId) { return deleteEventStmt.run(id, guildId).changes; }
+export function getEventsToRemind(now) { return selectEventsToRemind.all(now, now).map(parseEvent); }
+
+// --- event signups ---
+const upsertSignup = db.prepare(`
+  INSERT INTO event_signups (event_id, user_id, role_label, created_at) VALUES (?, ?, ?, ?)
+  ON CONFLICT(event_id, user_id) DO UPDATE SET role_label = excluded.role_label
+`);
+const deleteSignupStmt = db.prepare('DELETE FROM event_signups WHERE event_id = ? AND user_id = ?');
+const selectSignups = db.prepare('SELECT * FROM event_signups WHERE event_id = ? ORDER BY created_at ASC');
+const countSignupsForRole = db.prepare('SELECT COUNT(*) AS n FROM event_signups WHERE event_id = ? AND role_label = ?');
+const getSignupStmt = db.prepare('SELECT * FROM event_signups WHERE event_id = ? AND user_id = ?');
+
+export function setSignup(eventId, userId, roleLabel) { upsertSignup.run(eventId, userId, roleLabel, Date.now()); }
+export function removeSignup(eventId, userId) { return deleteSignupStmt.run(eventId, userId).changes; }
+export function getSignups(eventId) { return selectSignups.all(eventId); }
+export function countRoleSignups(eventId, roleLabel) { return countSignupsForRole.get(eventId, roleLabel).n; }
+export function getSignup(eventId, userId) { return getSignupStmt.get(eventId, userId); }
 
 export default db;
