@@ -19,6 +19,7 @@ import EmbedPanel from './pages/EmbedPanel.jsx';
 import Invites from './pages/Invites.jsx';
 import Personalizer from './pages/Personalizer.jsx';
 import Events from './pages/Events.jsx';
+import DCSServer from './pages/DCSServer.jsx';
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -62,6 +63,7 @@ export default function App() {
         </button>
         <nav>
           <NavLink to="/events">Mission Events</NavLink>
+          <NavLink to="/dcs">DCS Server</NavLink>
           <NavLink to="/welcome">Welcome &amp; Roles</NavLink>
           <NavLink to="/verification">Verification</NavLink>
           <NavLink to="/commands">Custom Commands</NavLink>
@@ -87,6 +89,7 @@ export default function App() {
       <main className="content">
         <Routes>
           <Route path="/events" element={<Events />} />
+          <Route path="/dcs" element={<DCSServer />} />
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/verification" element={<Verification />} />
           <Route path="/commands" element={<Commands />} />

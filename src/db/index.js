@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { randomBytes } from 'node:crypto';
 
 const dbPath = process.env.DB_PATH || './data/bot.db';
 mkdirSync(dirname(dbPath), { recursive: true });
@@ -225,6 +226,13 @@ ensureColumn('giveaways', 'image', 'TEXT');           // optional embed image
 ensureColumn('giveaways', 'description', 'TEXT');     // optional extra description
 ensureColumn('guild_config', 'invite_log_channel', 'TEXT');
 
+// --- DCS ingest pipe ---
+ensureColumn('guild_config', 'ingest_token', 'TEXT');           // per-guild ingest token
+ensureColumn('guild_config', 'server_status', 'TEXT');          // latest status JSON
+ensureColumn('guild_config', 'status_channel_id', 'TEXT');      // auto-updating status embed channel
+ensureColumn('guild_config', 'status_message_id', 'TEXT');
+ensureColumn('guild_config', 'dcs_feed_channel_id', 'TEXT');    // kill/event feed channel
+
 // One-time: fold existing YouTube subs into social_subs as platform 'youtube'.
 {
   const ytRows = db.prepare('SELECT * FROM youtube_subs').all();
@@ -244,6 +252,7 @@ const ALLOWED_CONFIG_COLUMNS = new Set([
   'goodbye_channel_id', 'goodbye_message', 'goodbye_embed',
   'autorole_id', 'log_channel_id', 'automod',
   'verification', 'tickets', 'bot_nickname', 'embed_color', 'invite_log_channel',
+  'ingest_token', 'server_status', 'status_channel_id', 'status_message_id', 'dcs_feed_channel_id',
 ]);
 
 // --- guild config helpers ---
@@ -632,5 +641,33 @@ export function removeSignup(eventId, userId) { return deleteSignupStmt.run(even
 export function getSignups(eventId) { return selectSignups.all(eventId); }
 export function countRoleSignups(eventId, roleLabel) { return countSignupsForRole.get(eventId, roleLabel).n; }
 export function getSignup(eventId, userId) { return getSignupStmt.get(eventId, userId); }
+
+// --- DCS ingest / server status ---
+const selectGuildByToken = db.prepare('SELECT guild_id FROM guild_config WHERE ingest_token = ?');
+
+export function getGuildByIngestToken(token) {
+  if (!token) return null;
+  return selectGuildByToken.get(token)?.guild_id || null;
+}
+export function getIngestToken(guildId) {
+  let token = getConfig(guildId).ingest_token;
+  if (!token) { token = randomBytes(24).toString('hex'); setConfigValue(guildId, 'ingest_token', token); }
+  return token;
+}
+export function regenerateIngestToken(guildId) {
+  const token = randomBytes(24).toString('hex');
+  setConfigValue(guildId, 'ingest_token', token);
+  return token;
+}
+export function getServerStatus(guildId) {
+  return safeParse(getConfig(guildId).server_status, null);
+}
+export function setServerStatus(guildId, status) {
+  setConfigValue(guildId, 'server_status', JSON.stringify(status));
+}
+export function setStatusMessage(guildId, channelId, messageId) {
+  setConfigValue(guildId, 'status_channel_id', channelId);
+  setConfigValue(guildId, 'status_message_id', messageId);
+}
 
 export default db;

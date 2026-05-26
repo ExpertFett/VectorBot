@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import { SqliteSessionStore } from './sessionStore.js';
 import { authRouter } from './auth.js';
 import { apiRouter } from './api.js';
+import { ingestRouter } from './ingest.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = join(__dirname, '..', '..', 'dashboard', 'dist');
@@ -37,6 +38,7 @@ export function startWebServer(client) {
 
   app.use('/auth', authRouter);
   app.use('/api', apiRouter(client));
+  app.use('/ingest', ingestRouter(client)); // public, token-authed DCS hook endpoint
   app.get('/healthz', (req, res) => res.json({ ok: true, bot: client.isReady?.() ?? false }));
 
   // Serve the built dashboard (if present) with SPA fallback.

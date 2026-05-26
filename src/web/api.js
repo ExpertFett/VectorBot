@@ -16,7 +16,9 @@ import {
   createStatChannel, getStatChannels, deleteStatChannel,
   getInviteLeaderboard, getPersonalization, setPersonalization,
   createEvent, getEvent, getEvents, updateEvent, deleteEvent, setEventStatus, getSignups,
+  getIngestToken, regenerateIngestToken, getServerStatus,
 } from '../db/index.js';
+import { getBaseUrl } from './oauth.js';
 import { buildEmbed } from '../util/embed.js';
 import { postRoleMenu } from '../features/roleMenus.js';
 import { postVerifyPanel } from '../features/verification.js';
@@ -127,7 +129,7 @@ export function apiRouter(client) {
   router.put('/config', (req, res) => {
     const b = req.body || {};
     const textCols = ['welcome_message', 'goodbye_message'];
-    const idCols = ['welcome_channel_id', 'goodbye_channel_id', 'autorole_id', 'log_channel_id', 'invite_log_channel'];
+    const idCols = ['welcome_channel_id', 'goodbye_channel_id', 'autorole_id', 'log_channel_id', 'invite_log_channel', 'status_channel_id', 'dcs_feed_channel_id'];
 
     for (const col of idCols) if (col in b) setConfigValue(req.guildId, col, cleanId(b[col]));
     for (const col of textCols) if (col in b) setConfigValue(req.guildId, col, b[col] ? String(b[col]) : null);
@@ -498,6 +500,22 @@ export function apiRouter(client) {
   });
 
   router.delete('/events/:id', (req, res) => res.json({ ok: deleteEvent(Number(req.params.id), req.guildId) > 0 }));
+
+  // --- DCS server ingest config ---
+  router.get('/dcs', (req, res) => {
+    const token = getIngestToken(req.guildId);
+    const c = getConfig(req.guildId);
+    res.json({
+      ingest_url: `${getBaseUrl()}/ingest/${token}`,
+      status: getServerStatus(req.guildId),
+      status_channel_id: c.status_channel_id || null,
+      dcs_feed_channel_id: c.dcs_feed_channel_id || null,
+    });
+  });
+  router.post('/dcs/regen', (req, res) => {
+    const token = regenerateIngestToken(req.guildId);
+    res.json({ ingest_url: `${getBaseUrl()}/ingest/${token}` });
+  });
 
   // Change the bot's avatar — GLOBAL (one bot, one avatar across all servers), rate-limited.
   router.post('/bot-avatar', async (req, res) => {

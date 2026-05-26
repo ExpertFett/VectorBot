@@ -82,6 +82,9 @@ export const api = {
   savePersonalizer: (data) => req('PUT', '/api/personalizer', data),
   setBotAvatar: (url) => req('POST', '/api/bot-avatar', { url }),
 
+  getDcs: () => req('GET', '/api/dcs'),
+  regenIngest: () => req('POST', '/api/dcs/regen'),
+
   getEvents: () => req('GET', '/api/events'),
   createEvent: (data) => req('POST', '/api/events', data),
   updateEvent: (id, data) => req('PUT', `/api/events/${id}`, data),
