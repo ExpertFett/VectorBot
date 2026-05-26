@@ -66,14 +66,22 @@ export function buildEventMessage(event, signups = []) {
       embed.addFields({ name: `${role.emoji ? role.emoji + ' ' : ''}${role.label} (${active.length}${cap})`, value: val.slice(0, 1024), inline: true });
     }
   } else {
-    for (const grp of groupRoles(roles).slice(0, 22)) {
-      const lines = grp.items.map(({ role }) => {
-        const { active, waiting, cap } = split(role);
-        let line = `**${role.label}** (${active.length}${cap}): ${mention(active)}`;
-        if (waiting.length) line += ` *(WL: ${waiting.length})*`;
-        return line;
-      });
-      embed.addFields({ name: grp.name || 'Slots', value: lines.join('\n').slice(0, 1024), inline: true });
+    // Compact: per flight, show only filled slots (open ones live behind the button).
+    for (const grp of groupRoles(roles).slice(0, 24)) {
+      const cap = grp.items.reduce((n, { role }) => n + (role.limit || 0), 0);
+      let filled = 0;
+      const lines = [];
+      for (const { role } of grp.items) {
+        const { active, waiting } = split(role);
+        filled += active.length;
+        if (active.length) {
+          let lbl = role.label;
+          if (grp.name && lbl.startsWith(grp.name)) lbl = lbl.slice(grp.name.length).replace(/^[\s–-]+/, '') || role.label;
+          lines.push(`${lbl}: ${mention(active)}${waiting.length ? ` *(+${waiting.length} WL)*` : ''}`);
+        }
+      }
+      const header = `${grp.name || 'Slots'}${cap ? ` (${filled}/${cap})` : ` (${filled})`}`;
+      embed.addFields({ name: header, value: lines.length ? lines.join('\n').slice(0, 1024) : '*all open*', inline: true });
     }
   }
 
@@ -102,9 +110,10 @@ export function buildEventMessage(event, signups = []) {
     groups.forEach((grp, gi) => {
       if (row.components.length === 5) { rows.push(row); row = new ActionRowBuilder(); }
       const filled = grp.items.reduce((n, { role }) => n + split(role).active.length, 0);
+      const cap = grp.items.reduce((n, { role }) => n + (role.limit || 0), 0);
       row.components.push(new ButtonBuilder()
         .setCustomId(`event:${event.id}:grp:${gi}`)
-        .setLabel(`${grp.name || 'Slots'} (${filled}/${grp.items.length})`.slice(0, 80))
+        .setLabel(`${grp.name || 'Slots'} (${filled}${cap ? `/${cap}` : ''})`.slice(0, 80))
         .setStyle(ButtonStyle.Primary));
     });
     if (row.components.length === 5) { rows.push(row); row = new ActionRowBuilder(); }
