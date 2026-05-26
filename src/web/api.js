@@ -619,6 +619,7 @@ export function apiRouter(client) {
       review_channel_id: cleanId(b.review_channel_id),
       approve_role_id: cleanId(b.approve_role_id),
       title: b.title ?? '', description: b.description ?? '', button_label: b.button_label ?? 'Apply',
+      embed: b.embed || null,
       questions,
     }));
   });

@@ -6,9 +6,10 @@ import {
   getRecruitment, setRecruitment, getPersonalization,
   createApplication, getApplication, getPendingApplication, setAppStatus,
 } from '../db/index.js';
+import { buildEmbed } from '../util/embed.js';
 
 export function buildPanel(cfg, accent = 0x5865f2) {
-  const embed = new EmbedBuilder().setColor(accent)
+  const embed = (cfg.embed && buildEmbed(cfg.embed, undefined, accent)) || new EmbedBuilder().setColor(accent)
     .setTitle(cfg.title || 'Apply').setDescription(cfg.description || 'Click below to apply.');
   const row = new ActionRowBuilder().addComponents(
     new ButtonBuilder().setCustomId('recruit:apply').setLabel(cfg.button_label || 'Apply').setStyle(ButtonStyle.Success).setEmoji('📝')
