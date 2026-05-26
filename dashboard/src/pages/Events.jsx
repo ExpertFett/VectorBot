@@ -27,8 +27,26 @@ export default function Events() {
   if (!list || !guild) return <div className="muted page">{status || 'Loading…'}</div>;
 
   const setRole = (i, patch) => setEditing({ ...editing, roles: editing.roles.map((r, idx) => (idx === i ? { ...r, ...patch } : r)) });
-  const addRole = () => setEditing({ ...editing, roles: [...editing.roles, { label: '', emoji: '', limit: 0 }] });
+  const addRole = () => setEditing({ ...editing, roles: [...editing.roles, { label: '', emoji: '', limit: 0, group: '' }] });
   const removeRole = (i) => setEditing({ ...editing, roles: editing.roles.filter((_, idx) => idx !== i) });
+
+  const importMiz = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setStatus('Parsing .miz…');
+    try {
+      const { slots } = await api.parseMiz(file);
+      const have = new Set(editing.roles.map((r) => r.label));
+      const imported = slots
+        .filter((s) => !have.has(s.unit))
+        .map((s) => ({ label: s.unit, emoji: '', limit: 1, group: s.group || s.type }));
+      setEditing({ ...editing, roles: [...editing.roles, ...imported] });
+      setStatus(`Imported ${imported.length} slot(s) (${slots.length} found in mission).`);
+    } catch (err) {
+      setStatus('Import failed: ' + (err.body?.error || err.message));
+    }
+    e.target.value = '';
+  };
 
   const save = async () => {
     if (!editing.title) return setStatus('Title is required.');
@@ -95,18 +113,25 @@ export default function Events() {
         )}
 
         <div className="fields-head">
-          <span>Slots / roles ({editing.roles.length}/20)</span>
-          {editing.roles.length < 20 && <button className="link" onClick={addRole}>+ Add slot</button>}
+          <span>Slots / roles ({editing.roles.length}/100)</span>
+          <span style={{ display: 'flex', gap: '12px' }}>
+            <label className="link" style={{ cursor: 'pointer' }}>
+              ⬆ Import .miz
+              <input type="file" accept=".miz" style={{ display: 'none' }} onChange={importMiz} />
+            </label>
+            {editing.roles.length < 100 && <button className="link" onClick={addRole}>+ Add slot</button>}
+          </span>
         </div>
         {editing.roles.map((r, i) => (
-          <div className="rolebtn-row" key={i}>
-            <input placeholder="F/A-18 – Strike" value={r.label} onChange={(e) => setRole(i, { label: e.target.value })} />
+          <div className="event-role-row" key={i}>
+            <input placeholder="Slot / role (e.g. Winder 3-1)" value={r.label} onChange={(e) => setRole(i, { label: e.target.value })} />
+            <input placeholder="Group (flight)" value={r.group || ''} onChange={(e) => setRole(i, { group: e.target.value })} />
             <input className="emoji-in" placeholder="🛩️" value={r.emoji} onChange={(e) => setRole(i, { emoji: e.target.value })} />
             <input type="number" min="0" placeholder="limit" value={r.limit} onChange={(e) => setRole(i, { limit: +e.target.value })} title="0 = unlimited" />
             <button className="link danger" onClick={() => removeRole(i)}>✕</button>
           </div>
         ))}
-        <p className="muted">Limit 0 = unlimited. Times auto-convert to each member’s timezone in Discord.</p>
+        <p className="muted">Import a .miz to auto-fill flyable slots (grouped by flight), then add support roles (AWACS, ATC, Marshall…). Limit 0 = unlimited. ≤20 slots show as buttons; more become flight dropdowns. Times auto-convert per member.</p>
 
         <div className="actions">
           <button className="btn" onClick={save}>{editing.id ? 'Save' : 'Create'}</button>

@@ -87,6 +87,14 @@ export const api = {
   getTraps: () => req('GET', '/api/traps'),
 
   getEvents: () => req('GET', '/api/events'),
+  parseMiz: async (file) => {
+    const res = await fetch('/api/events/parse-miz', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/octet-stream' }, body: file,
+    });
+    if (!res.ok) { const e = new Error(`HTTP ${res.status}`); try { e.body = await res.json(); } catch { /* */ } throw e; }
+    return res.json();
+  },
   createEvent: (data) => req('POST', '/api/events', data),
   updateEvent: (id, data) => req('PUT', `/api/events/${id}`, data),
   postEvent: (id) => req('POST', `/api/events/${id}/post`),

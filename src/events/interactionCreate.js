@@ -3,7 +3,7 @@ import { handleRoleButton, handleRoleSelect } from '../features/roleMenus.js';
 import { handleVerify } from '../features/verification.js';
 import { handleOpenTicket, handleCloseTicket } from '../features/tickets.js';
 import { handleGiveawayButton } from '../features/giveaways.js';
-import { handleEventButton } from '../features/events.js';
+import { handleEventButton, handleEventSelect } from '../features/events.js';
 
 export default {
   name: Events.InteractionCreate,
@@ -22,6 +22,7 @@ export default {
       }
       if (interaction.isStringSelectMenu()) {
         if (interaction.customId.startsWith('rolemenu:')) return await handleRoleSelect(interaction);
+        if (interaction.customId.startsWith('event:')) return await handleEventSelect(interaction);
         return;
       }
     } catch (err) {

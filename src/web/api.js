@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, raw } from 'express';
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import {
   getConfig, setConfigValue,
@@ -26,6 +26,7 @@ import { postVerifyPanel } from '../features/verification.js';
 import { postTicketPanel } from '../features/tickets.js';
 import { postGiveaway, endGiveawayAndAnnounce, rerollGiveaway } from '../features/giveaways.js';
 import { postEvent } from '../features/events.js';
+import { parseMizSlots } from '../features/mizParser.js';
 import { STAT_TYPES, computeStat } from '../features/stats.js';
 import { requireAuth } from './auth.js';
 
@@ -451,8 +452,23 @@ export function apiRouter(client) {
   // --- events (mission scheduler) ---
   const sanitizeRoles = (roles) => (Array.isArray(roles) ? roles : [])
     .filter((r) => r && r.label)
-    .slice(0, 20)
-    .map((r) => ({ label: String(r.label).slice(0, 80), emoji: r.emoji ? String(r.emoji).slice(0, 64) : '', limit: Math.max(0, Number(r.limit) || 0) }));
+    .slice(0, 100)
+    .map((r) => ({
+      label: String(r.label).slice(0, 80),
+      emoji: r.emoji ? String(r.emoji).slice(0, 64) : '',
+      limit: Math.max(0, Number(r.limit) || 0),
+      group: r.group ? String(r.group).slice(0, 80) : '',
+    }));
+
+  // Parse an uploaded .miz (raw binary body) into flyable slots for the sign-up sheet.
+  router.post('/events/parse-miz', raw({ type: '*/*', limit: '12mb' }), (req, res) => {
+    try {
+      const slots = parseMizSlots(req.body);
+      res.json({ slots });
+    } catch (err) {
+      res.status(400).json({ error: err.message || 'parse_failed' });
+    }
+  });
 
   router.get('/events', (req, res) =>
     res.json(getEvents(req.guildId).map((e) => ({ ...e, signups: getSignups(e.id) }))));

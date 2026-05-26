@@ -141,6 +141,10 @@ a.dc-title { color: #00a8fc; }
 .rolebtn-row select, .rolebtn-row input { margin-top: 0; }
 .emoji-in { text-align: center; }
 
+/* Event slot rows (label, group, emoji, limit, remove) */
+.event-role-row { display: grid; grid-template-columns: 1.4fr 1fr 64px 70px auto; gap: 8px; align-items: center; margin-bottom: 6px; }
+.event-role-row input { margin-top: 0; }
+
 /* Mod log table */
 .modlog { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .modlog th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); }
