@@ -249,6 +249,9 @@ export function apiRouter(client) {
     const menu = getRoleMenu(id);
     if (!menu || menu.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
     if (!menu.channel_id) return res.status(400).json({ error: 'no_channel' });
+    if (!(menu.buttons || []).some((b) => b.role_id)) {
+      return res.status(400).json({ error: 'Add at least one button with a role selected, then Save, before posting.' });
+    }
     try {
       const messageId = await postRoleMenu(client, menu);
       res.json({ ok: true, message_id: messageId });

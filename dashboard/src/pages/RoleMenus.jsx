@@ -107,7 +107,7 @@ export default function RoleMenus() {
             <select value={b.role_id} onChange={(e) => setBtn(i, { role_id: e.target.value })}>
               <option value="">— role —</option>
               {guild.roles.map((r) => (
-                <option key={r.id} value={r.id} disabled={!r.assignable}>{r.name}{r.assignable ? '' : ' (above bot)'}</option>
+                <option key={r.id} value={r.id}>{r.name}{r.assignable ? '' : ' ⚠ above bot'}</option>
               ))}
             </select>
             <input placeholder="Label" value={b.label} onChange={(e) => setBtn(i, { label: e.target.value })} />
