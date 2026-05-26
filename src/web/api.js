@@ -19,6 +19,8 @@ import {
   getIngestToken, regenerateIngestToken, getServerStatus,
   getTrapLeaderboard, getRecentTraps,
   getBombLeaderboard, getRecentBombs, getSortieLeaderboard, getRecentSorties,
+  getRoster, setRosterEntry, deleteRoster,
+  getRecruitment, setRecruitment, getApplications,
 } from '../db/index.js';
 import { getBaseUrl } from './oauth.js';
 import { buildEmbed } from '../util/embed.js';
@@ -27,6 +29,7 @@ import { postVerifyPanel } from '../features/verification.js';
 import { postTicketPanel } from '../features/tickets.js';
 import { postGiveaway, endGiveawayAndAnnounce, rerollGiveaway } from '../features/giveaways.js';
 import { postEvent } from '../features/events.js';
+import { postRecruitPanel } from '../features/recruitment.js';
 import { parseMizSlots } from '../features/mizParser.js';
 import { STAT_TYPES, computeStat } from '../features/stats.js';
 import { requireAuth } from './auth.js';
@@ -38,6 +41,32 @@ const INVITE_PERMISSIONS = '1099780156438';
 const parseJson = (s) => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
 const serialize = (v) => (v ? JSON.stringify(v) : null);
 const cleanId = (v) => (v ? String(v).replace(/[^0-9]/g, '') || null : null);
+
+// Minimal CSV parser (handles quoted fields with commas/quotes). Returns row objects keyed by lowercased header.
+function parseCsv(text) {
+  const lines = String(text).replace(/\r/g, '').split('\n').filter((l) => l.trim());
+  if (!lines.length) return [];
+  const parseLine = (line) => {
+    const out = []; let cur = ''; let q = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (q) {
+        if (c === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c;
+      } else if (c === '"') q = true;
+      else if (c === ',') { out.push(cur); cur = ''; }
+      else cur += c;
+    }
+    out.push(cur);
+    return out.map((s) => s.trim());
+  };
+  const headers = parseLine(lines[0]).map((h) => h.toLowerCase());
+  return lines.slice(1).map((line) => {
+    const vals = parseLine(line);
+    const row = {};
+    headers.forEach((h, j) => { row[h] = vals[j] ?? ''; });
+    return row;
+  });
+}
 
 export function apiRouter(client) {
   const router = Router();
@@ -554,6 +583,72 @@ export function apiRouter(client) {
     leaderboard: getSortieLeaderboard(req.guildId),
     recent: getRecentSorties(req.guildId, 25),
   }));
+
+  // --- roster & quals ---
+  router.get('/roster', (req, res) => res.json(getRoster(req.guildId)));
+
+  router.get('/members', async (req, res) => {
+    const guild = client.guilds.cache.get(req.guildId);
+    if (!guild) return res.status(503).json({ error: 'bot_not_in_guild' });
+    try {
+      const members = await guild.members.fetch();
+      res.json(members.filter((m) => !m.user.bot).map((m) => ({ id: m.id, tag: m.user.tag, name: m.displayName })).slice(0, 2000));
+    } catch { res.status(500).json({ error: 'fetch_failed' }); }
+  });
+
+  router.put('/roster/:userId', (req, res) => {
+    const userId = cleanId(req.params.userId);
+    if (!userId) return res.status(400).json({ error: 'bad_user' });
+    const b = req.body || {};
+    setRosterEntry(req.guildId, userId, { callsign: b.callsign || null, airframes: b.airframes || null, quals: b.quals || null, notes: b.notes || null });
+    res.json({ ok: true });
+  });
+
+  router.delete('/roster/:userId', (req, res) => res.json({ ok: deleteRoster(req.guildId, cleanId(req.params.userId)) > 0 }));
+
+  // --- recruitment ---
+  router.get('/recruitment', (req, res) => res.json(getRecruitment(req.guildId)));
+  router.put('/recruitment', (req, res) => {
+    const b = req.body || {};
+    const questions = (Array.isArray(b.questions) ? b.questions : [])
+      .filter((q) => q && q.label).slice(0, 5)
+      .map((q) => ({ label: String(q.label).slice(0, 45), required: q.required !== false, paragraph: !!q.paragraph }));
+    res.json(setRecruitment(req.guildId, {
+      enabled: !!b.enabled,
+      panel_channel_id: cleanId(b.panel_channel_id),
+      review_channel_id: cleanId(b.review_channel_id),
+      approve_role_id: cleanId(b.approve_role_id),
+      title: b.title ?? '', description: b.description ?? '', button_label: b.button_label ?? 'Apply',
+      questions,
+    }));
+  });
+  router.post('/recruitment/post', async (req, res) => {
+    try { res.json({ ok: true, message_id: await postRecruitPanel(client, req.guildId) }); }
+    catch (err) { res.status(400).json({ error: err.message }); }
+  });
+  router.get('/applications', (req, res) => res.json(getApplications(req.guildId)));
+
+  router.post('/roster/import', async (req, res) => {
+    const rows = parseCsv(req.body?.csv || '');
+    if (!rows.length) return res.status(400).json({ error: 'empty_csv' });
+    let members = null;
+    if (rows.some((r) => !r.user_id && (r.username || r.name))) {
+      members = await client.guilds.cache.get(req.guildId)?.members.fetch().catch(() => null);
+    }
+    let imported = 0;
+    for (const r of rows) {
+      let userId = cleanId(r.user_id);
+      if (!userId && members) {
+        const uname = (r.username || r.name || '').toLowerCase();
+        const m = members.find((mm) => mm.user.username.toLowerCase() === uname || mm.displayName.toLowerCase() === uname);
+        if (m) userId = m.id;
+      }
+      if (!userId) continue;
+      setRosterEntry(req.guildId, userId, { callsign: r.callsign || null, airframes: r.airframes || null, quals: r.quals || null, notes: r.notes || null });
+      imported++;
+    }
+    res.json({ ok: true, imported, total: rows.length });
+  });
 
   // Change the bot's avatar — GLOBAL (one bot, one avatar across all servers), rate-limited.
   router.post('/bot-avatar', async (req, res) => {

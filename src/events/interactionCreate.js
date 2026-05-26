@@ -4,6 +4,7 @@ import { handleVerify } from '../features/verification.js';
 import { handleOpenTicket, handleCloseTicket } from '../features/tickets.js';
 import { handleGiveawayButton } from '../features/giveaways.js';
 import { handleEventButton, handleEventSelect } from '../features/events.js';
+import { handleApply, handleApplyModal, handleReview } from '../features/recruitment.js';
 
 export default {
   name: Events.InteractionCreate,
@@ -18,11 +19,17 @@ export default {
         if (id === 'ticket:close') return await handleCloseTicket(interaction);
         if (id.startsWith('giveaway:')) return await handleGiveawayButton(interaction);
         if (id.startsWith('event:')) return await handleEventButton(interaction);
+        if (id === 'recruit:apply') return await handleApply(interaction);
+        if (id.startsWith('recruit:approve:') || id.startsWith('recruit:deny:')) return await handleReview(interaction);
         return;
       }
       if (interaction.isStringSelectMenu()) {
         if (interaction.customId.startsWith('rolemenu:')) return await handleRoleSelect(interaction);
         if (interaction.customId.startsWith('event:')) return await handleEventSelect(interaction);
+        return;
+      }
+      if (interaction.isModalSubmit()) {
+        if (interaction.customId === 'recruit:modal') return await handleApplyModal(interaction);
         return;
       }
     } catch (err) {

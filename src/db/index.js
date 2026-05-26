@@ -250,6 +250,27 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_sorties_guild ON sorties (guild_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS roster (
+    guild_id   TEXT NOT NULL,
+    user_id    TEXT NOT NULL,
+    callsign   TEXT,
+    airframes  TEXT,
+    quals      TEXT,
+    notes      TEXT,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, user_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS applications (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id   TEXT NOT NULL,
+    user_id    TEXT NOT NULL,
+    user_tag   TEXT,
+    answers    TEXT NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'pending',
+    created_at INTEGER NOT NULL
+  );
 `);
 
 // --- batch 5 schema (embed options + invite log) ---
@@ -265,6 +286,9 @@ ensureColumn('guild_config', 'status_channel_id', 'TEXT');      // auto-updating
 ensureColumn('guild_config', 'status_message_id', 'TEXT');
 ensureColumn('guild_config', 'dcs_feed_channel_id', 'TEXT');    // kill/event feed channel
 ensureColumn('guild_config', 'status_embed', 'TEXT');           // custom status embed template (JSON)
+ensureColumn('guild_config', 'bullseye_lat', 'REAL');           // /bullseye reference
+ensureColumn('guild_config', 'bullseye_lon', 'REAL');
+ensureColumn('guild_config', 'recruitment', 'TEXT');            // recruitment config JSON
 ensureColumn('events', 'embed', 'TEXT');                        // custom event embed template (JSON)
 ensureColumn('events', 'waitlist', 'INTEGER NOT NULL DEFAULT 0');     // overflow goes to a waitlist
 ensureColumn('events', 'multi_signup', 'INTEGER NOT NULL DEFAULT 0'); // allow >1 slot per person
@@ -308,6 +332,7 @@ const ALLOWED_CONFIG_COLUMNS = new Set([
   'autorole_id', 'log_channel_id', 'automod',
   'verification', 'tickets', 'bot_nickname', 'embed_color', 'invite_log_channel',
   'ingest_token', 'server_status', 'status_channel_id', 'status_message_id', 'dcs_feed_channel_id', 'status_embed',
+  'bullseye_lat', 'bullseye_lon', 'recruitment',
 ]);
 
 // --- guild config helpers ---
@@ -767,5 +792,60 @@ export function addSortie(guildId, { pilot, airframe, seconds }) {
 }
 export function getSortieLeaderboard(guildId) { return selectSortieBoard.all(guildId); }
 export function getRecentSorties(guildId, limit = 20) { return selectRecentSorties.all(guildId, limit); }
+
+// --- bullseye ---
+export function getBullseye(guildId) {
+  const c = getConfig(guildId);
+  return c.bullseye_lat != null && c.bullseye_lon != null ? { lat: c.bullseye_lat, lon: c.bullseye_lon } : null;
+}
+export function setBullseye(guildId, lat, lon) {
+  setConfigValue(guildId, 'bullseye_lat', lat);
+  setConfigValue(guildId, 'bullseye_lon', lon);
+}
+
+// --- roster ---
+const upsertRoster = db.prepare(`
+  INSERT INTO roster (guild_id, user_id, callsign, airframes, quals, notes, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+  ON CONFLICT(guild_id, user_id) DO UPDATE SET callsign = excluded.callsign, airframes = excluded.airframes, quals = excluded.quals, notes = excluded.notes, updated_at = excluded.updated_at
+`);
+const selectRoster = db.prepare('SELECT * FROM roster WHERE guild_id = ? ORDER BY callsign ASC');
+const selectRosterEntry = db.prepare('SELECT * FROM roster WHERE guild_id = ? AND user_id = ?');
+const deleteRosterEntry = db.prepare('DELETE FROM roster WHERE guild_id = ? AND user_id = ?');
+export function setRosterEntry(guildId, userId, { callsign, airframes, quals, notes }) {
+  upsertRoster.run(guildId, userId, callsign ?? null, airframes ?? null, quals ?? null, notes ?? null, Date.now());
+}
+export function getRoster(guildId) { return selectRoster.all(guildId); }
+export function getRosterEntry(guildId, userId) { return selectRosterEntry.get(guildId, userId); }
+export function deleteRoster(guildId, userId) { return deleteRosterEntry.run(guildId, userId).changes; }
+
+// --- recruitment config ---
+const DEFAULT_RECRUITMENT = {
+  enabled: false, panel_channel_id: null, panel_message_id: null, review_channel_id: null, approve_role_id: null,
+  title: 'Join the Squadron', description: 'Click below to apply.', button_label: 'Apply',
+  questions: [{ label: 'Your callsign / name', required: true }, { label: 'Timezone & availability', required: true }, { label: 'DCS modules you fly', required: false }],
+};
+export function getRecruitment(guildId) {
+  return { ...DEFAULT_RECRUITMENT, ...safeParse(getConfig(guildId).recruitment, {}) };
+}
+export function setRecruitment(guildId, obj) {
+  const merged = { ...getRecruitment(guildId), ...obj };
+  setConfigValue(guildId, 'recruitment', JSON.stringify(merged));
+  return merged;
+}
+
+// --- applications ---
+const insertApplication = db.prepare('INSERT INTO applications (guild_id, user_id, user_tag, answers, created_at) VALUES (?, ?, ?, ?, ?)');
+const selectApplication = db.prepare('SELECT * FROM applications WHERE id = ?');
+const selectApplications = db.prepare('SELECT * FROM applications WHERE guild_id = ? ORDER BY created_at DESC LIMIT 100');
+const selectPendingByUser = db.prepare("SELECT * FROM applications WHERE guild_id = ? AND user_id = ? AND status = 'pending'");
+const setApplicationStatus = db.prepare('UPDATE applications SET status = ? WHERE id = ?');
+const parseApp = (r) => (r ? { ...r, answers: safeParse(r.answers, []) } : null);
+export function createApplication(guildId, userId, userTag, answers) {
+  return Number(insertApplication.run(guildId, userId, userTag ?? null, JSON.stringify(answers), Date.now()).lastInsertRowid);
+}
+export function getApplication(id) { return parseApp(selectApplication.get(id)); }
+export function getApplications(guildId) { return selectApplications.all(guildId).map(parseApp); }
+export function getPendingApplication(guildId, userId) { return parseApp(selectPendingByUser.get(guildId, userId)); }
+export function setAppStatus(id, status) { return setApplicationStatus.run(status, id).changes; }
 
 export default db;

@@ -88,6 +88,17 @@ export const api = {
   getBombs: () => req('GET', '/api/bombs'),
   getSorties: () => req('GET', '/api/sorties'),
 
+  getRoster: () => req('GET', '/api/roster'),
+  getMembers: () => req('GET', '/api/members'),
+  saveRosterEntry: (userId, data) => req('PUT', `/api/roster/${userId}`, data),
+  deleteRosterEntry: (userId) => req('DELETE', `/api/roster/${userId}`),
+  importRoster: (csv) => req('POST', '/api/roster/import', { csv }),
+
+  getRecruitment: () => req('GET', '/api/recruitment'),
+  saveRecruitment: (data) => req('PUT', '/api/recruitment', data),
+  postRecruitment: () => req('POST', '/api/recruitment/post'),
+  getApplications: () => req('GET', '/api/applications'),
+
   getEvents: () => req('GET', '/api/events'),
   parseMiz: async (file) => {
     const res = await fetch('/api/events/parse-miz', {

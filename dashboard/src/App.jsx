@@ -23,6 +23,8 @@ import DCSServer from './pages/DCSServer.jsx';
 import Traps from './pages/Traps.jsx';
 import Bombs from './pages/Bombs.jsx';
 import Sorties from './pages/Sorties.jsx';
+import Roster from './pages/Roster.jsx';
+import Recruitment from './pages/Recruitment.jsx';
 import Brand from './components/Brand.jsx';
 
 export default function App() {
@@ -67,6 +69,8 @@ export default function App() {
         </button>
         <nav>
           <NavLink to="/events">Mission Events</NavLink>
+          <NavLink to="/roster">Roster</NavLink>
+          <NavLink to="/recruitment">Recruitment</NavLink>
           <NavLink to="/dcs">DCS Server</NavLink>
           <NavLink to="/traps">Carrier Traps</NavLink>
           <NavLink to="/bombs">Bomb Range</NavLink>
@@ -96,6 +100,8 @@ export default function App() {
       <main className="content">
         <Routes>
           <Route path="/events" element={<Events />} />
+          <Route path="/roster" element={<Roster />} />
+          <Route path="/recruitment" element={<Recruitment />} />
           <Route path="/dcs" element={<DCSServer />} />
           <Route path="/traps" element={<Traps />} />
           <Route path="/bombs" element={<Bombs />} />
