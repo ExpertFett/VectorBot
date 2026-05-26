@@ -482,7 +482,8 @@ export function apiRouter(client) {
       channel_id: cleanId(b.channel_id), title: String(b.title), description: b.description || null,
       mission: b.mission || null, map: b.map || null, image: b.image || null,
       start_at: start, reminder_minutes: Math.max(0, Number(b.reminder_minutes) || 0),
-      roles: sanitizeRoles(b.roles), embed: b.embed || null, created_by: req.session.user.id,
+      roles: sanitizeRoles(b.roles), embed: b.embed || null,
+      waitlist: !!b.waitlist, multi_signup: !!b.multi_signup, created_by: req.session.user.id,
     });
     res.json({ ok: true, id });
   });
@@ -499,6 +500,7 @@ export function apiRouter(client) {
       mission: b.mission || null, map: b.map || null, image: b.image || null,
       start_at: start, reminder_minutes: Math.max(0, Number(b.reminder_minutes) || 0),
       roles: sanitizeRoles(b.roles), embed: b.embed || null,
+      waitlist: !!b.waitlist, multi_signup: !!b.multi_signup,
     });
     res.json({ ok: true });
   });

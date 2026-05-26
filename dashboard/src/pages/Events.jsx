@@ -6,7 +6,20 @@ import EmbedPreview from '../components/EmbedPreview.jsx';
 const BLANK = {
   id: null, title: '', description: '', mission: '', map: '', channel_id: '',
   start_at: '', reminder_minutes: 30, image: '', embed: null,
-  roles: [{ label: 'Attending', emoji: '✅', limit: 0 }],
+  waitlist: false, multi_signup: false,
+  roles: [{ label: 'Attending', emoji: '✅', limit: 0, group: '' }],
+};
+
+// DCS modules that seat more than one crew -> import expands each jet into sub-positions.
+const MULTICREW = {
+  'F-14A-135-GR': ['Pilot', 'RIO'], 'F-14B': ['Pilot', 'RIO'],
+  'F-15ESE': ['Pilot', 'WSO'],
+  'AH-64D_BLK_II': ['Pilot', 'CPG'],
+  'Mi-24P': ['Pilot', 'Gunner'], 'Mi-8MT': ['Pilot', 'Copilot'],
+  'L-39ZA': ['Front', 'Rear'], 'L-39C': ['Front', 'Rear'],
+  'C-101CC': ['Front', 'Rear'], 'C-101EB': ['Front', 'Rear'],
+  'MB-339A': ['Front', 'Rear'], 'MB-339APAN': ['Front', 'Rear'],
+  'Christen Eagle II': ['Front', 'Rear'], 'Yak-52': ['Front', 'Rear'],
 };
 
 // Convert a stored epoch-ms to a value for <input type="datetime-local">.
@@ -37,11 +50,16 @@ export default function Events() {
     try {
       const { slots } = await api.parseMiz(file);
       const have = new Set(editing.roles.map((r) => r.label));
-      const imported = slots
-        .filter((s) => !have.has(s.unit))
-        .map((s) => ({ label: s.unit, emoji: '', limit: 1, group: s.group || s.type }));
+      const imported = [];
+      for (const s of slots) {
+        const crew = MULTICREW[s.type];
+        const positions = crew ? crew.map((c) => `${s.unit} – ${c}`) : [s.unit];
+        for (const label of positions) {
+          if (!have.has(label)) { imported.push({ label, emoji: '', limit: 1, group: s.group || s.type }); have.add(label); }
+        }
+      }
       setEditing({ ...editing, roles: [...editing.roles, ...imported] });
-      setStatus(`Imported ${imported.length} slot(s) (${slots.length} found in mission).`);
+      setStatus(`Imported ${imported.length} slot(s) (${slots.length} jets found; multi-crew expanded).`);
     } catch (err) {
       setStatus('Import failed: ' + (err.body?.error || err.message));
     }
@@ -58,6 +76,7 @@ export default function Events() {
       reminder_minutes: editing.reminder_minutes,
       roles: editing.roles.filter((r) => r.label),
       embed: editing.embed || null,
+      waitlist: editing.waitlist, multi_signup: editing.multi_signup,
     };
     try {
       let id = editing.id;
@@ -75,7 +94,8 @@ export default function Events() {
   const edit = (e) => setEditing({
     id: e.id, title: e.title, description: e.description || '', mission: e.mission || '', map: e.map || '',
     channel_id: e.channel_id || '', start_at: toLocalInput(e.start_at), reminder_minutes: e.reminder_minutes,
-    image: e.image || '', embed: e.embed || null, roles: e.roles?.length ? e.roles : BLANK.roles,
+    image: e.image || '', embed: e.embed || null, waitlist: !!e.waitlist, multi_signup: !!e.multi_signup,
+    roles: e.roles?.length ? e.roles : BLANK.roles,
   });
 
   return (
@@ -111,6 +131,11 @@ export default function Events() {
         ) : (
           <label>Image URL (optional)<input value={editing.image} placeholder="https://…" onChange={(e) => setEditing({ ...editing, image: e.target.value })} /></label>
         )}
+
+        <div className="row2">
+          <label className="checkbox"><input type="checkbox" checked={editing.waitlist} onChange={(e) => setEditing({ ...editing, waitlist: e.target.checked })} /> Waitlist when a slot is full (auto-promotes &amp; DMs)</label>
+          <label className="checkbox"><input type="checkbox" checked={editing.multi_signup} onChange={(e) => setEditing({ ...editing, multi_signup: e.target.checked })} /> Allow signing up for multiple slots</label>
+        </div>
 
         <div className="fields-head">
           <span>Slots / roles ({editing.roles.length}/100)</span>

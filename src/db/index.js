@@ -245,6 +245,27 @@ ensureColumn('guild_config', 'status_message_id', 'TEXT');
 ensureColumn('guild_config', 'dcs_feed_channel_id', 'TEXT');    // kill/event feed channel
 ensureColumn('guild_config', 'status_embed', 'TEXT');           // custom status embed template (JSON)
 ensureColumn('events', 'embed', 'TEXT');                        // custom event embed template (JSON)
+ensureColumn('events', 'waitlist', 'INTEGER NOT NULL DEFAULT 0');     // overflow goes to a waitlist
+ensureColumn('events', 'multi_signup', 'INTEGER NOT NULL DEFAULT 0'); // allow >1 slot per person
+
+// Migrate event_signups PK to (event_id, user_id, role_label) so a user can hold
+// multiple slots (needed for multi-crew + multi-signup). One-time, safe (recent table).
+{
+  const cols = db.prepare('PRAGMA table_info(event_signups)').all();
+  const roleIsPk = (cols.find((c) => c.name === 'role_label')?.pk || 0) > 0;
+  if (cols.length && !roleIsPk) {
+    db.exec(`
+      CREATE TABLE event_signups_new (
+        event_id INTEGER NOT NULL, user_id TEXT NOT NULL, role_label TEXT NOT NULL,
+        created_at INTEGER NOT NULL, PRIMARY KEY (event_id, user_id, role_label)
+      );
+      INSERT OR IGNORE INTO event_signups_new (event_id, user_id, role_label, created_at)
+        SELECT event_id, user_id, role_label, created_at FROM event_signups;
+      DROP TABLE event_signups;
+      ALTER TABLE event_signups_new RENAME TO event_signups;
+    `);
+  }
+}
 
 // One-time: fold existing YouTube subs into social_subs as platform 'youtube'.
 {
@@ -603,13 +624,13 @@ export function setPersonalization(guildId, { bot_nickname, embed_color }) {
 
 // --- events (mission scheduler) ---
 const insertEvent = db.prepare(`
-  INSERT INTO events (guild_id, channel_id, title, description, mission, map, image, start_at, reminder_minutes, roles, embed, created_by, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO events (guild_id, channel_id, title, description, mission, map, image, start_at, reminder_minutes, roles, embed, waitlist, multi_signup, created_by, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 const selectEvent = db.prepare('SELECT * FROM events WHERE id = ?');
 const selectEventsByGuild = db.prepare('SELECT * FROM events WHERE guild_id = ? ORDER BY start_at ASC');
 const updateEventStmt = db.prepare(`
-  UPDATE events SET channel_id = ?, title = ?, description = ?, mission = ?, map = ?, image = ?, start_at = ?, reminder_minutes = ?, roles = ?, embed = ?
+  UPDATE events SET channel_id = ?, title = ?, description = ?, mission = ?, map = ?, image = ?, start_at = ?, reminder_minutes = ?, roles = ?, embed = ?, waitlist = ?, multi_signup = ?
   WHERE id = ? AND guild_id = ?
 `);
 const setEventMsgStmt = db.prepare('UPDATE events SET channel_id = ?, message_id = ? WHERE id = ?');
@@ -619,19 +640,19 @@ const deleteEventStmt = db.prepare('DELETE FROM events WHERE id = ? AND guild_id
 const selectEventsToRemind = db.prepare(
   "SELECT * FROM events WHERE status = 'scheduled' AND reminded = 0 AND reminder_minutes > 0 AND ? >= (start_at - reminder_minutes * 60000) AND ? < start_at"
 );
-const parseEvent = (r) => (r ? { ...r, roles: safeParse(r.roles, []), embed: safeParse(r.embed, null) } : null);
+const parseEvent = (r) => (r ? { ...r, roles: safeParse(r.roles, []), embed: safeParse(r.embed, null), waitlist: !!r.waitlist, multi_signup: !!r.multi_signup } : null);
 
 export function createEvent(guildId, d) {
   return Number(insertEvent.run(
     guildId, d.channel_id ?? null, d.title, d.description ?? null, d.mission ?? null, d.map ?? null,
     d.image ?? null, d.start_at, d.reminder_minutes ?? 0, JSON.stringify(d.roles || []),
-    d.embed ? JSON.stringify(d.embed) : null, d.created_by ?? null, Date.now()
+    d.embed ? JSON.stringify(d.embed) : null, d.waitlist ? 1 : 0, d.multi_signup ? 1 : 0, d.created_by ?? null, Date.now()
   ).lastInsertRowid);
 }
 export function getEvent(id) { return parseEvent(selectEvent.get(id)); }
 export function getEvents(guildId) { return selectEventsByGuild.all(guildId).map(parseEvent); }
 export function updateEvent(id, guildId, d) {
-  updateEventStmt.run(d.channel_id ?? null, d.title, d.description ?? null, d.mission ?? null, d.map ?? null, d.image ?? null, d.start_at, d.reminder_minutes ?? 0, JSON.stringify(d.roles || []), d.embed ? JSON.stringify(d.embed) : null, id, guildId);
+  updateEventStmt.run(d.channel_id ?? null, d.title, d.description ?? null, d.mission ?? null, d.map ?? null, d.image ?? null, d.start_at, d.reminder_minutes ?? 0, JSON.stringify(d.roles || []), d.embed ? JSON.stringify(d.embed) : null, d.waitlist ? 1 : 0, d.multi_signup ? 1 : 0, id, guildId);
   return getEvent(id);
 }
 export function setEventMessage(id, channelId, messageId) { setEventMsgStmt.run(channelId, messageId, id); }
@@ -643,18 +664,20 @@ export function getEventsToRemind(now) { return selectEventsToRemind.all(now, no
 // --- event signups ---
 const upsertSignup = db.prepare(`
   INSERT INTO event_signups (event_id, user_id, role_label, created_at) VALUES (?, ?, ?, ?)
-  ON CONFLICT(event_id, user_id) DO UPDATE SET role_label = excluded.role_label
+  ON CONFLICT(event_id, user_id, role_label) DO NOTHING
 `);
-const deleteSignupStmt = db.prepare('DELETE FROM event_signups WHERE event_id = ? AND user_id = ?');
+const deleteUserRoleStmt = db.prepare('DELETE FROM event_signups WHERE event_id = ? AND user_id = ? AND role_label = ?');
+const deleteAllUserStmt = db.prepare('DELETE FROM event_signups WHERE event_id = ? AND user_id = ?');
 const selectSignups = db.prepare('SELECT * FROM event_signups WHERE event_id = ? ORDER BY created_at ASC');
+const selectUserSignups = db.prepare('SELECT * FROM event_signups WHERE event_id = ? AND user_id = ?');
 const countSignupsForRole = db.prepare('SELECT COUNT(*) AS n FROM event_signups WHERE event_id = ? AND role_label = ?');
-const getSignupStmt = db.prepare('SELECT * FROM event_signups WHERE event_id = ? AND user_id = ?');
 
 export function setSignup(eventId, userId, roleLabel) { upsertSignup.run(eventId, userId, roleLabel, Date.now()); }
-export function removeSignup(eventId, userId) { return deleteSignupStmt.run(eventId, userId).changes; }
+export function removeUserRole(eventId, userId, roleLabel) { return deleteUserRoleStmt.run(eventId, userId, roleLabel).changes; }
+export function removeAllUserSignups(eventId, userId) { return deleteAllUserStmt.run(eventId, userId).changes; }
 export function getSignups(eventId) { return selectSignups.all(eventId); }
+export function getUserSignups(eventId, userId) { return selectUserSignups.all(eventId, userId); }
 export function countRoleSignups(eventId, roleLabel) { return countSignupsForRole.get(eventId, roleLabel).n; }
-export function getSignup(eventId, userId) { return getSignupStmt.get(eventId, userId); }
 
 // --- DCS ingest / server status ---
 const selectGuildByToken = db.prepare('SELECT guild_id FROM guild_config WHERE ingest_token = ?');

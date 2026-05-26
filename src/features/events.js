@@ -3,15 +3,14 @@ import {
   StringSelectMenuBuilder, MessageFlags,
 } from 'discord.js';
 import {
-  getEvent, getSignups, setSignup, removeSignup, getSignup, countRoleSignups,
-  setEventMessage, getPersonalization,
+  getEvent, getSignups, getUserSignups, setSignup, removeUserRole, removeAllUserSignups,
+  countRoleSignups, setEventMessage, getPersonalization,
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 
-const BUTTON_LIMIT = 20; // up to 20 roles render as buttons; beyond that we paginate selects
+const BUTTON_LIMIT = 20;
 const isHttpUrl = (s) => typeof s === 'string' && /^https?:\/\//i.test(s);
 
-// Group roles (preserving global index) by their `group` field.
 function groupRoles(roles) {
   const order = [];
   const map = new Map();
@@ -28,7 +27,6 @@ export function buildEventMessage(event, signups = []) {
   const cancelled = event.status === 'cancelled';
   const ts = Math.floor(event.start_at / 1000);
 
-  // Header: custom embed template, or a default one.
   let embed = event.embed ? buildEmbed(event.embed, undefined, accent) : null;
   if (embed) {
     if (!embed.data.title) embed.setTitle(event.title);
@@ -50,37 +48,38 @@ export function buildEventMessage(event, signups = []) {
     if (!byRole.has(s.role_label)) byRole.set(s.role_label, []);
     byRole.get(s.role_label).push(s.user_id);
   }
-  const fill = (role) => {
+  // active = first `limit` by sign-up time; the rest are waitlisted.
+  const split = (role) => {
     const ids = byRole.get(role.label) || [];
-    return { ids, cap: role.limit ? `/${role.limit}` : '' };
+    const active = role.limit ? ids.slice(0, role.limit) : ids;
+    const waiting = role.limit ? ids.slice(role.limit) : [];
+    return { active, waiting, cap: role.limit ? `/${role.limit}` : '' };
   };
+  const mention = (ids) => (ids.length ? ids.map((id) => `<@${id}>`).join(', ') : '—');
 
   const roles = event.roles || [];
-
-  // Roster display.
   if (roles.length <= BUTTON_LIMIT) {
     for (const role of roles) {
-      const { ids, cap } = fill(role);
-      embed.addFields({
-        name: `${role.emoji ? role.emoji + ' ' : ''}${role.label} (${ids.length}${cap})`,
-        value: ids.length ? ids.map((id) => `<@${id}>`).join('\n').slice(0, 1024) : '—',
-        inline: true,
-      });
+      const { active, waiting, cap } = split(role);
+      let val = active.length ? active.map((id) => `<@${id}>`).join('\n') : '—';
+      if (waiting.length) val += `\n*WL:* ${mention(waiting)}`;
+      embed.addFields({ name: `${role.emoji ? role.emoji + ' ' : ''}${role.label} (${active.length}${cap})`, value: val.slice(0, 1024), inline: true });
     }
   } else {
-    // Grouped, compact: one field per flight/group.
     for (const grp of groupRoles(roles).slice(0, 22)) {
       const lines = grp.items.map(({ role }) => {
-        const { ids, cap } = fill(role);
-        const who = ids.length ? ids.map((id) => `<@${id}>`).join(', ') : '—';
-        return `**${role.label}** (${ids.length}${cap}): ${who}`;
+        const { active, waiting, cap } = split(role);
+        let line = `**${role.label}** (${active.length}${cap}): ${mention(active)}`;
+        if (waiting.length) line += ` *(WL: ${waiting.length})*`;
+        return line;
       });
       embed.addFields({ name: grp.name || 'Slots', value: lines.join('\n').slice(0, 1024) });
     }
   }
 
   if (!event.embed && isHttpUrl(event.image)) embed.setImage(event.image);
-  embed.setFooter({ text: `Event #${event.id}` });
+  const flags = [event.multi_signup ? 'multi-slot' : '1 slot/person', event.waitlist ? 'waitlist on' : null].filter(Boolean).join(' · ');
+  embed.setFooter({ text: `Event #${event.id} · ${flags}` });
 
   if (cancelled) return { embeds: [embed], components: [] };
 
@@ -97,7 +96,6 @@ export function buildEventMessage(event, signups = []) {
     row.components.push(new ButtonBuilder().setCustomId(`event:${event.id}:withdraw`).setLabel('Withdraw').setStyle(ButtonStyle.Secondary).setEmoji('🚫'));
     rows.push(row);
   } else {
-    // Paginate into selects of 25 (max 4 selects = 100 slots), preserving group order.
     for (let chunk = 0; chunk < 4 && chunk * 25 < roles.length; chunk++) {
       const start = chunk * 25;
       const slice = roles.slice(start, start + 25);
@@ -106,8 +104,8 @@ export function buildEventMessage(event, signups = []) {
         .setPlaceholder(`Sign up — slots ${start + 1}-${start + slice.length}`)
         .setMinValues(0).setMaxValues(1)
         .addOptions(slice.map((role, j) => {
-          const { ids, cap } = fill(role);
-          const opt = { label: role.label.slice(0, 100), value: String(start + j), description: `${role.group ? role.group + ' · ' : ''}${ids.length}${cap} signed`.slice(0, 100) };
+          const { active, cap } = split(role);
+          const opt = { label: role.label.slice(0, 100), value: String(start + j), description: `${role.group ? role.group + ' · ' : ''}${active.length}${cap} signed`.slice(0, 100) };
           if (role.emoji) opt.emoji = role.emoji;
           return opt;
         }));
@@ -129,7 +127,6 @@ export async function postEvent(client, event) {
   const channel = await resolveChannel(client, event.channel_id);
   if (!channel?.isTextBased()) throw new Error('invalid_channel');
   const payload = buildEventMessage(event, getSignups(event.id));
-
   if (event.message_id) {
     const existing = await channel.messages.fetch(event.message_id).catch(() => null);
     if (existing) { await existing.edit(payload); setEventMessage(event.id, channel.id, existing.id); return existing.id; }
@@ -144,18 +141,50 @@ async function rerender(interaction, eventId) {
   if (fresh) await interaction.message.edit(buildEventMessage(fresh, getSignups(eventId))).catch(() => {});
 }
 
-// Claim/move/toggle a role for a user. Returns a status message string.
+// Snapshot active (non-waitlisted) user per role for promotion detection.
+function activeSets(event) {
+  const byRole = new Map();
+  for (const s of getSignups(event.id)) {
+    if (!byRole.has(s.role_label)) byRole.set(s.role_label, []);
+    byRole.get(s.role_label).push(s.user_id);
+  }
+  const out = new Map();
+  for (const role of event.roles) {
+    const ids = byRole.get(role.label) || [];
+    out.set(role.label, new Set(role.limit ? ids.slice(0, role.limit) : ids));
+  }
+  return out;
+}
+
+// Run a DB mutation; if the event has a waitlist, DM anyone newly promoted into an active slot.
+async function withPromotion(client, event, mutate) {
+  if (!event.waitlist) { mutate(); return; }
+  const before = activeSets(event);
+  mutate();
+  const after = activeSets(event);
+  for (const role of event.roles) {
+    const b = before.get(role.label) || new Set();
+    for (const uid of after.get(role.label) || new Set()) {
+      if (!b.has(uid)) {
+        client.users.fetch(uid)
+          .then((u) => u.send(`✅ You've been promoted from the waitlist into **${role.label}** for **${event.title}**.`))
+          .catch(() => {});
+      }
+    }
+  }
+}
+
 function claim(event, userId, role) {
-  const existing = getSignup(event.id, userId);
-  if (existing?.role_label === role.label) {
-    removeSignup(event.id, userId);
+  const mine = getUserSignups(event.id, userId).map((s) => s.role_label);
+  if (mine.includes(role.label)) {
+    removeUserRole(event.id, userId, role.label);
     return { changed: true, msg: `Removed you from **${role.label}**.` };
   }
-  if (role.limit && countRoleSignups(event.id, role.label) >= role.limit) {
-    return { changed: false, msg: `**${role.label}** is full.` };
-  }
+  const full = role.limit && countRoleSignups(event.id, role.label) >= role.limit;
+  if (full && !event.waitlist) return { changed: false, msg: `**${role.label}** is full.` };
+  if (!event.multi_signup) removeAllUserSignups(event.id, userId);
   setSignup(event.id, userId, role.label);
-  return { changed: true, msg: `You’re signed up as **${role.label}**.` };
+  return { changed: true, msg: full ? `Added to the **waitlist** for **${role.label}**.` : `You’re signed up as **${role.label}**.` };
 }
 
 export async function handleEventButton(interaction) {
@@ -165,15 +194,17 @@ export async function handleEventButton(interaction) {
     return interaction.reply({ content: 'This event is no longer open.', flags: MessageFlags.Ephemeral });
   }
   if (action === 'withdraw') {
-    const removed = removeSignup(event.id, interaction.user.id);
+    let removed = 0;
+    await withPromotion(interaction.client, event, () => { removed = removeAllUserSignups(event.id, interaction.user.id); });
     await rerender(interaction, event.id);
     return interaction.reply({ content: removed ? 'You’ve withdrawn.' : 'You weren’t signed up.', flags: MessageFlags.Ephemeral });
   }
   const role = event.roles[Number(idxStr)];
   if (!role) return interaction.reply({ content: 'That slot no longer exists.', flags: MessageFlags.Ephemeral });
-  const { changed, msg } = claim(event, interaction.user.id, role);
-  if (changed) await rerender(interaction, event.id);
-  return interaction.reply({ content: msg, flags: MessageFlags.Ephemeral });
+  let result;
+  await withPromotion(interaction.client, event, () => { result = claim(event, interaction.user.id, role); });
+  if (result.changed) await rerender(interaction, event.id);
+  return interaction.reply({ content: result.msg, flags: MessageFlags.Ephemeral });
 }
 
 export async function handleEventSelect(interaction) {
@@ -183,13 +214,12 @@ export async function handleEventSelect(interaction) {
     return interaction.reply({ content: 'This event is no longer open.', flags: MessageFlags.Ephemeral });
   }
   if (interaction.values.length === 0) {
-    const removed = removeSignup(event.id, interaction.user.id);
-    await rerender(interaction, event.id);
-    return interaction.reply({ content: removed ? 'You’ve withdrawn.' : 'No change.', flags: MessageFlags.Ephemeral });
+    return interaction.reply({ content: 'Use the Withdraw button to leave.', flags: MessageFlags.Ephemeral });
   }
   const role = event.roles[Number(interaction.values[0])];
   if (!role) return interaction.reply({ content: 'That slot no longer exists.', flags: MessageFlags.Ephemeral });
-  const { changed, msg } = claim(event, interaction.user.id, role);
-  if (changed) await rerender(interaction, event.id);
-  return interaction.reply({ content: msg, flags: MessageFlags.Ephemeral });
+  let result;
+  await withPromotion(interaction.client, event, () => { result = claim(event, interaction.user.id, role); });
+  if (result.changed) await rerender(interaction, event.id);
+  return interaction.reply({ content: result.msg, flags: MessageFlags.Ephemeral });
 }
