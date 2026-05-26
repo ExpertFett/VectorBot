@@ -21,6 +21,7 @@ import Personalizer from './pages/Personalizer.jsx';
 import Events from './pages/Events.jsx';
 import DCSServer from './pages/DCSServer.jsx';
 import Traps from './pages/Traps.jsx';
+import Brand from './components/Brand.jsx';
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -56,7 +57,7 @@ export default function App() {
   return (
     <div className="app">
       <aside className="sidebar">
-        <div className="brand">Vector<span>Bot</span></div>
+        <Brand variant="sm" />
         <button className="server-switch" onClick={() => setPicking(true)} title="Switch server">
           {guild?.icon && <img src={guild.icon} alt="" />}
           <span>{guild?.name || 'Server'}</span>

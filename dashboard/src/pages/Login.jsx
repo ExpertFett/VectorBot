@@ -1,4 +1,5 @@
 import { api } from '../api.js';
+import Brand from '../components/Brand.jsx';
 
 export default function Login({ noAccess, user }) {
   const error = new URLSearchParams(window.location.search).get('error');
@@ -11,8 +12,7 @@ export default function Login({ noAccess, user }) {
   return (
     <div className="center">
       <div className="login-card">
-        <div className="brand big opt-brand">DCS<span>:OPT</span></div>
-        <div className="opt-tagline">Operational Planning Tool</div>
+        <Brand variant="lg" />
         {noAccess ? (
           <>
             <p className="muted">

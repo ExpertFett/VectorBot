@@ -41,6 +41,9 @@ code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font-size: 0
   text-transform: uppercase; letter-spacing: 3px; font-size: 0.72rem; font-weight: 700;
   color: #f47b20; margin: -2px 0 18px;
 }
+.brand-logo { display: block; object-fit: contain; border-radius: 8px; }
+.brand-logo-lg { width: 200px; max-width: 80%; height: auto; margin: 0 auto 16px; }
+.brand-logo-sm { width: 100%; height: auto; }
 
 /* Login */
 .login-card {

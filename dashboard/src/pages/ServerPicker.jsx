@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import Brand from '../components/Brand.jsx';
 
 export default function ServerPicker({ onSelected, onCancel }) {
   const [data, setData] = useState(null);
@@ -16,7 +17,7 @@ export default function ServerPicker({ onSelected, onCancel }) {
   return (
     <div className="center">
       <div className="login-card" style={{ maxWidth: 480 }}>
-        <div className="brand big">Vector<span>Bot</span></div>
+        <Brand variant="lg" />
         <p className="muted">Choose a server to manage.</p>
         {status && <p className="error">{status}</p>}
         <div className="server-list">
