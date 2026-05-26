@@ -1,13 +1,18 @@
 -- vectorbot_mission.lua
 -- Runs INSIDE the DCS mission scripting environment (sandboxed Lua).
--- Injected by vectorbot.lua. Captures player kills and carrier (LSO) trap grades,
--- and queues JSON events for the GameGUI hook to drain via VectorBot_drain().
+-- Injected by vectorbot.lua. Captures player kills, carrier (LSO) trap grades,
+-- bomb/rocket impacts vs a "TGT" map-marker, and sorties (takeoff->landing).
+-- Queues JSON events for the GameGUI hook to drain via VectorBot_drain().
 
 if VectorBot and VectorBot.installed then return "already-installed" end
 
 VectorBot = {}
 VectorBot.installed = true
-VectorBot.queue = {}
+VectorBot.queue   = {}
+VectorBot.tracked = {}   -- weapons in flight (for impact detection)
+VectorBot.airborne = {}  -- unitName -> { pilot, t0, airframe } (for sorties)
+VectorBot.target  = nil  -- { x, z, name } from a "TGT" map marker
+VectorBot.KEYWORD = "TGT"
 
 local function jstr(s)
   s = tostring(s or "")
@@ -32,6 +37,12 @@ local function isPlayer(u)
   return ok and pn ~= nil
 end
 
+local function typeName(u)
+  if not u or not u.getTypeName then return nil end
+  local ok, n = pcall(function() return u:getTypeName() end)
+  return ok and n or nil
+end
+
 VectorBot.handler = {}
 function VectorBot.handler:onEvent(event)
   if not event or not event.id then return end
@@ -39,16 +50,10 @@ function VectorBot.handler:onEvent(event)
 
   if id == world.event.S_EVENT_KILL then
     local killer, victim = event.initiator, event.target
-    -- Only log kills that involve a player, to avoid AI-vs-AI spam.
     if isPlayer(killer) or isPlayer(victim) then
-      local wtype = "weapon"
-      if event.weapon and event.weapon.getTypeName then
-        local ok, n = pcall(function() return event.weapon:getTypeName() end)
-        if ok and n then wtype = n end
-      end
       table.insert(VectorBot.queue, string.format(
         '{"kind":"kill","killer":%s,"victim":%s,"weapon":%s,"time":%.1f}',
-        jstr(unitName(killer) or "unknown"), jstr(unitName(victim) or "unknown"), jstr(wtype), timer.getTime()))
+        jstr(unitName(killer) or "unknown"), jstr(unitName(victim) or "unknown"), jstr(typeName(event.weapon) or "weapon"), timer.getTime()))
     end
 
   elseif world.event.S_EVENT_LANDING_QUALITY_MARK and id == world.event.S_EVENT_LANDING_QUALITY_MARK then
@@ -56,18 +61,85 @@ function VectorBot.handler:onEvent(event)
     if pilot then
       local ship = nil
       if event.place and event.place.getName then
-        local ok, n = pcall(function() return event.place:getName() end)
-        if ok then ship = n end
+        local ok, n = pcall(function() return event.place:getName() end); if ok then ship = n end
       end
       table.insert(VectorBot.queue, string.format(
         '{"kind":"trap","pilot":%s,"grade":%s,"ship":%s,"time":%.1f}',
         jstr(pilot), jstr(event.comment or ""), jstr(ship or ""), timer.getTime()))
     end
+
+  elseif id == world.event.S_EVENT_MARK_ADDED or id == world.event.S_EVENT_MARK_CHANGE then
+    local text = event.text or ""
+    if string.upper(string.sub(text, 1, #VectorBot.KEYWORD)) == VectorBot.KEYWORD and event.pos then
+      VectorBot.target = { x = event.pos.x, z = event.pos.z, name = text }
+    end
+
+  elseif id == world.event.S_EVENT_MARK_REMOVE then
+    VectorBot.target = nil
+
+  elseif id == world.event.S_EVENT_SHOT then
+    local w = event.weapon
+    if w and isPlayer(event.initiator) then
+      local ok, desc = pcall(function() return w:getDesc() end)
+      if ok and desc and (desc.category == 2 or desc.category == 3) then -- rocket / bomb
+        local okp, p = pcall(function() return w:getPoint() end)
+        if okp and p then
+          table.insert(VectorBot.tracked, { wpn = w, last = p, shooter = unitName(event.initiator) or "unknown", wtype = typeName(w) or "weapon" })
+        end
+      end
+    end
+
+  elseif id == world.event.S_EVENT_TAKEOFF then
+    if isPlayer(event.initiator) then
+      local key = event.initiator:getName()
+      VectorBot.airborne[key] = { pilot = unitName(event.initiator), t0 = timer.getTime(), airframe = typeName(event.initiator) or "aircraft" }
+    end
+
+  elseif id == world.event.S_EVENT_LAND then
+    if isPlayer(event.initiator) then
+      local key = event.initiator:getName()
+      local s = VectorBot.airborne[key]
+      if s then
+        table.insert(VectorBot.queue, string.format(
+          '{"kind":"sortie","pilot":%s,"airframe":%s,"seconds":%d}',
+          jstr(s.pilot), jstr(s.airframe), math.floor(timer.getTime() - s.t0)))
+        VectorBot.airborne[key] = nil
+      end
+    end
   end
 end
 world.addEventHandler(VectorBot.handler)
 
--- Called by the hook each drain interval; returns a JSON array string (or "").
+-- Poll tracked weapons; the last position before a weapon stops existing is the impact.
+local function poll()
+  local i = 1
+  while i <= #VectorBot.tracked do
+    local t = VectorBot.tracked[i]
+    local exists = false
+    pcall(function() exists = t.wpn:isExist() end)
+    if exists then
+      local ok, p = pcall(function() return t.wpn:getPoint() end)
+      if ok and p then t.last = p end
+      i = i + 1
+    else
+      local dist = "null"
+      local tgt = "null"
+      if VectorBot.target and t.last then
+        local dx = t.last.x - VectorBot.target.x
+        local dz = t.last.z - VectorBot.target.z
+        dist = string.format("%.1f", math.sqrt(dx * dx + dz * dz))
+        tgt = jstr(VectorBot.target.name)
+      end
+      table.insert(VectorBot.queue, string.format(
+        '{"kind":"bomb","shooter":%s,"weapon":%s,"distance":%s,"target":%s,"time":%.1f}',
+        jstr(t.shooter), jstr(t.wtype), dist, tgt, timer.getTime()))
+      table.remove(VectorBot.tracked, i)
+    end
+  end
+  return timer.getTime() + 0.05
+end
+timer.scheduleFunction(poll, nil, timer.getTime() + 0.05)
+
 function VectorBot_drain()
   if #VectorBot.queue == 0 then return "" end
   local body = table.concat(VectorBot.queue, ",")

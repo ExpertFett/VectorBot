@@ -18,6 +18,7 @@ import {
   createEvent, getEvent, getEvents, updateEvent, deleteEvent, setEventStatus, getSignups,
   getIngestToken, regenerateIngestToken, getServerStatus,
   getTrapLeaderboard, getRecentTraps,
+  getBombLeaderboard, getRecentBombs, getSortieLeaderboard, getRecentSorties,
 } from '../db/index.js';
 import { getBaseUrl } from './oauth.js';
 import { buildEmbed } from '../util/embed.js';
@@ -542,6 +543,16 @@ export function apiRouter(client) {
   router.get('/traps', (req, res) => res.json({
     leaderboard: getTrapLeaderboard(req.guildId),
     recent: getRecentTraps(req.guildId, 25),
+  }));
+
+  router.get('/bombs', (req, res) => res.json({
+    leaderboard: getBombLeaderboard(req.guildId),
+    recent: getRecentBombs(req.guildId, 25),
+  }));
+
+  router.get('/sorties', (req, res) => res.json({
+    leaderboard: getSortieLeaderboard(req.guildId),
+    recent: getRecentSorties(req.guildId, 25),
   }));
 
   // Change the bot's avatar — GLOBAL (one bot, one avatar across all servers), rate-limited.

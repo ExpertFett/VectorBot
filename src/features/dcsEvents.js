@@ -1,4 +1,19 @@
-import { addTrap, getConfig } from '../db/index.js';
+import { addTrap, addBombScore, addSortie, getConfig } from '../db/index.js';
+
+// Miss distance (m) -> grade band.
+function bombGrade(d) {
+  if (d <= 10) return 'Shack';
+  if (d <= 25) return 'Excellent';
+  if (d <= 50) return 'Good';
+  if (d <= 100) return 'Fair';
+  return 'Miss';
+}
+
+function fmtDuration(sec) {
+  const m = Math.round(sec / 60);
+  if (m < 60) return `${m}m`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
 
 // Map a DCS LSO grade comment to a label + points (heuristic; the raw comment
 // format varies by DCS version/Supercarrier, so this is approximate and can be tuned).
@@ -32,5 +47,15 @@ export async function handleDcsEvent(client, guildId, ev) {
     const g = gradePoints(ev.grade);
     addTrap(guildId, { pilot: String(ev.pilot).slice(0, 80), grade: g.label, points: g.points, ship: ev.ship ? String(ev.ship).slice(0, 80) : null });
     await feed(client, guildId, `🪝 **${ev.pilot}** trapped${ev.ship ? ` aboard ${ev.ship}` : ''}: **${g.label}** (${g.points})`);
+  } else if (ev.kind === 'bomb' && ev.shooter && typeof ev.distance === 'number') {
+    // Only scored when a TGT marker was set (distance present).
+    const d = Math.round(ev.distance * 10) / 10;
+    const grade = bombGrade(d);
+    addBombScore(guildId, { pilot: String(ev.shooter).slice(0, 80), weapon: ev.weapon ? String(ev.weapon).slice(0, 80) : null, distance: d, grade });
+    await feed(client, guildId, `💣 **${ev.shooter}** — ${ev.weapon || 'ordnance'} — **${d} m** from target (**${grade}**)`);
+  } else if (ev.kind === 'sortie' && ev.pilot) {
+    const seconds = Math.max(0, Number(ev.seconds) || 0);
+    addSortie(guildId, { pilot: String(ev.pilot).slice(0, 80), airframe: ev.airframe ? String(ev.airframe).slice(0, 80) : null, seconds });
+    await feed(client, guildId, `🛬 **${ev.pilot}** landed — ${fmtDuration(seconds)} sortie${ev.airframe ? ` in ${ev.airframe}` : ''}`);
   }
 }

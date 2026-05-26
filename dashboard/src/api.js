@@ -85,6 +85,8 @@ export const api = {
   getDcs: () => req('GET', '/api/dcs'),
   regenIngest: () => req('POST', '/api/dcs/regen'),
   getTraps: () => req('GET', '/api/traps'),
+  getBombs: () => req('GET', '/api/bombs'),
+  getSorties: () => req('GET', '/api/sorties'),
 
   getEvents: () => req('GET', '/api/events'),
   parseMiz: async (file) => {

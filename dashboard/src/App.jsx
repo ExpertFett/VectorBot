@@ -21,6 +21,8 @@ import Personalizer from './pages/Personalizer.jsx';
 import Events from './pages/Events.jsx';
 import DCSServer from './pages/DCSServer.jsx';
 import Traps from './pages/Traps.jsx';
+import Bombs from './pages/Bombs.jsx';
+import Sorties from './pages/Sorties.jsx';
 import Brand from './components/Brand.jsx';
 
 export default function App() {
@@ -67,6 +69,8 @@ export default function App() {
           <NavLink to="/events">Mission Events</NavLink>
           <NavLink to="/dcs">DCS Server</NavLink>
           <NavLink to="/traps">Carrier Traps</NavLink>
+          <NavLink to="/bombs">Bomb Range</NavLink>
+          <NavLink to="/sorties">Sortie Log</NavLink>
           <NavLink to="/welcome">Welcome &amp; Roles</NavLink>
           <NavLink to="/verification">Verification</NavLink>
           <NavLink to="/commands">Custom Commands</NavLink>
@@ -94,6 +98,8 @@ export default function App() {
           <Route path="/events" element={<Events />} />
           <Route path="/dcs" element={<DCSServer />} />
           <Route path="/traps" element={<Traps />} />
+          <Route path="/bombs" element={<Bombs />} />
+          <Route path="/sorties" element={<Sorties />} />
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/verification" element={<Verification />} />
           <Route path="/commands" element={<Commands />} />

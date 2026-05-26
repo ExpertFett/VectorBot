@@ -229,6 +229,27 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_traps_guild ON traps (guild_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS bomb_scores (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id   TEXT NOT NULL,
+    pilot      TEXT NOT NULL,
+    weapon     TEXT,
+    distance   REAL NOT NULL,
+    grade      TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_bombs_guild ON bomb_scores (guild_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS sorties (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id   TEXT NOT NULL,
+    pilot      TEXT NOT NULL,
+    airframe   TEXT,
+    seconds    INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_sorties_guild ON sorties (guild_id, created_at);
 `);
 
 // --- batch 5 schema (embed options + invite log) ---
@@ -720,5 +741,31 @@ export function addTrap(guildId, { pilot, grade, points, ship }) {
 }
 export function getTrapLeaderboard(guildId) { return selectTrapBoard.all(guildId); }
 export function getRecentTraps(guildId, limit = 20) { return selectRecentTraps.all(guildId, limit); }
+
+// --- bomb scores ---
+const insertBomb = db.prepare('INSERT INTO bomb_scores (guild_id, pilot, weapon, distance, grade, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+const selectBombBoard = db.prepare(`
+  SELECT pilot, COUNT(*) AS drops, ROUND(AVG(distance), 1) AS avg_m, ROUND(MIN(distance), 1) AS best_m
+  FROM bomb_scores WHERE guild_id = ? GROUP BY pilot ORDER BY avg_m ASC LIMIT 50
+`);
+const selectRecentBombs = db.prepare('SELECT * FROM bomb_scores WHERE guild_id = ? ORDER BY created_at DESC LIMIT ?');
+export function addBombScore(guildId, { pilot, weapon, distance, grade }) {
+  insertBomb.run(guildId, pilot, weapon ?? null, distance, grade ?? null, Date.now());
+}
+export function getBombLeaderboard(guildId) { return selectBombBoard.all(guildId); }
+export function getRecentBombs(guildId, limit = 20) { return selectRecentBombs.all(guildId, limit); }
+
+// --- sorties ---
+const insertSortie = db.prepare('INSERT INTO sorties (guild_id, pilot, airframe, seconds, created_at) VALUES (?, ?, ?, ?, ?)');
+const selectSortieBoard = db.prepare(`
+  SELECT pilot, COUNT(*) AS sorties, SUM(seconds) AS total_seconds
+  FROM sorties WHERE guild_id = ? GROUP BY pilot ORDER BY total_seconds DESC LIMIT 50
+`);
+const selectRecentSorties = db.prepare('SELECT * FROM sorties WHERE guild_id = ? ORDER BY created_at DESC LIMIT ?');
+export function addSortie(guildId, { pilot, airframe, seconds }) {
+  insertSortie.run(guildId, pilot, airframe ?? null, Math.max(0, Number(seconds) || 0), Date.now());
+}
+export function getSortieLeaderboard(guildId) { return selectSortieBoard.all(guildId); }
+export function getRecentSorties(guildId, limit = 20) { return selectRecentSorties.all(guildId, limit); }
 
 export default db;
