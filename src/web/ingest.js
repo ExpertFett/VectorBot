@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getGuildByIngestToken, setServerStatus, getConfig } from '../db/index.js';
 import { renderServerStatus } from '../features/serverStatus.js';
+import { handleDcsEvent } from '../features/dcsEvents.js';
 
 // Public, token-authenticated endpoint for DCS server hooks (machine-to-machine).
 // Mounted OUTSIDE the dashboard's session auth.
@@ -12,6 +13,14 @@ export function ingestRouter(client) {
     if (!guildId) return res.status(401).json({ error: 'bad_token' });
 
     const b = req.body || {};
+
+    // Mission events (kills / traps) from the injected mission hook.
+    if (b.type === 'events' && Array.isArray(b.events)) {
+      for (const ev of b.events.slice(0, 100)) {
+        await handleDcsEvent(client, guildId, ev).catch(() => {});
+      }
+      return res.json({ ok: true });
+    }
 
     if (b.type === 'event' && b.text) {
       const cfg = getConfig(guildId);

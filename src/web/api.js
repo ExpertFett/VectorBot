@@ -17,6 +17,7 @@ import {
   getInviteLeaderboard, getPersonalization, setPersonalization,
   createEvent, getEvent, getEvents, updateEvent, deleteEvent, setEventStatus, getSignups,
   getIngestToken, regenerateIngestToken, getServerStatus,
+  getTrapLeaderboard, getRecentTraps,
 } from '../db/index.js';
 import { getBaseUrl } from './oauth.js';
 import { buildEmbed } from '../util/embed.js';
@@ -519,6 +520,11 @@ export function apiRouter(client) {
     const token = regenerateIngestToken(req.guildId);
     res.json({ ingest_url: `${getBaseUrl()}/ingest/${token}` });
   });
+
+  router.get('/traps', (req, res) => res.json({
+    leaderboard: getTrapLeaderboard(req.guildId),
+    recent: getRecentTraps(req.guildId, 25),
+  }));
 
   // Change the bot's avatar — GLOBAL (one bot, one avatar across all servers), rate-limited.
   router.post('/bot-avatar', async (req, res) => {

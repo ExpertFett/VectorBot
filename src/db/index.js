@@ -218,6 +218,17 @@ db.exec(`
     created_at INTEGER NOT NULL,
     PRIMARY KEY (event_id, user_id)
   );
+
+  CREATE TABLE IF NOT EXISTS traps (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id   TEXT NOT NULL,
+    pilot      TEXT NOT NULL,
+    grade      TEXT,
+    points     REAL NOT NULL DEFAULT 0,
+    ship       TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_traps_guild ON traps (guild_id, created_at);
 `);
 
 // --- batch 5 schema (embed options + invite log) ---
@@ -672,5 +683,19 @@ export function setStatusMessage(guildId, channelId, messageId) {
   setConfigValue(guildId, 'status_channel_id', channelId);
   setConfigValue(guildId, 'status_message_id', messageId);
 }
+
+// --- carrier traps ---
+const insertTrap = db.prepare('INSERT INTO traps (guild_id, pilot, grade, points, ship, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+const selectTrapBoard = db.prepare(`
+  SELECT pilot, COUNT(*) AS traps, ROUND(AVG(points), 2) AS avg_points, MAX(points) AS best
+  FROM traps WHERE guild_id = ? GROUP BY pilot ORDER BY avg_points DESC, traps DESC LIMIT 50
+`);
+const selectRecentTraps = db.prepare('SELECT * FROM traps WHERE guild_id = ? ORDER BY created_at DESC LIMIT ?');
+
+export function addTrap(guildId, { pilot, grade, points, ship }) {
+  insertTrap.run(guildId, pilot, grade ?? null, points ?? 0, ship ?? null, Date.now());
+}
+export function getTrapLeaderboard(guildId) { return selectTrapBoard.all(guildId); }
+export function getRecentTraps(guildId, limit = 20) { return selectRecentTraps.all(guildId, limit); }
 
 export default db;

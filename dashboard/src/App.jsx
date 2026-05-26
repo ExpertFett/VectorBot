@@ -20,6 +20,7 @@ import Invites from './pages/Invites.jsx';
 import Personalizer from './pages/Personalizer.jsx';
 import Events from './pages/Events.jsx';
 import DCSServer from './pages/DCSServer.jsx';
+import Traps from './pages/Traps.jsx';
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -64,6 +65,7 @@ export default function App() {
         <nav>
           <NavLink to="/events">Mission Events</NavLink>
           <NavLink to="/dcs">DCS Server</NavLink>
+          <NavLink to="/traps">Carrier Traps</NavLink>
           <NavLink to="/welcome">Welcome &amp; Roles</NavLink>
           <NavLink to="/verification">Verification</NavLink>
           <NavLink to="/commands">Custom Commands</NavLink>
@@ -90,6 +92,7 @@ export default function App() {
         <Routes>
           <Route path="/events" element={<Events />} />
           <Route path="/dcs" element={<DCSServer />} />
+          <Route path="/traps" element={<Traps />} />
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/verification" element={<Verification />} />
           <Route path="/commands" element={<Commands />} />
