@@ -436,18 +436,22 @@ export function apiRouter(client) {
     if (!STAT_TYPES.includes(type)) return res.status(400).json({ error: 'invalid_type' });
     const guild = client.guilds.cache.get(req.guildId);
     if (!guild) return res.status(503).json({ error: 'bot_not_in_guild' });
+    if (!guild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels)) {
+      return res.status(400).json({ error: 'I need the “Manage Channels” permission to create counter channels.' });
+    }
     try {
       const value = computeStat(guild, type, null);
       const channel = await guild.channels.create({
         name: template.replace('{count}', value.toLocaleString()),
         type: ChannelType.GuildVoice,
-        permissionOverwrites: [{ id: guild.id, deny: [PermissionFlagsBits.Connect] }],
       });
+      // Best-effort: stop members joining the display-only counter (needs Manage Roles).
+      channel.permissionOverwrites.edit(guild.id, { Connect: false }).catch(() => {});
       const id = createStatChannel(req.guildId, { channel_id: channel.id, type, template });
       res.json({ ok: true, id });
     } catch (err) {
       console.error('Stat channel create failed:', err.message);
-      res.status(500).json({ error: 'create_failed' });
+      res.status(500).json({ error: err.message || 'create_failed' });
     }
   });
   router.delete('/stats/:id', async (req, res) => {
