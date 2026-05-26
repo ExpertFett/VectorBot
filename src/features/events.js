@@ -73,7 +73,7 @@ export function buildEventMessage(event, signups = []) {
         if (waiting.length) line += ` *(WL: ${waiting.length})*`;
         return line;
       });
-      embed.addFields({ name: grp.name || 'Slots', value: lines.join('\n').slice(0, 1024) });
+      embed.addFields({ name: grp.name || 'Slots', value: lines.join('\n').slice(0, 1024), inline: true });
     }
   }
 
@@ -96,24 +96,20 @@ export function buildEventMessage(event, signups = []) {
     row.components.push(new ButtonBuilder().setCustomId(`event:${event.id}:withdraw`).setLabel('Withdraw').setStyle(ButtonStyle.Secondary).setEmoji('🚫'));
     rows.push(row);
   } else {
-    for (let chunk = 0; chunk < 4 && chunk * 25 < roles.length; chunk++) {
-      const start = chunk * 25;
-      const slice = roles.slice(start, start + 25);
-      const select = new StringSelectMenuBuilder()
-        .setCustomId(`event:${event.id}:sel:${chunk}`)
-        .setPlaceholder(`Sign up — slots ${start + 1}-${start + slice.length}`)
-        .setMinValues(0).setMaxValues(1)
-        .addOptions(slice.map((role, j) => {
-          const { active, cap } = split(role);
-          const opt = { label: role.label.slice(0, 100), value: String(start + j), description: `${role.group ? role.group + ' · ' : ''}${active.length}${cap} signed`.slice(0, 100) };
-          if (role.emoji) opt.emoji = role.emoji;
-          return opt;
-        }));
-      rows.push(new ActionRowBuilder().addComponents(select));
-    }
-    rows.push(new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId(`event:${event.id}:withdraw`).setLabel('Withdraw').setStyle(ButtonStyle.Secondary).setEmoji('🚫')
-    ));
+    // One button per flight group; clicking it asks which slot (keeps the message compact).
+    const groups = groupRoles(roles).slice(0, 23);
+    let row = new ActionRowBuilder();
+    groups.forEach((grp, gi) => {
+      if (row.components.length === 5) { rows.push(row); row = new ActionRowBuilder(); }
+      const filled = grp.items.reduce((n, { role }) => n + split(role).active.length, 0);
+      row.components.push(new ButtonBuilder()
+        .setCustomId(`event:${event.id}:grp:${gi}`)
+        .setLabel(`${grp.name || 'Slots'} (${filled}/${grp.items.length})`.slice(0, 80))
+        .setStyle(ButtonStyle.Primary));
+    });
+    if (row.components.length === 5) { rows.push(row); row = new ActionRowBuilder(); }
+    row.components.push(new ButtonBuilder().setCustomId(`event:${event.id}:withdraw`).setLabel('Withdraw').setStyle(ButtonStyle.Secondary).setEmoji('🚫'));
+    rows.push(row);
   }
 
   return { embeds: [embed], components: rows };
@@ -139,6 +135,17 @@ export async function postEvent(client, event) {
 async function rerender(interaction, eventId) {
   const fresh = getEvent(eventId);
   if (fresh) await interaction.message.edit(buildEventMessage(fresh, getSignups(eventId))).catch(() => {});
+}
+
+// Re-render the main event message by its stored id (used when the interaction
+// is on an ephemeral slot-picker, not the event message itself).
+async function rerenderStored(client, eventId) {
+  const ev = getEvent(eventId);
+  if (!ev?.channel_id || !ev?.message_id) return;
+  const ch = await resolveChannel(client, ev.channel_id);
+  if (!ch?.isTextBased()) return;
+  const msg = await ch.messages.fetch(ev.message_id).catch(() => null);
+  if (msg) await msg.edit(buildEventMessage(ev, getSignups(eventId))).catch(() => {});
 }
 
 // Snapshot active (non-waitlisted) user per role for promotion detection.
@@ -199,6 +206,23 @@ export async function handleEventButton(interaction) {
     await rerender(interaction, event.id);
     return interaction.reply({ content: removed ? 'You’ve withdrawn.' : 'You weren’t signed up.', flags: MessageFlags.Ephemeral });
   }
+
+  // Group button -> ephemeral slot picker for that flight.
+  if (action === 'grp') {
+    const grp = groupRoles(event.roles).slice(0, 23)[Number(idxStr)];
+    if (!grp) return interaction.reply({ content: 'That flight no longer exists.', flags: MessageFlags.Ephemeral });
+    const options = grp.items.slice(0, 25).map(({ role, index }) => {
+      const taken = countRoleSignups(event.id, role.label);
+      const cap = role.limit ? `/${role.limit}` : '';
+      const o = { label: role.label.slice(0, 100), value: String(index), description: `${taken}${cap} signed`.slice(0, 100) };
+      if (role.emoji) o.emoji = role.emoji;
+      return o;
+    });
+    const select = new StringSelectMenuBuilder().setCustomId(`event:${event.id}:gsel`)
+      .setPlaceholder(`Pick your slot in ${grp.name || 'this flight'}`).setMinValues(0).setMaxValues(1).addOptions(options);
+    return interaction.reply({ content: `Choose a slot in **${grp.name || 'this flight'}**:`, components: [new ActionRowBuilder().addComponents(select)], flags: MessageFlags.Ephemeral });
+  }
+
   const role = event.roles[Number(idxStr)];
   if (!role) return interaction.reply({ content: 'That slot no longer exists.', flags: MessageFlags.Ephemeral });
   let result;
@@ -207,19 +231,21 @@ export async function handleEventButton(interaction) {
   return interaction.reply({ content: result.msg, flags: MessageFlags.Ephemeral });
 }
 
+// The slot-picker select lives in an ephemeral message, so we update that
+// ephemeral reply and re-render the main event message by its stored id.
 export async function handleEventSelect(interaction) {
   const [, idStr] = interaction.customId.split(':');
   const event = getEvent(Number(idStr));
   if (!event || event.status !== 'scheduled') {
-    return interaction.reply({ content: 'This event is no longer open.', flags: MessageFlags.Ephemeral });
+    return interaction.update({ content: 'This event is no longer open.', components: [] }).catch(() => {});
   }
   if (interaction.values.length === 0) {
-    return interaction.reply({ content: 'Use the Withdraw button to leave.', flags: MessageFlags.Ephemeral });
+    return interaction.update({ content: 'No slot selected — use the Withdraw button on the event to leave.', components: [] });
   }
   const role = event.roles[Number(interaction.values[0])];
-  if (!role) return interaction.reply({ content: 'That slot no longer exists.', flags: MessageFlags.Ephemeral });
+  if (!role) return interaction.update({ content: 'That slot no longer exists.', components: [] });
   let result;
   await withPromotion(interaction.client, event, () => { result = claim(event, interaction.user.id, role); });
-  if (result.changed) await rerender(interaction, event.id);
-  return interaction.reply({ content: result.msg, flags: MessageFlags.Ephemeral });
+  if (result.changed) await rerenderStored(interaction.client, event.id);
+  return interaction.update({ content: result.msg, components: [] });
 }
