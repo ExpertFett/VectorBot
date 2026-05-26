@@ -1,4 +1,4 @@
-import { getSticky, setStickyLastMessage } from '../db/index.js';
+import { getSticky, setStickyLastMessage, getPersonalization } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 
 const lastRepost = new Map(); // channelId -> timestamp
@@ -20,7 +20,7 @@ export async function maybeRepostSticky(message) {
 
   const payload = {};
   if (sticky.content) payload.content = sticky.content;
-  const embed = sticky.embed ? buildEmbed(sticky.embed) : null;
+  const embed = sticky.embed ? buildEmbed(sticky.embed, undefined, getPersonalization(sticky.guild_id).embed_color ?? undefined) : null;
   if (embed) payload.embeds = [embed];
   if (!payload.content && !payload.embeds) return;
 

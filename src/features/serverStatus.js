@@ -1,18 +1,26 @@
 import { EmbedBuilder } from 'discord.js';
 import { getConfig, getServerStatus, setStatusMessage, getPersonalization } from '../db/index.js';
+import { buildEmbed } from '../util/embed.js';
 
 const STALE_MS = 3 * 60 * 1000; // no update in 3 min => treat as offline/stale
 
 export function buildStatusEmbed(guildId) {
   const status = getServerStatus(guildId);
   const accent = getPersonalization(guildId).embed_color ?? 0x5865f2;
-  const embed = new EmbedBuilder().setTitle('🎮 DCS Server Status').setTimestamp();
+  const template = getConfig(guildId).status_embed;
+
+  // A custom template controls the header (title/description/image/color);
+  // the live fields are always appended below.
+  let embed = template ? buildEmbed(template, undefined, accent) : null;
+  if (!embed) embed = new EmbedBuilder().setColor(accent).setTitle('🎮 DCS Server Status');
+  embed.setTimestamp();
 
   if (!status) {
-    return embed.setColor(0x57606a).setDescription('No data received yet — install the hook on your DCS server (see the DCS Server page).');
+    if (!template) embed.setColor(0x57606a);
+    return embed.setDescription((embed.data.description ? embed.data.description + '\n\n' : '') + 'No data received yet — install the hook on your DCS server (see the DCS Server page).');
   }
   const online = status.online !== false && Date.now() - (status.updated_at || 0) < STALE_MS;
-  embed.setColor(online ? 0x2ecc71 : 0x57606a);
+  if (!template) embed.setColor(online ? 0x2ecc71 : 0x57606a);
   embed.addFields(
     { name: 'Status', value: online ? '🟢 Online' : '🔴 Offline / stale', inline: true },
     { name: 'Players', value: String(status.players ?? 0), inline: true },

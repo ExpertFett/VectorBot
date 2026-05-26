@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import EmbedBuilder from '../components/EmbedBuilder.jsx';
+import EmbedPreview from '../components/EmbedPreview.jsx';
 
 const BLANK = {
   id: null, title: '', description: '', mission: '', map: '', channel_id: '',
-  start_at: '', reminder_minutes: 30, image: '',
+  start_at: '', reminder_minutes: 30, image: '', embed: null,
   roles: [{ label: 'Attending', emoji: '✅', limit: 0 }],
 };
 
@@ -37,6 +39,7 @@ export default function Events() {
       start_at: new Date(editing.start_at).toISOString(),
       reminder_minutes: editing.reminder_minutes,
       roles: editing.roles.filter((r) => r.label),
+      embed: editing.embed || null,
     };
     try {
       let id = editing.id;
@@ -54,7 +57,7 @@ export default function Events() {
   const edit = (e) => setEditing({
     id: e.id, title: e.title, description: e.description || '', mission: e.mission || '', map: e.map || '',
     channel_id: e.channel_id || '', start_at: toLocalInput(e.start_at), reminder_minutes: e.reminder_minutes,
-    image: e.image || '', roles: e.roles?.length ? e.roles : BLANK.roles,
+    image: e.image || '', embed: e.embed || null, roles: e.roles?.length ? e.roles : BLANK.roles,
   });
 
   return (
@@ -81,7 +84,15 @@ export default function Events() {
           <label>Start (your local time)<input type="datetime-local" value={editing.start_at} onChange={(e) => setEditing({ ...editing, start_at: e.target.value })} /></label>
           <label>Remind before (minutes, 0 = off)<input type="number" min="0" value={editing.reminder_minutes} onChange={(e) => setEditing({ ...editing, reminder_minutes: +e.target.value })} /></label>
         </div>
-        <label>Image URL (optional)<input value={editing.image} placeholder="https://…" onChange={(e) => setEditing({ ...editing, image: e.target.value })} /></label>
+        <label className="checkbox"><input type="checkbox" checked={!!editing.embed} onChange={(e) => setEditing({ ...editing, embed: e.target.checked ? (editing.embed || {}) : null })} /> Use a custom embed header (the When + roster are always appended)</label>
+        {editing.embed ? (
+          <div className="embed-area">
+            <EmbedBuilder value={editing.embed} onChange={(v) => setEditing({ ...editing, embed: v })} />
+            <div className="preview-col"><div className="preview-label">Header preview</div><EmbedPreview embed={editing.embed} /></div>
+          </div>
+        ) : (
+          <label>Image URL (optional)<input value={editing.image} placeholder="https://…" onChange={(e) => setEditing({ ...editing, image: e.target.value })} /></label>
+        )}
 
         <div className="fields-head">
           <span>Slots / roles ({editing.roles.length}/20)</span>

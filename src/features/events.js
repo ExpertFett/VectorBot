@@ -3,6 +3,7 @@ import {
   getEvent, getSignups, setSignup, removeSignup, getSignup, countRoleSignups,
   setEventMessage, getPersonalization,
 } from '../db/index.js';
+import { buildEmbed } from '../util/embed.js';
 
 const MAX_ROLES = 20; // leave room for the Withdraw button (Discord max 25 components)
 const isHttpUrl = (s) => typeof s === 'string' && /^https?:\/\//i.test(s);
@@ -12,16 +13,22 @@ export function buildEventMessage(event, signups = []) {
   const cancelled = event.status === 'cancelled';
   const ts = Math.floor(event.start_at / 1000);
 
-  const embed = new EmbedBuilder()
-    .setColor(cancelled ? 0xf23f43 : accent)
-    .setTitle(`${cancelled ? '[CANCELLED] ' : ''}${event.title}`)
-    .setDescription(event.description || null);
-
-  const meta = [];
-  if (event.mission) meta.push({ name: 'Mission', value: event.mission, inline: true });
-  if (event.map) meta.push({ name: 'Map', value: event.map, inline: true });
-  meta.push({ name: 'When', value: `<t:${ts}:F>\n<t:${ts}:R>`, inline: false });
-  embed.addFields(meta);
+  // A custom embed template controls the header; otherwise build a default one.
+  let embed = event.embed ? buildEmbed(event.embed, undefined, accent) : null;
+  if (embed) {
+    if (!embed.data.title) embed.setTitle(event.title);
+    if (cancelled) { embed.setColor(0xf23f43); embed.setTitle(`[CANCELLED] ${embed.data.title}`); }
+  } else {
+    embed = new EmbedBuilder()
+      .setColor(cancelled ? 0xf23f43 : accent)
+      .setTitle(`${cancelled ? '[CANCELLED] ' : ''}${event.title}`)
+      .setDescription(event.description || null);
+    const meta = [];
+    if (event.mission) meta.push({ name: 'Mission', value: event.mission, inline: true });
+    if (event.map) meta.push({ name: 'Map', value: event.map, inline: true });
+    if (meta.length) embed.addFields(meta);
+  }
+  embed.addFields({ name: 'When', value: `<t:${ts}:F>\n<t:${ts}:R>`, inline: false });
 
   const byRole = new Map();
   for (const s of signups) {
@@ -36,7 +43,7 @@ export function buildEventMessage(event, signups = []) {
     const list = ids.length ? ids.map((id) => `<@${id}>`).join('\n').slice(0, 1024) : '—';
     embed.addFields({ name: `${role.emoji ? role.emoji + ' ' : ''}${role.label} (${ids.length}${cap})`, value: list, inline: true });
   }
-  if (isHttpUrl(event.image)) embed.setImage(event.image);
+  if (!event.embed && isHttpUrl(event.image)) embed.setImage(event.image);
   embed.setFooter({ text: `Event #${event.id}` });
 
   if (cancelled) return { embeds: [embed], components: [] };

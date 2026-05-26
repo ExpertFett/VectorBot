@@ -1,22 +1,29 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import EmbedBuilder from '../components/EmbedBuilder.jsx';
+import EmbedPreview from '../components/EmbedPreview.jsx';
 
 export default function DCSServer() {
   const [dcs, setDcs] = useState(null);
   const [guild, setGuild] = useState(null);
   const [statusChannel, setStatusChannel] = useState('');
   const [feedChannel, setFeedChannel] = useState('');
+  const [embed, setEmbed] = useState(null);
   const [status, setStatus] = useState('');
 
-  const load = () => Promise.all([api.getDcs(), api.guild()])
-    .then(([d, g]) => { setDcs(d); setGuild(g); setStatusChannel(d.status_channel_id || ''); setFeedChannel(d.dcs_feed_channel_id || ''); })
+  const load = () => Promise.all([api.getDcs(), api.guild(), api.getConfig()])
+    .then(([d, g, c]) => {
+      setDcs(d); setGuild(g);
+      setStatusChannel(d.status_channel_id || ''); setFeedChannel(d.dcs_feed_channel_id || '');
+      setEmbed(c.status_embed || null);
+    })
     .catch((e) => setStatus(e.message));
   useEffect(() => { load(); }, []);
   if (!dcs || !guild) return <div className="muted page">{status || 'Loading…'}</div>;
 
   const saveChannels = async () => {
     setStatus('Saving…');
-    try { await api.saveConfig({ status_channel_id: statusChannel || null, dcs_feed_channel_id: feedChannel || null }); setStatus('Saved ✓'); }
+    try { await api.saveConfig({ status_channel_id: statusChannel || null, dcs_feed_channel_id: feedChannel || null, status_embed: embed }); setStatus('Saved ✓'); }
     catch (e) { setStatus('Save failed: ' + (e.body?.error || e.message)); }
   };
   const regen = async () => {
@@ -59,6 +66,13 @@ export default function DCSServer() {
             </select>
           </label>
         </div>
+        <label className="checkbox"><input type="checkbox" checked={!!embed} onChange={(e) => setEmbed(e.target.checked ? (embed || {}) : null)} /> Use a custom embed for the status message (live fields are appended)</label>
+        {embed && (
+          <div className="embed-area">
+            <EmbedBuilder value={embed} onChange={setEmbed} />
+            <div className="preview-col"><div className="preview-label">Header preview</div><EmbedPreview embed={embed} /></div>
+          </div>
+        )}
         <div className="actions"><button className="btn" onClick={saveChannels}>Save</button></div>
       </section>
 

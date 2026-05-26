@@ -5,6 +5,7 @@ import {
   getEventsToRemind, markEventReminded, getSignups,
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
+import { getPersonalization } from '../db/index.js';
 import { endGiveawayAndAnnounce } from '../features/giveaways.js';
 import { pollSocial } from '../features/social.js';
 import { updateStatChannels } from '../features/stats.js';
@@ -28,7 +29,7 @@ async function tick(client) {
     if (channel?.isTextBased()) {
       const payload = {};
       if (s.content) payload.content = s.content;
-      const embed = s.embed ? buildEmbed(s.embed) : null;
+      const embed = s.embed ? buildEmbed(s.embed, undefined, getPersonalization(s.guild_id).embed_color ?? undefined) : null;
       if (embed) payload.embeds = [embed];
       if (payload.content || payload.embeds) await channel.send(payload).catch(() => {});
     }

@@ -1,5 +1,5 @@
 import { Events } from 'discord.js';
-import { getConfig } from '../db/index.js';
+import { getConfig, getPersonalization } from '../db/index.js';
 import { applyPlaceholders } from '../util/format.js';
 import { buildEmbed } from '../util/embed.js';
 import { detectInviteUsed } from '../features/invites.js';
@@ -29,7 +29,8 @@ export default {
     const sub = (s) => applyPlaceholders(s, { member, guild: member.guild });
     const payload = {};
     if (config.welcome_message) payload.content = sub(config.welcome_message);
-    const embed = config.welcome_embed ? buildEmbed(config.welcome_embed, sub) : null;
+    const accent = getPersonalization(member.guild.id).embed_color ?? undefined;
+    const embed = config.welcome_embed ? buildEmbed(config.welcome_embed, sub, accent) : null;
     if (embed) payload.embeds = [embed];
 
     if (payload.content || payload.embeds) {

@@ -1,5 +1,5 @@
 import { Events } from 'discord.js';
-import { getCustomCommand } from '../db/index.js';
+import { getCustomCommand, getPersonalization } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 import { checkMessage } from '../automod/index.js';
 import { maybeRepostSticky } from '../features/sticky.js';
@@ -27,7 +27,8 @@ export default {
 
     const payload = {};
     if (cmd.response) payload.content = cmd.response;
-    const embed = cmd.embed ? buildEmbed(cmd.embed) : null;
+    const accent = getPersonalization(message.guild.id).embed_color ?? undefined;
+    const embed = cmd.embed ? buildEmbed(cmd.embed, undefined, accent) : null;
     if (embed) payload.embeds = [embed];
     if (!payload.content && !payload.embeds) return;
 

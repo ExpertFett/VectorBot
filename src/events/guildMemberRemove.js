@@ -1,5 +1,5 @@
 import { Events } from 'discord.js';
-import { getConfig } from '../db/index.js';
+import { getConfig, getPersonalization } from '../db/index.js';
 import { applyPlaceholders } from '../util/format.js';
 import { buildEmbed } from '../util/embed.js';
 
@@ -16,7 +16,8 @@ export default {
     const sub = (s) => applyPlaceholders(s, { member, guild: member.guild, mention: false });
     const payload = {};
     if (config.goodbye_message) payload.content = sub(config.goodbye_message);
-    const embed = config.goodbye_embed ? buildEmbed(config.goodbye_embed, sub) : null;
+    const accent = getPersonalization(member.guild.id).embed_color ?? undefined;
+    const embed = config.goodbye_embed ? buildEmbed(config.goodbye_embed, sub, accent) : null;
     if (embed) payload.embeds = [embed];
 
     if (payload.content || payload.embeds) {

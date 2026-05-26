@@ -123,6 +123,7 @@ export function apiRouter(client) {
       ...c,
       welcome_embed: parseJson(c.welcome_embed),
       goodbye_embed: parseJson(c.goodbye_embed),
+      status_embed: parseJson(c.status_embed),
     });
   });
 
@@ -135,12 +136,14 @@ export function apiRouter(client) {
     for (const col of textCols) if (col in b) setConfigValue(req.guildId, col, b[col] ? String(b[col]) : null);
     if ('welcome_embed' in b) setConfigValue(req.guildId, 'welcome_embed', serialize(b.welcome_embed));
     if ('goodbye_embed' in b) setConfigValue(req.guildId, 'goodbye_embed', serialize(b.goodbye_embed));
+    if ('status_embed' in b) setConfigValue(req.guildId, 'status_embed', serialize(b.status_embed));
 
     const c = getConfig(req.guildId);
     res.json({
       ...c,
       welcome_embed: parseJson(c.welcome_embed),
       goodbye_embed: parseJson(c.goodbye_embed),
+      status_embed: parseJson(c.status_embed),
     });
   });
 
@@ -171,7 +174,7 @@ export function apiRouter(client) {
 
     const payload = {};
     if (content) payload.content = String(content);
-    const built = embed ? buildEmbed(embed) : null;
+    const built = embed ? buildEmbed(embed, undefined, getPersonalization(req.guildId).embed_color ?? undefined) : null;
     if (built) payload.embeds = [built];
     if (!payload.content && !payload.embeds) return res.status(400).json({ error: 'empty_message' });
 
@@ -462,7 +465,7 @@ export function apiRouter(client) {
       channel_id: cleanId(b.channel_id), title: String(b.title), description: b.description || null,
       mission: b.mission || null, map: b.map || null, image: b.image || null,
       start_at: start, reminder_minutes: Math.max(0, Number(b.reminder_minutes) || 0),
-      roles: sanitizeRoles(b.roles), created_by: req.session.user.id,
+      roles: sanitizeRoles(b.roles), embed: b.embed || null, created_by: req.session.user.id,
     });
     res.json({ ok: true, id });
   });
@@ -478,7 +481,7 @@ export function apiRouter(client) {
       channel_id: cleanId(b.channel_id), title: String(b.title), description: b.description || null,
       mission: b.mission || null, map: b.map || null, image: b.image || null,
       start_at: start, reminder_minutes: Math.max(0, Number(b.reminder_minutes) || 0),
-      roles: sanitizeRoles(b.roles),
+      roles: sanitizeRoles(b.roles), embed: b.embed || null,
     });
     res.json({ ok: true });
   });

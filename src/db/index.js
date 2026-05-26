@@ -232,6 +232,8 @@ ensureColumn('guild_config', 'server_status', 'TEXT');          // latest status
 ensureColumn('guild_config', 'status_channel_id', 'TEXT');      // auto-updating status embed channel
 ensureColumn('guild_config', 'status_message_id', 'TEXT');
 ensureColumn('guild_config', 'dcs_feed_channel_id', 'TEXT');    // kill/event feed channel
+ensureColumn('guild_config', 'status_embed', 'TEXT');           // custom status embed template (JSON)
+ensureColumn('events', 'embed', 'TEXT');                        // custom event embed template (JSON)
 
 // One-time: fold existing YouTube subs into social_subs as platform 'youtube'.
 {
@@ -252,7 +254,7 @@ const ALLOWED_CONFIG_COLUMNS = new Set([
   'goodbye_channel_id', 'goodbye_message', 'goodbye_embed',
   'autorole_id', 'log_channel_id', 'automod',
   'verification', 'tickets', 'bot_nickname', 'embed_color', 'invite_log_channel',
-  'ingest_token', 'server_status', 'status_channel_id', 'status_message_id', 'dcs_feed_channel_id',
+  'ingest_token', 'server_status', 'status_channel_id', 'status_message_id', 'dcs_feed_channel_id', 'status_embed',
 ]);
 
 // --- guild config helpers ---
@@ -590,13 +592,13 @@ export function setPersonalization(guildId, { bot_nickname, embed_color }) {
 
 // --- events (mission scheduler) ---
 const insertEvent = db.prepare(`
-  INSERT INTO events (guild_id, channel_id, title, description, mission, map, image, start_at, reminder_minutes, roles, created_by, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO events (guild_id, channel_id, title, description, mission, map, image, start_at, reminder_minutes, roles, embed, created_by, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 const selectEvent = db.prepare('SELECT * FROM events WHERE id = ?');
 const selectEventsByGuild = db.prepare('SELECT * FROM events WHERE guild_id = ? ORDER BY start_at ASC');
 const updateEventStmt = db.prepare(`
-  UPDATE events SET channel_id = ?, title = ?, description = ?, mission = ?, map = ?, image = ?, start_at = ?, reminder_minutes = ?, roles = ?
+  UPDATE events SET channel_id = ?, title = ?, description = ?, mission = ?, map = ?, image = ?, start_at = ?, reminder_minutes = ?, roles = ?, embed = ?
   WHERE id = ? AND guild_id = ?
 `);
 const setEventMsgStmt = db.prepare('UPDATE events SET channel_id = ?, message_id = ? WHERE id = ?');
@@ -606,18 +608,19 @@ const deleteEventStmt = db.prepare('DELETE FROM events WHERE id = ? AND guild_id
 const selectEventsToRemind = db.prepare(
   "SELECT * FROM events WHERE status = 'scheduled' AND reminded = 0 AND reminder_minutes > 0 AND ? >= (start_at - reminder_minutes * 60000) AND ? < start_at"
 );
-const parseEvent = (r) => (r ? { ...r, roles: safeParse(r.roles, []) } : null);
+const parseEvent = (r) => (r ? { ...r, roles: safeParse(r.roles, []), embed: safeParse(r.embed, null) } : null);
 
 export function createEvent(guildId, d) {
   return Number(insertEvent.run(
     guildId, d.channel_id ?? null, d.title, d.description ?? null, d.mission ?? null, d.map ?? null,
-    d.image ?? null, d.start_at, d.reminder_minutes ?? 0, JSON.stringify(d.roles || []), d.created_by ?? null, Date.now()
+    d.image ?? null, d.start_at, d.reminder_minutes ?? 0, JSON.stringify(d.roles || []),
+    d.embed ? JSON.stringify(d.embed) : null, d.created_by ?? null, Date.now()
   ).lastInsertRowid);
 }
 export function getEvent(id) { return parseEvent(selectEvent.get(id)); }
 export function getEvents(guildId) { return selectEventsByGuild.all(guildId).map(parseEvent); }
 export function updateEvent(id, guildId, d) {
-  updateEventStmt.run(d.channel_id ?? null, d.title, d.description ?? null, d.mission ?? null, d.map ?? null, d.image ?? null, d.start_at, d.reminder_minutes ?? 0, JSON.stringify(d.roles || []), id, guildId);
+  updateEventStmt.run(d.channel_id ?? null, d.title, d.description ?? null, d.mission ?? null, d.map ?? null, d.image ?? null, d.start_at, d.reminder_minutes ?? 0, JSON.stringify(d.roles || []), d.embed ? JSON.stringify(d.embed) : null, id, guildId);
   return getEvent(id);
 }
 export function setEventMessage(id, channelId, messageId) { setEventMsgStmt.run(channelId, messageId, id); }

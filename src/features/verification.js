@@ -3,7 +3,7 @@ import { getVerification, setVerification, getPersonalization } from '../db/inde
 import { buildEmbed } from '../util/embed.js';
 
 export function buildVerifyMessage(cfg, accent = 0x23a55a) {
-  const embed = (cfg.embed && buildEmbed(cfg.embed)) || new EmbedBuilder().setColor(accent)
+  const embed = (cfg.embed && buildEmbed(cfg.embed, undefined, accent)) || new EmbedBuilder().setColor(accent)
     .setTitle(cfg.title || 'Verify')
     .setDescription(cfg.description || 'Click the button below to verify.');
   const row = new ActionRowBuilder().addComponents(

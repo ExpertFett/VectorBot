@@ -20,8 +20,10 @@ function hasContent(o) {
 
 // Build a discord.js EmbedBuilder from stored embed data (object or JSON string).
 // `transform` rewrites user-facing strings (used for {placeholder} substitution).
+// `defaultColor` is applied when the embed doesn't specify its own color (the
+// per-guild accent), so the personalizer color flows to every embed unless overridden.
 // Returns null when there's no renderable content (Discord rejects empty embeds).
-export function buildEmbed(data, transform = (s) => s) {
+export function buildEmbed(data, transform = (s) => s, defaultColor = null) {
   let o = data;
   if (typeof data === 'string') {
     try { o = JSON.parse(data); } catch { return null; }
@@ -35,6 +37,7 @@ export function buildEmbed(data, transform = (s) => s) {
 
   const color = normalizeColor(o.color);
   if (color != null) embed.setColor(color);
+  else if (defaultColor != null) embed.setColor(defaultColor);
 
   if (isHttpUrl(o.thumbnail)) embed.setThumbnail(o.thumbnail);
   if (isHttpUrl(o.image)) embed.setImage(o.image);

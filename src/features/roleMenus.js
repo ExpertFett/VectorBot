@@ -2,7 +2,7 @@ import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder,
   StringSelectMenuBuilder, MessageFlags,
 } from 'discord.js';
-import { setRoleMenuMessage, getRoleMenu } from '../db/index.js';
+import { setRoleMenuMessage, getRoleMenu, getPersonalization } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 
 const STYLE_MAP = {
@@ -13,9 +13,10 @@ const STYLE_MAP = {
 };
 
 export function buildMenuMessage(menu) {
-  let embed = menu.embed ? buildEmbed(menu.embed) : null;
+  const accent = getPersonalization(menu.guild_id).embed_color ?? 0x5865f2;
+  let embed = menu.embed ? buildEmbed(menu.embed, undefined, accent) : null;
   if (!embed) {
-    embed = new EmbedBuilder().setColor(0x5865f2);
+    embed = new EmbedBuilder().setColor(accent);
     if (menu.title) embed.setTitle(menu.title);
     embed.setDescription(menu.description || 'Pick a role below.');
   }
