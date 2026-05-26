@@ -25,6 +25,7 @@ import Bombs from './pages/Bombs.jsx';
 import Sorties from './pages/Sorties.jsx';
 import Roster from './pages/Roster.jsx';
 import Recruitment from './pages/Recruitment.jsx';
+import Onboarding from './pages/Onboarding.jsx';
 import Brand from './components/Brand.jsx';
 
 export default function App() {
@@ -76,6 +77,7 @@ export default function App() {
           <NavLink to="/bombs">Bomb Range</NavLink>
           <NavLink to="/sorties">Sortie Log</NavLink>
           <NavLink to="/welcome">Welcome &amp; Roles</NavLink>
+          <NavLink to="/onboarding">Onboarding</NavLink>
           <NavLink to="/verification">Verification</NavLink>
           <NavLink to="/commands">Custom Commands</NavLink>
           <NavLink to="/automod">Auto-moderation</NavLink>
@@ -107,6 +109,7 @@ export default function App() {
           <Route path="/bombs" element={<Bombs />} />
           <Route path="/sorties" element={<Sorties />} />
           <Route path="/welcome" element={<Welcome />} />
+          <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/verification" element={<Verification />} />
           <Route path="/commands" element={<Commands />} />
           <Route path="/automod" element={<Automod />} />

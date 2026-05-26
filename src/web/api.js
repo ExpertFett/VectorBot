@@ -21,6 +21,7 @@ import {
   getBombLeaderboard, getRecentBombs, getSortieLeaderboard, getRecentSorties,
   getRoster, setRosterEntry, deleteRoster,
   getRecruitment, setRecruitment, getApplications,
+  getOnboarding, setOnboarding,
 } from '../db/index.js';
 import { getBaseUrl } from './oauth.js';
 import { buildEmbed } from '../util/embed.js';
@@ -30,6 +31,7 @@ import { postTicketPanel } from '../features/tickets.js';
 import { postGiveaway, endGiveawayAndAnnounce, rerollGiveaway } from '../features/giveaways.js';
 import { postEvent } from '../features/events.js';
 import { postRecruitPanel } from '../features/recruitment.js';
+import { postOnboardPanel } from '../features/onboarding.js';
 import { parseMizSlots } from '../features/mizParser.js';
 import { STAT_TYPES, computeStat } from '../features/stats.js';
 import { requireAuth } from './auth.js';
@@ -635,6 +637,33 @@ export function apiRouter(client) {
     catch (err) { res.status(400).json({ error: err.message }); }
   });
   router.get('/applications', (req, res) => res.json(getApplications(req.guildId)));
+
+  // --- onboarding wizard ---
+  router.get('/onboarding', (req, res) => res.json(getOnboarding(req.guildId)));
+  router.put('/onboarding', (req, res) => {
+    const b = req.body || {};
+    const steps = (Array.isArray(b.steps) ? b.steps : []).slice(0, 10).map((s) => ({
+      title: String(s?.title || '').slice(0, 256),
+      description: String(s?.description || '').slice(0, 4000),
+      image: (typeof s?.image === 'string' && /^https?:\/\//i.test(s.image)) ? s.image : null,
+      roles: (Array.isArray(s?.roles) ? s.roles : [])
+        .filter((r) => r && r.role_id).slice(0, 20)
+        .map((r) => ({ role_id: cleanId(r.role_id), label: String(r.label || 'Role').slice(0, 80), emoji: r.emoji || null })),
+    }));
+    res.json(setOnboarding(req.guildId, {
+      enabled: !!b.enabled,
+      panel_channel_id: cleanId(b.panel_channel_id),
+      completion_role_id: cleanId(b.completion_role_id),
+      title: b.title ?? '', description: b.description ?? '', button_label: b.button_label ?? 'Get Started',
+      finish_message: b.finish_message ?? '',
+      embed: b.embed || null,
+      steps,
+    }));
+  });
+  router.post('/onboarding/post', async (req, res) => {
+    try { res.json({ ok: true, message_id: await postOnboardPanel(client, req.guildId) }); }
+    catch (err) { res.status(400).json({ error: err.message }); }
+  });
 
   router.post('/roster/import', async (req, res) => {
     const rows = parseCsv(req.body?.csv || '');

@@ -289,6 +289,7 @@ ensureColumn('guild_config', 'status_embed', 'TEXT');           // custom status
 ensureColumn('guild_config', 'bullseye_lat', 'REAL');           // /bullseye reference
 ensureColumn('guild_config', 'bullseye_lon', 'REAL');
 ensureColumn('guild_config', 'recruitment', 'TEXT');            // recruitment config JSON
+ensureColumn('guild_config', 'onboarding', 'TEXT');             // onboarding wizard config JSON
 ensureColumn('tickets', 'claimed_by', 'TEXT');                  // staff who claimed the ticket
 ensureColumn('events', 'embed', 'TEXT');                        // custom event embed template (JSON)
 ensureColumn('events', 'waitlist', 'INTEGER NOT NULL DEFAULT 0');     // overflow goes to a waitlist
@@ -333,7 +334,7 @@ const ALLOWED_CONFIG_COLUMNS = new Set([
   'autorole_id', 'log_channel_id', 'automod',
   'verification', 'tickets', 'bot_nickname', 'embed_color', 'invite_log_channel',
   'ingest_token', 'server_status', 'status_channel_id', 'status_message_id', 'dcs_feed_channel_id', 'status_embed',
-  'bullseye_lat', 'bullseye_lon', 'recruitment',
+  'bullseye_lat', 'bullseye_lon', 'recruitment', 'onboarding',
 ]);
 
 // --- guild config helpers ---
@@ -833,6 +834,62 @@ export function getRecruitment(guildId) {
 export function setRecruitment(guildId, obj) {
   const merged = { ...getRecruitment(guildId), ...obj };
   setConfigValue(guildId, 'recruitment', JSON.stringify(merged));
+  return merged;
+}
+
+// --- onboarding wizard config ---
+const DEFAULT_ONBOARDING = {
+  enabled: false,
+  panel_channel_id: null,
+  panel_message_id: null,
+  completion_role_id: null,
+  title: 'Welcome to the Squadron',
+  description: 'New here? Click **Get Started** below for a quick guided tour — pick your roles, learn the essentials, and get set up in under a minute.',
+  button_label: 'Get Started',
+  embed: null,            // optional custom panel embed
+  finish_message: 'You’re all set — welcome aboard! Head into the server and say hi. 🫡',
+  steps: [
+    {
+      title: 'Welcome aboard',
+      description: 'Glad to have you. This quick walkthrough will get you set up. Use the buttons below to move between steps.',
+      image: null,
+      roles: [],
+    },
+    {
+      title: 'Pick your roles',
+      description: 'Tap the role buttons below to grant yourself access to the channels and pings you care about. You can change these any time.',
+      image: null,
+      roles: [],
+    },
+    {
+      title: 'Read the essentials',
+      description: 'Make sure you’ve skimmed the rules and announcements channels so you know how things work around here.',
+      image: null,
+      roles: [],
+    },
+  ],
+};
+
+function mergeOnboarding(saved) {
+  const base = { ...DEFAULT_ONBOARDING, ...(saved && typeof saved === 'object' ? saved : {}) };
+  base.steps = Array.isArray(saved?.steps) ? saved.steps.map((s) => ({
+    title: s?.title || '',
+    description: s?.description || '',
+    image: s?.image || null,
+    roles: Array.isArray(s?.roles)
+      ? s.roles.filter((r) => r && r.role_id).map((r) => ({ role_id: String(r.role_id), label: r.label || 'Role', emoji: r.emoji || null }))
+      : [],
+  })) : DEFAULT_ONBOARDING.steps;
+  base.embed = saved?.embed ?? null;
+  return base;
+}
+
+export function getOnboarding(guildId) {
+  return mergeOnboarding(safeParse(getConfig(guildId).onboarding, {}));
+}
+export function setOnboarding(guildId, obj) {
+  const merged = mergeOnboarding({ ...getOnboarding(guildId), ...obj });
+  setConfigValue(guildId, 'onboarding', JSON.stringify(merged));
   return merged;
 }
 

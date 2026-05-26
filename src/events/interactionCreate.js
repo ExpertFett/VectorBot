@@ -5,6 +5,7 @@ import { handleOpenTicket, handleCloseTicket, handleClaimTicket, handleDeleteTic
 import { handleGiveawayButton } from '../features/giveaways.js';
 import { handleEventButton, handleEventSelect } from '../features/events.js';
 import { handleApply, handleApplyModal, handleReview } from '../features/recruitment.js';
+import { handleStart, handleNav, handleRoleToggle, handleFinish } from '../features/onboarding.js';
 
 export default {
   name: Events.InteractionCreate,
@@ -23,6 +24,10 @@ export default {
         if (id.startsWith('event:')) return await handleEventButton(interaction);
         if (id === 'recruit:apply') return await handleApply(interaction);
         if (id.startsWith('recruit:approve:') || id.startsWith('recruit:deny:')) return await handleReview(interaction);
+        if (id === 'onboard:start') return await handleStart(interaction);
+        if (id.startsWith('onboard:nav:')) return await handleNav(interaction);
+        if (id.startsWith('onboard:role:')) return await handleRoleToggle(interaction);
+        if (id === 'onboard:finish') return await handleFinish(interaction);
         return;
       }
       if (interaction.isStringSelectMenu()) {

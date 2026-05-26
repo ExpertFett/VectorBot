@@ -77,6 +77,7 @@ code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font-size: 0
 /* Cards & forms */
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
 .card h2 { margin: 0 0 12px; font-size: 1.05rem; }
+.card.nested { background: rgba(0,0,0,0.18); padding: 14px; margin: 12px 0; }
 label { display: block; margin-bottom: 12px; font-weight: 600; font-size: 0.85rem; color: var(--muted); }
 input, select, textarea {
   width: 100%; margin-top: 6px; padding: 9px 11px; background: var(--input);

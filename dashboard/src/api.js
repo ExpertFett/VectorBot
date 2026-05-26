@@ -99,6 +99,10 @@ export const api = {
   postRecruitment: () => req('POST', '/api/recruitment/post'),
   getApplications: () => req('GET', '/api/applications'),
 
+  getOnboarding: () => req('GET', '/api/onboarding'),
+  saveOnboarding: (data) => req('PUT', '/api/onboarding', data),
+  postOnboarding: () => req('POST', '/api/onboarding/post'),
+
   getEvents: () => req('GET', '/api/events'),
   parseMiz: async (file) => {
     const res = await fetch('/api/events/parse-miz', {
