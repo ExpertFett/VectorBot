@@ -289,6 +289,7 @@ ensureColumn('guild_config', 'status_embed', 'TEXT');           // custom status
 ensureColumn('guild_config', 'bullseye_lat', 'REAL');           // /bullseye reference
 ensureColumn('guild_config', 'bullseye_lon', 'REAL');
 ensureColumn('guild_config', 'recruitment', 'TEXT');            // recruitment config JSON
+ensureColumn('tickets', 'claimed_by', 'TEXT');                  // staff who claimed the ticket
 ensureColumn('events', 'embed', 'TEXT');                        // custom event embed template (JSON)
 ensureColumn('events', 'waitlist', 'INTEGER NOT NULL DEFAULT 0');     // overflow goes to a waitlist
 ensureColumn('events', 'multi_signup', 'INTEGER NOT NULL DEFAULT 0'); // allow >1 slot per person
@@ -528,6 +529,8 @@ export function createTicket(guildId, channelId, openerId) {
 export function getOpenTicketByOpener(guildId, openerId) { return selectOpenTicketByOpener.get(guildId, openerId); }
 export function getTicketByChannel(channelId) { return selectTicketByChannel.get(channelId); }
 export function closeTicket(channelId) { return closeTicketStmt.run(channelId).changes; }
+const claimTicketStmt = db.prepare('UPDATE tickets SET claimed_by = ? WHERE channel_id = ?');
+export function claimTicket(channelId, userId) { return claimTicketStmt.run(userId, channelId).changes; }
 
 // --- scheduled messages ---
 const insertSched = db.prepare('INSERT INTO scheduled_messages (guild_id, channel_id, content, embed, type, interval_seconds, next_run, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');

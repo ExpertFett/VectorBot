@@ -4,9 +4,24 @@ import {
 } from 'discord.js';
 import {
   getTicketsConfig, setTicketsConfig, createTicket,
-  getOpenTicketByOpener, getTicketByChannel, closeTicket, getPersonalization,
+  getOpenTicketByOpener, getTicketByChannel, closeTicket, claimTicket, getPersonalization,
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
+
+// Ticket control buttons (claim / close / delete).
+function ticketControls({ claimed = false, closed = false } = {}) {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setCustomId('ticket:claim').setLabel(claimed ? 'Claimed' : 'Claim').setStyle(ButtonStyle.Success).setEmoji('🙋').setDisabled(claimed),
+    new ButtonBuilder().setCustomId('ticket:close').setLabel(closed ? 'Closed' : 'Close').setStyle(ButtonStyle.Secondary).setEmoji('🔒').setDisabled(closed),
+    new ButtonBuilder().setCustomId('ticket:delete').setLabel('Delete').setStyle(ButtonStyle.Danger).setEmoji('🗑️'),
+  );
+}
+
+// Staff = has the support role or Manage Channels.
+function isStaff(interaction, cfg) {
+  if (interaction.memberPermissions?.has(PermissionFlagsBits.ManageChannels)) return true;
+  return !!(cfg.support_role_id && interaction.member?.roles.cache.has(cfg.support_role_id));
+}
 
 export function buildPanelMessage(cfg, accent = 0x5865f2) {
   const embed = (cfg.embed && buildEmbed(cfg.embed, undefined, accent)) || new EmbedBuilder().setColor(accent)
@@ -65,15 +80,12 @@ export async function handleOpenTicket(interaction) {
     });
     createTicket(guild.id, channel.id, interaction.user.id);
 
-    const closeRow = new ActionRowBuilder().addComponents(
-      new ButtonBuilder().setCustomId('ticket:close').setLabel('Close ticket').setStyle(ButtonStyle.Danger).setEmoji('🔒')
-    );
     const mention = cfg.support_role_id ? `<@&${cfg.support_role_id}> ` : '';
     const accent = getPersonalization(guild.id).embed_color ?? 0x5865f2;
     await channel.send({
       content: `${interaction.user} ${mention}`.trim(),
       embeds: [new EmbedBuilder().setColor(accent).setDescription(cfg.open_message)],
-      components: [closeRow],
+      components: [ticketControls()],
     });
     await interaction.editReply(`Ticket created: ${channel}`);
   } catch (err) {
@@ -82,10 +94,36 @@ export async function handleOpenTicket(interaction) {
   }
 }
 
+export async function handleClaimTicket(interaction) {
+  const ticket = getTicketByChannel(interaction.channelId);
+  if (!ticket) return interaction.reply({ content: 'This isn’t a ticket channel.', flags: MessageFlags.Ephemeral });
+  const cfg = getTicketsConfig(interaction.guild.id);
+  if (!isStaff(interaction, cfg)) return interaction.reply({ content: 'Only staff can claim tickets.', flags: MessageFlags.Ephemeral });
+  if (ticket.claimed_by) return interaction.reply({ content: `Already claimed by <@${ticket.claimed_by}>.`, flags: MessageFlags.Ephemeral });
+
+  claimTicket(interaction.channelId, interaction.user.id);
+  await interaction.update({ components: [ticketControls({ claimed: true })] }).catch(() => {});
+  await interaction.followUp({ content: `🙋 Ticket claimed by ${interaction.user}.` }).catch(() => {});
+}
+
 export async function handleCloseTicket(interaction) {
   const ticket = getTicketByChannel(interaction.channelId);
   if (!ticket) return interaction.reply({ content: 'This isn’t a ticket channel.', flags: MessageFlags.Ephemeral });
+
   closeTicket(interaction.channelId);
-  await interaction.reply({ content: 'Closing this ticket in 5 seconds…' });
-  setTimeout(() => interaction.channel?.delete('Ticket closed').catch(() => {}), 5000);
+  // Lock it: the opener can no longer send. Channel stays for the record until deleted.
+  await interaction.channel.permissionOverwrites.edit(ticket.opener_id, { SendMessages: false }).catch(() => {});
+  await interaction.update({ components: [ticketControls({ claimed: !!ticket.claimed_by, closed: true })] }).catch(() => {});
+  await interaction.followUp({ content: `🔒 Ticket closed by ${interaction.user}. Staff can **Delete** it when done.` }).catch(() => {});
+}
+
+export async function handleDeleteTicket(interaction) {
+  const ticket = getTicketByChannel(interaction.channelId);
+  if (!ticket) return interaction.reply({ content: 'This isn’t a ticket channel.', flags: MessageFlags.Ephemeral });
+  const cfg = getTicketsConfig(interaction.guild.id);
+  if (!isStaff(interaction, cfg)) return interaction.reply({ content: 'Only staff can delete tickets.', flags: MessageFlags.Ephemeral });
+
+  closeTicket(interaction.channelId);
+  await interaction.reply({ content: `🗑️ Deleting this ticket in 5 seconds (by ${interaction.user.username})…` });
+  setTimeout(() => interaction.channel?.delete('Ticket deleted').catch(() => {}), 5000);
 }

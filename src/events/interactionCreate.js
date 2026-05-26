@@ -1,7 +1,7 @@
 import { Events, MessageFlags } from 'discord.js';
 import { handleRoleButton, handleRoleSelect } from '../features/roleMenus.js';
 import { handleVerify } from '../features/verification.js';
-import { handleOpenTicket, handleCloseTicket } from '../features/tickets.js';
+import { handleOpenTicket, handleCloseTicket, handleClaimTicket, handleDeleteTicket } from '../features/tickets.js';
 import { handleGiveawayButton } from '../features/giveaways.js';
 import { handleEventButton, handleEventSelect } from '../features/events.js';
 import { handleApply, handleApplyModal, handleReview } from '../features/recruitment.js';
@@ -16,7 +16,9 @@ export default {
         if (id.startsWith('rolemenu:')) return await handleRoleButton(interaction);
         if (id === 'verify:grant') return await handleVerify(interaction);
         if (id === 'ticket:open') return await handleOpenTicket(interaction);
+        if (id === 'ticket:claim') return await handleClaimTicket(interaction);
         if (id === 'ticket:close') return await handleCloseTicket(interaction);
+        if (id === 'ticket:delete') return await handleDeleteTicket(interaction);
         if (id.startsWith('giveaway:')) return await handleGiveawayButton(interaction);
         if (id.startsWith('event:')) return await handleEventButton(interaction);
         if (id === 'recruit:apply') return await handleApply(interaction);
