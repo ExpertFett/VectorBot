@@ -34,6 +34,14 @@ code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font-size: 0
 .brand span { color: var(--accent); }
 .brand.big { font-size: 2.2rem; margin-bottom: 8px; }
 
+/* DCS:OPT branding (login / pre-dashboard) */
+.opt-brand { font-style: italic; letter-spacing: -1px; }
+.opt-brand span { color: #f47b20; }
+.opt-tagline {
+  text-transform: uppercase; letter-spacing: 3px; font-size: 0.72rem; font-weight: 700;
+  color: #f47b20; margin: -2px 0 18px;
+}
+
 /* Login */
 .login-card {
   background: var(--bg2); padding: 40px; border-radius: 12px; text-align: center;

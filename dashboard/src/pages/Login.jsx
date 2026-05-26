@@ -11,7 +11,8 @@ export default function Login({ noAccess, user }) {
   return (
     <div className="center">
       <div className="login-card">
-        <div className="brand big">Vector<span>Bot</span></div>
+        <div className="brand big opt-brand">DCS<span>:OPT</span></div>
+        <div className="opt-tagline">Operational Planning Tool</div>
         {noAccess ? (
           <>
             <p className="muted">
@@ -22,7 +23,7 @@ export default function Login({ noAccess, user }) {
           </>
         ) : (
           <>
-            <p className="muted">Sign in with Discord to manage the bot.</p>
+            <p className="muted">Sign in with Discord to manage your server.</p>
             {error && <p className="error">Login error: {error.replace(/_/g, ' ')}</p>}
             <a className="btn discord" href="/auth/login">Login with Discord</a>
           </>
