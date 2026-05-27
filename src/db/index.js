@@ -294,6 +294,7 @@ ensureColumn('tickets', 'claimed_by', 'TEXT');                  // staff who cla
 ensureColumn('events', 'embed', 'TEXT');                        // custom event embed template (JSON)
 ensureColumn('events', 'waitlist', 'INTEGER NOT NULL DEFAULT 0');     // overflow goes to a waitlist
 ensureColumn('events', 'multi_signup', 'INTEGER NOT NULL DEFAULT 0'); // allow >1 slot per person
+ensureColumn('events', 'recur_days', 'INTEGER NOT NULL DEFAULT 0');   // recurring: repeat every N days (0 = one-off)
 
 // Migrate event_signups PK to (event_id, user_id, role_label) so a user can hold
 // multiple slots (needed for multi-crew + multi-signup). One-time, safe (recent table).
@@ -674,13 +675,13 @@ export function setPersonalization(guildId, { bot_nickname, embed_color }) {
 
 // --- events (mission scheduler) ---
 const insertEvent = db.prepare(`
-  INSERT INTO events (guild_id, channel_id, title, description, mission, map, image, start_at, reminder_minutes, roles, embed, waitlist, multi_signup, created_by, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO events (guild_id, channel_id, title, description, mission, map, image, start_at, reminder_minutes, roles, embed, waitlist, multi_signup, recur_days, created_by, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 const selectEvent = db.prepare('SELECT * FROM events WHERE id = ?');
 const selectEventsByGuild = db.prepare('SELECT * FROM events WHERE guild_id = ? ORDER BY start_at ASC');
 const updateEventStmt = db.prepare(`
-  UPDATE events SET channel_id = ?, title = ?, description = ?, mission = ?, map = ?, image = ?, start_at = ?, reminder_minutes = ?, roles = ?, embed = ?, waitlist = ?, multi_signup = ?
+  UPDATE events SET channel_id = ?, title = ?, description = ?, mission = ?, map = ?, image = ?, start_at = ?, reminder_minutes = ?, roles = ?, embed = ?, waitlist = ?, multi_signup = ?, recur_days = ?
   WHERE id = ? AND guild_id = ?
 `);
 const setEventMsgStmt = db.prepare('UPDATE events SET channel_id = ?, message_id = ? WHERE id = ?');
@@ -696,13 +697,13 @@ export function createEvent(guildId, d) {
   return Number(insertEvent.run(
     guildId, d.channel_id ?? null, d.title, d.description ?? null, d.mission ?? null, d.map ?? null,
     d.image ?? null, d.start_at, d.reminder_minutes ?? 0, JSON.stringify(d.roles || []),
-    d.embed ? JSON.stringify(d.embed) : null, d.waitlist ? 1 : 0, d.multi_signup ? 1 : 0, d.created_by ?? null, Date.now()
+    d.embed ? JSON.stringify(d.embed) : null, d.waitlist ? 1 : 0, d.multi_signup ? 1 : 0, d.recur_days ?? 0, d.created_by ?? null, Date.now()
   ).lastInsertRowid);
 }
 export function getEvent(id) { return parseEvent(selectEvent.get(id)); }
 export function getEvents(guildId) { return selectEventsByGuild.all(guildId).map(parseEvent); }
 export function updateEvent(id, guildId, d) {
-  updateEventStmt.run(d.channel_id ?? null, d.title, d.description ?? null, d.mission ?? null, d.map ?? null, d.image ?? null, d.start_at, d.reminder_minutes ?? 0, JSON.stringify(d.roles || []), d.embed ? JSON.stringify(d.embed) : null, d.waitlist ? 1 : 0, d.multi_signup ? 1 : 0, id, guildId);
+  updateEventStmt.run(d.channel_id ?? null, d.title, d.description ?? null, d.mission ?? null, d.map ?? null, d.image ?? null, d.start_at, d.reminder_minutes ?? 0, JSON.stringify(d.roles || []), d.embed ? JSON.stringify(d.embed) : null, d.waitlist ? 1 : 0, d.multi_signup ? 1 : 0, d.recur_days ?? 0, id, guildId);
   return getEvent(id);
 }
 export function setEventMessage(id, channelId, messageId) { setEventMsgStmt.run(channelId, messageId, id); }
@@ -710,6 +711,16 @@ export function setEventStatus(id, guildId, status) { return setEventStatusStmt.
 export function markEventReminded(id) { markRemindedStmt.run(id); }
 export function deleteEvent(id, guildId) { return deleteEventStmt.run(id, guildId).changes; }
 export function getEventsToRemind(now) { return selectEventsToRemind.all(now, now).map(parseEvent); }
+
+// Recurring events whose occurrence is already past (caller passes now - grace).
+const selectRecurringDue = db.prepare("SELECT * FROM events WHERE recur_days > 0 AND status = 'scheduled' AND start_at <= ?");
+const rolloverEventStmt = db.prepare('UPDATE events SET start_at = ?, reminded = 0 WHERE id = ?');
+const clearEventSignups = db.prepare('DELETE FROM event_signups WHERE event_id = ?');
+export function getRecurringDue(cutoff) { return selectRecurringDue.all(cutoff).map(parseEvent); }
+export function rolloverEvent(id, newStartAt) {
+  rolloverEventStmt.run(newStartAt, id);
+  clearEventSignups.run(id);
+}
 
 // --- event signups ---
 const upsertSignup = db.prepare(`

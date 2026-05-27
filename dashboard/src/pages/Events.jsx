@@ -7,9 +7,11 @@ import PageHeader from '../components/PageHeader.jsx';
 const BLANK = {
   id: null, title: '', description: '', mission: '', map: '', channel_id: '',
   start_at: '', reminder_minutes: 30, image: '', embed: null,
-  waitlist: false, multi_signup: false,
-  roles: [{ label: 'Attending', emoji: '✅', limit: 0, group: '' }],
+  waitlist: false, multi_signup: false, recur_days: 0,
+  roles: [{ label: 'Attending', emoji: '✅', limit: 0, group: '', qual: '' }],
 };
+
+const RECUR_LABEL = (d) => (d === 1 ? 'daily' : d === 7 ? 'weekly' : d === 14 ? 'biweekly' : `every ${d}d`);
 
 // DCS modules that seat more than one crew -> import expands each jet into sub-positions.
 const MULTICREW = {
@@ -41,7 +43,7 @@ export default function Events() {
   if (!list || !guild) return <div className="muted page">{status || 'Loading…'}</div>;
 
   const setRole = (i, patch) => setEditing({ ...editing, roles: editing.roles.map((r, idx) => (idx === i ? { ...r, ...patch } : r)) });
-  const addRole = () => setEditing({ ...editing, roles: [...editing.roles, { label: '', emoji: '', limit: 0, group: '' }] });
+  const addRole = () => setEditing({ ...editing, roles: [...editing.roles, { label: '', emoji: '', limit: 0, group: '', qual: '' }] });
   const removeRole = (i) => setEditing({ ...editing, roles: editing.roles.filter((_, idx) => idx !== i) });
 
   const importMiz = async (e) => {
@@ -56,7 +58,7 @@ export default function Events() {
         const crew = MULTICREW[s.type];
         const positions = crew ? crew.map((c) => `${s.unit} – ${c}`) : [s.unit];
         for (const label of positions) {
-          if (!have.has(label)) { imported.push({ label, emoji: '', limit: 1, group: s.group || s.type }); have.add(label); }
+          if (!have.has(label)) { imported.push({ label, emoji: '', limit: 1, group: s.group || s.type, qual: '' }); have.add(label); }
         }
       }
       setEditing({ ...editing, roles: [...editing.roles, ...imported] });
@@ -78,6 +80,7 @@ export default function Events() {
       roles: editing.roles.filter((r) => r.label),
       embed: editing.embed || null,
       waitlist: editing.waitlist, multi_signup: editing.multi_signup,
+      recur_days: editing.recur_days || 0,
     };
     try {
       let id = editing.id;
@@ -96,7 +99,8 @@ export default function Events() {
     id: e.id, title: e.title, description: e.description || '', mission: e.mission || '', map: e.map || '',
     channel_id: e.channel_id || '', start_at: toLocalInput(e.start_at), reminder_minutes: e.reminder_minutes,
     image: e.image || '', embed: e.embed || null, waitlist: !!e.waitlist, multi_signup: !!e.multi_signup,
-    roles: e.roles?.length ? e.roles : BLANK.roles,
+    recur_days: e.recur_days || 0,
+    roles: e.roles?.length ? e.roles.map((r) => ({ ...r, qual: r.qual || '' })) : BLANK.roles,
   });
 
   return (
@@ -125,6 +129,17 @@ export default function Events() {
           <label>Start (your local time)<input type="datetime-local" value={editing.start_at} onChange={(e) => setEditing({ ...editing, start_at: e.target.value })} /></label>
           <label>Remind before (minutes, 0 = off)<input type="number" min="0" value={editing.reminder_minutes} onChange={(e) => setEditing({ ...editing, reminder_minutes: +e.target.value })} /></label>
         </div>
+        <div className="row2">
+          <label>Repeat <span className="hint">re-uses the sheet for the next date</span>
+            <select value={editing.recur_days} onChange={(e) => setEditing({ ...editing, recur_days: +e.target.value })}>
+              <option value={0}>No — one-off event</option>
+              <option value={1}>Daily</option>
+              <option value={7}>Weekly</option>
+              <option value={14}>Every 2 weeks</option>
+            </select>
+          </label>
+          <div />
+        </div>
         <label className="checkbox"><input type="checkbox" checked={!!editing.embed} onChange={(e) => setEditing({ ...editing, embed: e.target.checked ? (editing.embed || {}) : null })} /> Use a custom embed header (the When + roster are always appended)</label>
         {editing.embed ? (
           <div className="embed-area">
@@ -151,15 +166,16 @@ export default function Events() {
           </span>
         </div>
         {editing.roles.map((r, i) => (
-          <div className="event-role-row" key={i}>
+          <div className="event-role-row evt-qual" key={i}>
             <input placeholder="Slot / role (e.g. Winder 3-1)" value={r.label} onChange={(e) => setRole(i, { label: e.target.value })} />
             <input placeholder="Group (flight)" value={r.group || ''} onChange={(e) => setRole(i, { group: e.target.value })} />
             <input className="emoji-in" placeholder="🛩️" value={r.emoji} onChange={(e) => setRole(i, { emoji: e.target.value })} />
             <input type="number" min="0" placeholder="limit" value={r.limit} onChange={(e) => setRole(i, { limit: +e.target.value })} title="0 = unlimited" />
+            <input placeholder="Req. qual" value={r.qual || ''} onChange={(e) => setRole(i, { qual: e.target.value })} title="Optional — only roster pilots whose quals include this can take the slot" />
             <button className="link danger" onClick={() => removeRole(i)}>✕</button>
           </div>
         ))}
-        <p className="muted">Import a .miz to auto-fill flyable slots (grouped by flight), then add support roles (AWACS, ATC, Marshall…). Limit 0 = unlimited. ≤20 slots show as buttons; more become flight dropdowns. Times auto-convert per member.</p>
+        <p className="muted">Import a .miz to auto-fill flyable slots (grouped by flight), then add support roles (AWACS, ATC, Marshall…). Limit 0 = unlimited. <b>Req. qual</b> (optional) locks a slot to roster pilots holding that qualification 🔒. ≤20 slots show as buttons; more become flight dropdowns. Times auto-convert per member.</p>
 
         <div className="actions">
           <button className="btn" onClick={save}>{editing.id ? 'Save' : 'Create'}</button>
@@ -175,7 +191,7 @@ export default function Events() {
             <li key={e.id}>
               <span style={{ flex: 1 }}>
                 <b>{e.title}</b>
-                <span className="muted"> · {new Date(e.start_at).toLocaleString()} · {e.signups.length} signed up{e.status !== 'scheduled' ? ` · ${e.status}` : ''}</span>
+                <span className="muted"> · {new Date(e.start_at).toLocaleString()} · {e.signups.length} signed up{e.recur_days ? ` · 🔁 ${RECUR_LABEL(e.recur_days)}` : ''}{e.status !== 'scheduled' ? ` · ${e.status}` : ''}</span>
               </span>
               <span className="row-actions">
                 <button className="link" onClick={() => edit(e)}>Edit</button>

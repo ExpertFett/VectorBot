@@ -3,10 +3,12 @@ import {
   getRemindersDue, deleteReminderById,
   getGiveawaysDue,
   getEventsToRemind, markEventReminded, getSignups,
+  getRecurringDue, rolloverEvent, getEvent,
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 import { getPersonalization } from '../db/index.js';
 import { endGiveawayAndAnnounce } from '../features/giveaways.js';
+import { postEvent } from '../features/events.js';
 import { pollSocial } from '../features/social.js';
 import { updateStatChannels } from '../features/stats.js';
 import { maybeDailyBackup } from '../features/backup.js';
@@ -16,6 +18,8 @@ const TICK_MS = 20_000;
 const FEED_EVERY_TICKS = 15; // ~5 minutes (social incl. YouTube)
 const STATS_EVERY_TICKS = 30; // ~10 minutes (channel-rename rate limits)
 const BACKUP_EVERY_TICKS = 90; // ~30 minutes (actual backup only runs once/day)
+const RECUR_GRACE_MS = 6 * 3600_000; // keep a recurring sheet up ~6h past start, then roll over
+const DAY_MS = 86_400_000;
 let feedCounter = 0;
 let statsCounter = 0;
 let backupCounter = BACKUP_EVERY_TICKS - 3; // check shortly after startup
@@ -65,6 +69,17 @@ async function tick(client) {
       await channel.send(`⏰ **${event.title}** starts <t:${Math.floor(event.start_at / 1000)}:R> — ${pings}`).catch(() => {});
     }
     markEventReminded(event.id);
+  }
+
+  // Recurring events: once an occurrence is ~6h past, advance to the next date,
+  // clear sign-ups, and re-render the sheet in place for the next session.
+  for (const ev of getRecurringDue(now - RECUR_GRACE_MS)) {
+    let next = ev.start_at;
+    const step = ev.recur_days * DAY_MS;
+    while (next <= now) next += step;
+    rolloverEvent(ev.id, next);
+    const fresh = getEvent(ev.id);
+    if (fresh?.message_id) await postEvent(client, fresh).catch((e) => reportError(client, 'recur', e));
   }
 
   // Feeds: social alerts incl. YouTube (every ~5 min)

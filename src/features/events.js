@@ -4,7 +4,7 @@ import {
 } from 'discord.js';
 import {
   getEvent, getSignups, getUserSignups, setSignup, removeUserRole, removeAllUserSignups,
-  countRoleSignups, setEventMessage, getPersonalization,
+  countRoleSignups, setEventMessage, getPersonalization, getRosterEntry,
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 
@@ -63,7 +63,7 @@ export function buildEventMessage(event, signups = []) {
       const { active, waiting, cap } = split(role);
       let val = active.length ? active.map((id) => `<@${id}>`).join('\n') : '—';
       if (waiting.length) val += `\n*WL:* ${mention(waiting)}`;
-      embed.addFields({ name: `${role.emoji ? role.emoji + ' ' : ''}${role.label} (${active.length}${cap})`, value: val.slice(0, 1024), inline: true });
+      embed.addFields({ name: `${role.emoji ? role.emoji + ' ' : ''}${role.label}${role.qual ? ' 🔒' : ''} (${active.length}${cap})`, value: val.slice(0, 1024), inline: true });
     }
   } else {
     // Compact: per flight, show only filled slots (open ones live behind the button).
@@ -190,11 +190,22 @@ async function withPromotion(client, event, mutate) {
   }
 }
 
+// Does the member hold the qualification this slot requires? Quals are free text
+// on the roster; match the requirement as a case-insensitive substring.
+function meetsQual(event, userId, role) {
+  if (!role.qual) return true;
+  const quals = (getRosterEntry(event.guild_id, userId)?.quals || '').toLowerCase();
+  return quals.includes(role.qual.toLowerCase());
+}
+
 function claim(event, userId, role) {
   const mine = getUserSignups(event.id, userId).map((s) => s.role_label);
   if (mine.includes(role.label)) {
     removeUserRole(event.id, userId, role.label);
     return { changed: true, msg: `Removed you from **${role.label}**.` };
+  }
+  if (!meetsQual(event, userId, role)) {
+    return { changed: false, msg: `🔒 **${role.label}** requires the **${role.qual}** qualification. Ask staff if you should have it on the roster.` };
   }
   const full = role.limit && countRoleSignups(event.id, role.label) >= role.limit;
   if (full && !event.waitlist) return { changed: false, msg: `**${role.label}** is full.` };
@@ -223,7 +234,8 @@ export async function handleEventButton(interaction) {
     const options = grp.items.slice(0, 25).map(({ role, index }) => {
       const taken = countRoleSignups(event.id, role.label);
       const cap = role.limit ? `/${role.limit}` : '';
-      const o = { label: role.label.slice(0, 100), value: String(index), description: `${taken}${cap} signed`.slice(0, 100) };
+      const desc = (role.qual ? `🔒 needs ${role.qual} · ` : '') + `${taken}${cap} signed`;
+      const o = { label: role.label.slice(0, 100), value: String(index), description: desc.slice(0, 100) };
       if (role.emoji) o.emoji = role.emoji;
       return o;
     });

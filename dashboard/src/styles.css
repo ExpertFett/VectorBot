@@ -209,6 +209,8 @@ a.dc-title { color: #00a8fc; }
 /* Event slot rows (label, group, emoji, limit, remove) */
 .event-role-row { display: grid; grid-template-columns: 1.4fr 1fr 64px 70px auto; gap: 8px; align-items: center; margin-bottom: 6px; }
 .event-role-row input { margin-top: 0; }
+/* Mission-event slot rows add a required-qual column (label, group, emoji, limit, qual, remove) */
+.event-role-row.evt-qual { grid-template-columns: 1.3fr 0.9fr 52px 58px 0.9fr auto; }
 
 /* Mod log table */
 .modlog { width: 100%; border-collapse: collapse; font-size: 0.85rem; }

@@ -497,6 +497,7 @@ export function apiRouter(client) {
       emoji: r.emoji ? String(r.emoji).slice(0, 64) : '',
       limit: Math.max(0, Number(r.limit) || 0),
       group: r.group ? String(r.group).slice(0, 80) : '',
+      qual: r.qual ? String(r.qual).slice(0, 40) : '',
     }));
 
   // Parse an uploaded .miz (raw binary body) into flyable slots for the sign-up sheet.
@@ -522,7 +523,9 @@ export function apiRouter(client) {
       mission: b.mission || null, map: b.map || null, image: b.image || null,
       start_at: start, reminder_minutes: Math.max(0, Number(b.reminder_minutes) || 0),
       roles: sanitizeRoles(b.roles), embed: b.embed || null,
-      waitlist: !!b.waitlist, multi_signup: !!b.multi_signup, created_by: req.session.user.id,
+      waitlist: !!b.waitlist, multi_signup: !!b.multi_signup,
+      recur_days: Math.max(0, Number(b.recur_days) || 0),
+      created_by: req.session.user.id,
     });
     res.json({ ok: true, id });
   });
@@ -540,6 +543,7 @@ export function apiRouter(client) {
       start_at: start, reminder_minutes: Math.max(0, Number(b.reminder_minutes) || 0),
       roles: sanitizeRoles(b.roles), embed: b.embed || null,
       waitlist: !!b.waitlist, multi_signup: !!b.multi_signup,
+      recur_days: Math.max(0, Number(b.recur_days) || 0),
     });
     res.json({ ok: true });
   });
