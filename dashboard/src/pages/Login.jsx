@@ -50,11 +50,6 @@ export default function Login({ noAccess, user }) {
 
   return (
     <div className="landing">
-      <header className="landing-nav">
-        <Brand variant="sm" />
-        <a className="btn discord" href="/auth/login">Login with Discord</a>
-      </header>
-
       <section className="landing-hero">
         <Brand variant="hero" />
         <h1>The all-in-one command center for your DCS community</h1>
