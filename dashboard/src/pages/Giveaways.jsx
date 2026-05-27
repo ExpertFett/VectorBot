@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import PageHeader from '../components/PageHeader.jsx';
 
 const BLANK = { channel_id: '', prize: '', winners: 1, value: 1, unit: 3600, description: '', image: '' };
 
@@ -27,7 +28,9 @@ export default function Giveaways() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Giveaways</h1><span className="status">{status}</span></header>
+      <PageHeader title="Giveaways" sub="Run timed giveaways with one-click entry and automatic winner draws.">
+        <span className="status">{status}</span>
+      </PageHeader>
       <section className="card">
         <h2>New giveaway</h2>
         <div className="row2">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 
 export default function Onboarding() {
   const [cfg, setCfg] = useState(null);
@@ -46,9 +47,9 @@ export default function Onboarding() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Onboarding</h1>
-        <div className="actions"><span className="status">{status}</span><button className="btn" onClick={save}>Save</button></div>
-      </header>
+      <PageHeader title="Onboarding" sub="A guided welcome tour that walks new members through roles and rules, step by step.">
+        <span className="status">{status}</span><button className="btn" onClick={save}>Save</button>
+      </PageHeader>
 
       <section className="card">
         <label className="checkbox"><input type="checkbox" checked={cfg.enabled} onChange={(e) => set({ enabled: e.target.checked })} /> <b>Enable the welcome tour</b></label>

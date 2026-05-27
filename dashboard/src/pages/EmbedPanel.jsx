@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 
 export default function EmbedPanel() {
   const [guild, setGuild] = useState(null);
@@ -25,10 +26,9 @@ export default function EmbedPanel() {
 
   return (
     <div className="page">
-      <header className="page-head">
-        <h1>Send Embed</h1>
-        <div className="actions"><span className="status">{status}</span><button className="btn" onClick={send}>Send now</button></div>
-      </header>
+      <PageHeader title="Send Embed" sub="Compose and send a one-off rich embed to any channel.">
+        <span className="status">{status}</span><button className="btn" onClick={send}>Send now</button>
+      </PageHeader>
       <section className="card">
         <label>Channel
           <select value={channelId} onChange={(e) => setChannelId(e.target.value)}>

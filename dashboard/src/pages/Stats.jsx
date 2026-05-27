@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import PageHeader from '../components/PageHeader.jsx';
+import Callout from '../components/Callout.jsx';
 
 const TYPES = [
   { value: 'members', label: 'Total members', template: 'Members: {count}' },
@@ -28,7 +30,11 @@ export default function Stats() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Stats Channels</h1><span className="status">{status}</span></header>
+      <PageHeader title="Stats Channels" sub="Show live server counts as auto-updating, locked voice channels at the top of your list.">
+        <span className="status">{status}</span>
+      </PageHeader>
+
+      <Callout type="tip">The bot needs the <b>Manage Channels</b> permission to create and rename these. Counts refresh every few minutes (Discord rate-limits channel renames).</Callout>
       <section className="card">
         <h2>New counter channel</h2>
         <p className="muted">Creates a locked voice channel whose name shows a live count (updates every ~10 min). Use <code>{'{count}'}</code> in the template.</p>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import PageHeader from '../components/PageHeader.jsx';
 
 const toHex = (n) => (typeof n === 'number' ? '#' + (n & 0xffffff).toString(16).padStart(6, '0') : '#5865f2');
 
@@ -28,9 +29,9 @@ export default function Personalizer() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Personalizer</h1>
-        <div className="actions"><span className="status">{status}</span><button className="btn" onClick={save}>Save</button></div>
-      </header>
+      <PageHeader title="Personalizer" sub="Customise the bot’s per-server nickname and the accent color used on its embeds.">
+        <span className="status">{status}</span><button className="btn" onClick={save}>Save</button>
+      </PageHeader>
       <section className="card">
         <h2>This server</h2>
         <p className="muted">The bot’s username and avatar are global (set in the Developer Portal). Per-server you can set its nickname and an accent color used on bot-generated embeds (verification, tickets, giveaways).</p>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 
 export default function Tickets() {
   const [cfg, setCfg] = useState(null);
@@ -29,9 +30,9 @@ export default function Tickets() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Support Tickets</h1>
-        <div className="actions"><span className="status">{status}</span><button className="btn" onClick={save}>Save</button></div>
-      </header>
+      <PageHeader title="Support Tickets" sub="A private support-ticket system — members open a channel, staff claim, close and delete it.">
+        <span className="status">{status}</span><button className="btn" onClick={save}>Save</button>
+      </PageHeader>
       <section className="card">
         <label className="checkbox"><input type="checkbox" checked={cfg.enabled} onChange={(e) => set({ enabled: e.target.checked })} /> <b>Enable tickets</b></label>
         <p className="muted">Posts a panel with an “Open Ticket” button that creates a private channel for the member and your support role. The bot needs the <b>Manage Channels</b> permission.</p>

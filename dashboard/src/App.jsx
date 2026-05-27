@@ -28,6 +28,45 @@ import Recruitment from './pages/Recruitment.jsx';
 import Onboarding from './pages/Onboarding.jsx';
 import Brand from './components/Brand.jsx';
 
+// Sidebar navigation grouped into sections. [path, icon, label]
+const NAV = [
+  { label: 'DCS Operations', links: [
+    ['/events', '🗓️', 'Mission Events'],
+    ['/dcs', '📡', 'DCS Server'],
+    ['/traps', '⚓', 'Carrier Traps'],
+    ['/bombs', '🎯', 'Bomb Range'],
+    ['/sorties', '✈️', 'Sortie Log'],
+  ] },
+  { label: 'Squadron', links: [
+    ['/roster', '🎖️', 'Roster'],
+    ['/recruitment', '📋', 'Recruitment'],
+  ] },
+  { label: 'Members & Roles', links: [
+    ['/welcome', '👋', 'Welcome & Roles'],
+    ['/onboarding', '🚪', 'Onboarding'],
+    ['/verification', '✅', 'Verification'],
+    ['/rolemenus', '🎭', 'Reaction Roles'],
+  ] },
+  { label: 'Engagement', links: [
+    ['/commands', '⌨️', 'Custom Commands'],
+    ['/scheduled', '⏰', 'Scheduled Messages'],
+    ['/sticky', '📌', 'Sticky Messages'],
+    ['/embed', '📤', 'Send Embed'],
+    ['/tickets', '🎫', 'Tickets'],
+    ['/giveaways', '🎉', 'Giveaways'],
+    ['/social', '🔔', 'Social Alerts'],
+  ] },
+  { label: 'Moderation', links: [
+    ['/automod', '🛡️', 'Auto-moderation'],
+    ['/moderation', '🔨', 'Moderation'],
+  ] },
+  { label: 'Server', links: [
+    ['/stats', '📊', 'Stats Channels'],
+    ['/invites', '🎟️', 'Invite Tracker'],
+    ['/personalizer', '🎨', 'Personalizer'],
+  ] },
+];
+
 export default function App() {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
@@ -69,29 +108,17 @@ export default function App() {
           <span className="switch-icon">⇄</span>
         </button>
         <nav>
-          <NavLink to="/events">Mission Events</NavLink>
-          <NavLink to="/roster">Roster</NavLink>
-          <NavLink to="/recruitment">Recruitment</NavLink>
-          <NavLink to="/dcs">DCS Server</NavLink>
-          <NavLink to="/traps">Carrier Traps</NavLink>
-          <NavLink to="/bombs">Bomb Range</NavLink>
-          <NavLink to="/sorties">Sortie Log</NavLink>
-          <NavLink to="/welcome">Welcome &amp; Roles</NavLink>
-          <NavLink to="/onboarding">Onboarding</NavLink>
-          <NavLink to="/verification">Verification</NavLink>
-          <NavLink to="/commands">Custom Commands</NavLink>
-          <NavLink to="/automod">Auto-moderation</NavLink>
-          <NavLink to="/rolemenus">Reaction Roles</NavLink>
-          <NavLink to="/scheduled">Scheduled Messages</NavLink>
-          <NavLink to="/sticky">Sticky Messages</NavLink>
-          <NavLink to="/embed">Send Embed</NavLink>
-          <NavLink to="/tickets">Tickets</NavLink>
-          <NavLink to="/giveaways">Giveaways</NavLink>
-          <NavLink to="/social">Social Alerts</NavLink>
-          <NavLink to="/stats">Stats Channels</NavLink>
-          <NavLink to="/invites">Invite Tracker</NavLink>
-          <NavLink to="/moderation">Moderation</NavLink>
-          <NavLink to="/personalizer">Personalizer</NavLink>
+          {NAV.map((group) => (
+            <div className="nav-group" key={group.label}>
+              <div className="nav-group-label">{group.label}</div>
+              {group.links.map(([to, icon, label]) => (
+                <NavLink key={to} to={to}>
+                  <span className="nav-icon" aria-hidden="true">{icon}</span>
+                  <span className="nav-label">{label}</span>
+                </NavLink>
+              ))}
+            </div>
+          ))}
         </nav>
         <div className="user">
           {user.avatar && <img src={user.avatar} alt="" />}

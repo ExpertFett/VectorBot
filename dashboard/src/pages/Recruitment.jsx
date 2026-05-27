@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 
 const fmt = (ts) => new Date(ts).toLocaleString();
 
@@ -36,9 +37,9 @@ export default function Recruitment() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Recruitment</h1>
-        <div className="actions"><span className="status">{status}</span><button className="btn" onClick={save}>Save</button></div>
-      </header>
+      <PageHeader title="Recruitment" sub="Custom application forms with staff review — approve or deny right from a review channel.">
+        <span className="status">{status}</span><button className="btn" onClick={save}>Save</button>
+      </PageHeader>
 
       <section className="card">
         <label className="checkbox"><input type="checkbox" checked={cfg.enabled} onChange={(e) => set({ enabled: e.target.checked })} /> <b>Accept applications</b></label>

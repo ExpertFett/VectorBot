@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
+import PageHeader from '../components/PageHeader.jsx';
+import Callout from '../components/Callout.jsx';
 
 export default function DCSServer() {
   const [dcs, setDcs] = useState(null);
@@ -36,7 +38,11 @@ export default function DCSServer() {
   const s = dcs.status;
   return (
     <div className="page">
-      <header className="page-head"><h1>DCS Server</h1><span className="status">{status}</span></header>
+      <PageHeader title="DCS Server" sub="Connect your DCS server for live status, a kill feed, and scoreboards via a small in-game hook.">
+        <span className="status">{status}</span>
+      </PageHeader>
+
+      <Callout>Everything on this page (and the Carrier Traps / Bomb Range / Sortie Log boards) is powered by a lightweight Lua hook running on your DCS server PC. No data yet? Follow <b>Hook setup</b> at the bottom.</Callout>
 
       <section className="card">
         <h2>Current status</h2>

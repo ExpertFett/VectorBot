@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import PageHeader from '../components/PageHeader.jsx';
 
 const fmt = (ts) => new Date(ts).toLocaleString();
 
@@ -28,7 +29,9 @@ export default function Moderation() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Moderation</h1><span className="status">{status}</span></header>
+      <PageHeader title="Moderation" sub="Review the moderation action log and manage member warnings.">
+        <span className="status">{status}</span>
+      </PageHeader>
 
       <section className="card">
         <h2>Warnings</h2>

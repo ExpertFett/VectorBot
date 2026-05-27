@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 
 export default function Verification() {
   const [cfg, setCfg] = useState(null);
@@ -29,9 +30,9 @@ export default function Verification() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Verification</h1>
-        <div className="actions"><span className="status">{status}</span><button className="btn" onClick={save}>Save</button></div>
-      </header>
+      <PageHeader title="Verification" sub="Gate your server behind a one-click verify button before members can see channels.">
+        <span className="status">{status}</span><button className="btn" onClick={save}>Save</button>
+      </PageHeader>
       <section className="card">
         <label className="checkbox"><input type="checkbox" checked={cfg.enabled} onChange={(e) => set({ enabled: e.target.checked })} /> <b>Enable verification gate</b></label>
         <p className="muted">Posts a message with a button; clicking it grants the chosen role. Pair with channel permissions so unverified members only see the verify channel.</p>

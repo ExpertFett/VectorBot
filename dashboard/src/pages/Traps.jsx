@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import PageHeader from '../components/PageHeader.jsx';
+import Callout from '../components/Callout.jsx';
+import EmptyState from '../components/EmptyState.jsx';
 
 const fmt = (ts) => new Date(ts).toLocaleString();
 
@@ -12,12 +15,15 @@ export default function Traps() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Carrier Traps</h1><span className="status">{status}</span></header>
+      <PageHeader title="Carrier Traps" sub="LSO trap grades and the carrier leaderboard, captured live from your DCS server.">
+        <span className="status">{status}</span>
+      </PageHeader>
+
+      <Callout type="tip">Traps are scored automatically from <b>LSO grades</b> when the mission-event hook is running. Set it up on the <b>DCS Server</b> tab.</Callout>
 
       <section className="card">
         <h2>Leaderboard</h2>
-        <p className="muted">LSO trap grades captured from your DCS server (needs the mission-event hook running).</p>
-        {data.leaderboard.length === 0 ? <p className="muted">No traps logged yet.</p> : (
+        {data.leaderboard.length === 0 ? <EmptyState icon="⚓">No traps logged yet — they’ll appear here once pilots start landing.</EmptyState> : (
           <table className="modlog">
             <thead><tr><th>#</th><th>Pilot</th><th>Avg</th><th>Traps</th><th>Best</th></tr></thead>
             <tbody>

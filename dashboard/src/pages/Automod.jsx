@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import PageHeader from '../components/PageHeader.jsx';
 
 const ACTIONS = [
   { value: 'delete', label: 'Delete message' },
@@ -64,10 +65,9 @@ export default function Automod() {
 
   return (
     <div className="page">
-      <header className="page-head">
-        <h1>Auto-moderation</h1>
-        <div className="actions"><span className="status">{status}</span><button className="btn" onClick={save}>Save changes</button></div>
-      </header>
+      <PageHeader title="Auto-moderation" sub="Automatically filter spam, mass-mentions, banned words, invites and links.">
+        <span className="status">{status}</span><button className="btn" onClick={save}>Save changes</button>
+      </PageHeader>
 
       <section className="card">
         <h2>Log channel</h2>

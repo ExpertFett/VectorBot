@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import PageHeader from '../components/PageHeader.jsx';
+import Callout from '../components/Callout.jsx';
+import EmptyState from '../components/EmptyState.jsx';
 
 const fmt = (ts) => new Date(ts).toLocaleString();
 
@@ -12,12 +15,15 @@ export default function Bombs() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Bomb Range</h1><span className="status">{status}</span></header>
+      <PageHeader title="Bomb Range" sub="Bomb-on-target accuracy scores and pilot rankings from the range.">
+        <span className="status">{status}</span>
+      </PageHeader>
+
+      <Callout type="tip">Place a map marker whose text starts with <code>TGT</code> — bombs and rockets landing near it are scored automatically (needs the mission-event hook from the <b>DCS Server</b> tab).</Callout>
 
       <section className="card">
         <h2>Accuracy leaderboard <span className="hint">lower miss distance is better</span></h2>
-        <p className="muted">Place a map marker whose text starts with <code>TGT</code>; drops near it are scored (needs the mission-event hook).</p>
-        {data.leaderboard.length === 0 ? <p className="muted">No bomb scores yet.</p> : (
+        {data.leaderboard.length === 0 ? <EmptyState icon="🎯">No bomb scores yet — start dropping near a TGT marker.</EmptyState> : (
           <table className="modlog">
             <thead><tr><th>#</th><th>Pilot</th><th>Avg</th><th>Best</th><th>Drops</th></tr></thead>
             <tbody>

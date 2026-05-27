@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 
 const BLANK = { name: '', response: '', embed: null };
 const NAME_RE = /^[a-z0-9_-]{1,32}$/;
@@ -40,10 +41,9 @@ export default function Commands() {
 
   return (
     <div className="page">
-      <header className="page-head">
-        <h1>Custom Commands</h1>
+      <PageHeader title="Custom Commands" sub="Create your own !commands that reply with text or a rich embed.">
         <span className="status">{status}</span>
-      </header>
+      </PageHeader>
 
       <section className="card">
         <h2>{isExisting && editing.name ? `Edit !${editing.name}` : 'New command'}</h2>

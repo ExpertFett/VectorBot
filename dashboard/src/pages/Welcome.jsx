@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 
 const PLACEHOLDERS = '{user} · {username} · {server} · {membercount}';
 
@@ -74,13 +75,10 @@ export default function Welcome() {
 
   return (
     <div className="page">
-      <header className="page-head">
-        <h1>Welcome &amp; Roles</h1>
-        <div className="actions">
-          <span className="status">{status}</span>
-          <button className="btn" onClick={save}>Save changes</button>
-        </div>
-      </header>
+      <PageHeader title="Welcome & Roles" sub="Greet new members, say goodbye to leavers, and auto-assign a role on join.">
+        <span className="status">{status}</span>
+        <button className="btn" onClick={save}>Save changes</button>
+      </PageHeader>
 
       <MessageSection title="Welcome message"
         hint="Posted when a member joins."

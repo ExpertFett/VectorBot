@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import PageHeader from '../components/PageHeader.jsx';
 
 const BLANK = { user_id: '', callsign: '', airframes: '', quals: '', notes: '' };
 
@@ -37,7 +38,9 @@ export default function Roster() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Squadron Roster</h1><span className="status">{status}</span></header>
+      <PageHeader title="Squadron Roster" sub="Track pilot callsigns, airframes and qualifications — import the whole squadron from a spreadsheet.">
+        <span className="status">{status}</span>
+      </PageHeader>
 
       <section className="card">
         <h2>{roster.some((r) => r.user_id === editing.user_id) ? 'Edit entry' : 'Add / edit pilot'}</h2>

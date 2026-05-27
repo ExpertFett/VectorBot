@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 
 const BLANK = { channel_id: '', content: '', embed: null, enabled: true };
 
@@ -28,7 +29,9 @@ export default function Sticky() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Sticky Messages</h1><span className="status">{status}</span></header>
+      <PageHeader title="Sticky Messages" sub="Keep a message pinned to the bottom of a channel as people keep chatting.">
+        <span className="status">{status}</span>
+      </PageHeader>
       <section className="card">
         <h2>Set sticky</h2>
         <p className="muted">A sticky message is re-posted to the bottom of a channel whenever someone else posts (throttled).</p>

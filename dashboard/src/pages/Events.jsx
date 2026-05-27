@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 
 const BLANK = {
   id: null, title: '', description: '', mission: '', map: '', channel_id: '',
@@ -100,7 +101,9 @@ export default function Events() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Mission Events</h1><span className="status">{status}</span></header>
+      <PageHeader title="Mission Events" sub="Schedule ops with airframe sign-up sheets — import slots straight from your .miz mission file.">
+        <span className="status">{status}</span>
+      </PageHeader>
 
       <section className="card">
         <h2>{editing.id ? `Edit event #${editing.id}` : 'New event'}</h2>

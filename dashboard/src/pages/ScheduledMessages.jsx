@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 
 const BLANK = { id: null, channel_id: '', content: '', embed: null, type: 'once', run_at: '', interval_value: 1, interval_unit: 3600, enabled: true };
 
@@ -35,7 +36,9 @@ export default function ScheduledMessages() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Scheduled Messages</h1><span className="status">{status}</span></header>
+      <PageHeader title="Scheduled Messages" sub="Post a message on a timer — once at a set time, or on a repeating interval.">
+        <span className="status">{status}</span>
+      </PageHeader>
       <section className="card">
         <h2>{editing.id ? 'Edit' : 'New'} scheduled message</h2>
         <label>Channel

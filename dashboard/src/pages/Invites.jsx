@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import PageHeader from '../components/PageHeader.jsx';
+import EmptyState from '../components/EmptyState.jsx';
 
 export default function Invites() {
   const [list, setList] = useState(null);
@@ -22,7 +24,9 @@ export default function Invites() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Invite Tracker</h1><span className="status">{status}</span></header>
+      <PageHeader title="Invite Tracker" sub="See who’s bringing the most members into your server.">
+        <span className="status">{status}</span>
+      </PageHeader>
 
       <section className="card">
         <h2>Join-log channel</h2>
@@ -40,7 +44,7 @@ export default function Invites() {
 
       <section className="card">
         <h2>Top inviters</h2>
-        {list.length === 0 ? <p className="muted">No invites tracked yet.</p> : (
+        {list.length === 0 ? <EmptyState icon="🎟️">No invites tracked yet. Once members join through an invite, the leaderboard fills in here.</EmptyState> : (
           <ul className="cmd-list">{list.map((r, i) => (
             <li key={r.inviter_id}>
               <span style={{ flex: 1 }}><b>#{i + 1}</b> {r.tag || <code>{r.inviter_id}</code>}</span>

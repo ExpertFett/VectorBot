@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import PageHeader from '../components/PageHeader.jsx';
+import Callout from '../components/Callout.jsx';
+import EmptyState from '../components/EmptyState.jsx';
 
 const fmtTime = (ts) => new Date(ts).toLocaleString();
 const fmtDur = (s) => {
@@ -16,12 +19,15 @@ export default function Sorties() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Sortie Log</h1><span className="status">{status}</span></header>
+      <PageHeader title="Sortie Log" sub="Flight hours and sortie counts logged per pilot, straight from the server.">
+        <span className="status">{status}</span>
+      </PageHeader>
+
+      <Callout type="tip">A sortie is logged automatically on <b>takeoff → landing</b> when the mission-event hook is running (see the <b>DCS Server</b> tab).</Callout>
 
       <section className="card">
         <h2>Flight-time leaderboard</h2>
-        <p className="muted">A sortie is logged on takeoff → landing (needs the mission-event hook).</p>
-        {data.leaderboard.length === 0 ? <p className="muted">No sorties logged yet.</p> : (
+        {data.leaderboard.length === 0 ? <EmptyState icon="✈️">No sorties logged yet — they’ll show up after the first flight.</EmptyState> : (
           <table className="modlog">
             <thead><tr><th>#</th><th>Pilot</th><th>Sorties</th><th>Airborne</th></tr></thead>
             <tbody>

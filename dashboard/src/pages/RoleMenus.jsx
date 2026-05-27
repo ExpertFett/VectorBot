@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
+import PageHeader from '../components/PageHeader.jsx';
 
 const STYLES = ['Primary', 'Secondary', 'Success', 'Danger'];
 const BLANK = { id: null, title: '', description: '', channel_id: '', buttons: [], type: 'buttons', max_values: 1, embed: null };
@@ -60,7 +61,9 @@ export default function RoleMenus() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Reaction Roles</h1><span className="status">{status}</span></header>
+      <PageHeader title="Reaction Roles" sub="Let members self-assign roles from button or dropdown menus.">
+        <span className="status">{status}</span>
+      </PageHeader>
 
       <section className="card">
         <h2>{editing.id ? 'Edit menu' : 'New role menu'}</h2>

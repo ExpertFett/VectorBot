@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api.js';
+import PageHeader from '../components/PageHeader.jsx';
 
 const PLATFORMS = [
   { value: 'youtube', label: 'YouTube', hint: 'channel ID (UC…)' },
@@ -36,7 +37,9 @@ export default function Social() {
 
   return (
     <div className="page">
-      <header className="page-head"><h1>Social Alerts</h1><span className="status">{status}</span></header>
+      <PageHeader title="Social Alerts" sub="Auto-post when you go live or upload — YouTube, Twitch, Kick, Reddit and RSS feeds.">
+        <span className="status">{status}</span>
+      </PageHeader>
       <section className="card">
         <h2>Add a source</h2>
         <div className="row2">
