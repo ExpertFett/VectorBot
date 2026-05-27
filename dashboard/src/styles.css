@@ -11,6 +11,7 @@
   --accent-hover: #4752c4;
   --danger: #f23f43;
   --green: #23a55a;
+  --opt: #f47b20;
 }
 
 * { box-sizing: border-box; }
@@ -43,6 +44,7 @@ code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font-size: 0
 }
 .brand-logo { display: block; object-fit: contain; border-radius: 8px; }
 .brand-logo-lg { width: 200px; max-width: 80%; height: auto; margin: 0 auto 16px; }
+.brand-logo-hero { width: 320px; max-width: 88%; height: auto; margin: 0 auto 22px; }
 .brand-logo-sm { width: 100%; height: auto; }
 
 /* Login */
@@ -193,4 +195,86 @@ a.dc-title { color: #00a8fc; }
   .app { grid-template-columns: 1fr; }
   .embed-area, .row2 { grid-template-columns: 1fr; }
   .rolebtn-row { grid-template-columns: 1fr 1fr; }
+}
+
+/* ---------- Landing / pre-login page ---------- */
+.landing { min-height: 100vh; background: var(--bg); }
+.landing h1, .landing h2, .landing h3 { margin: 0; }
+
+.landing-nav {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 28px; background: rgba(20,21,24,0.85); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.landing-nav .brand-logo-sm { width: 132px; }
+.landing-nav .opt-brand { font-size: 1.4rem; }
+
+.landing-hero {
+  text-align: center; padding: 72px 24px 64px; max-width: 880px; margin: 0 auto;
+  background:
+    radial-gradient(60% 80% at 50% 0%, rgba(244,123,32,0.16), transparent 70%);
+}
+.landing-hero h1 { font-size: 2.4rem; line-height: 1.15; letter-spacing: -0.5px; margin-bottom: 16px; }
+.hero-sub { font-size: 1.1rem; color: var(--muted); max-width: 640px; margin: 0 auto 28px; line-height: 1.6; }
+.hero-cta { padding: 14px 30px !important; font-size: 1.05rem; }
+.hero-note { color: var(--muted); font-size: 0.85rem; margin-top: 16px; }
+
+.landing-section { max-width: 1040px; margin: 0 auto; padding: 48px 24px; }
+.section-title {
+  text-align: center; font-size: 1.6rem; margin-bottom: 32px; position: relative;
+}
+.section-title::after {
+  content: ''; display: block; width: 54px; height: 3px; background: var(--opt);
+  border-radius: 2px; margin: 12px auto 0;
+}
+
+.feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.feature-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 22px;
+  transition: border-color 0.15s, transform 0.15s;
+}
+.feature-card:hover { border-color: var(--opt); transform: translateY(-2px); }
+.feature-icon { font-size: 1.8rem; margin-bottom: 10px; }
+.feature-card h3 { font-size: 1.05rem; margin-bottom: 8px; }
+.feature-card p { color: var(--muted); font-size: 0.9rem; line-height: 1.55; margin: 0; }
+
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.step {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 24px; text-align: center;
+}
+.step-num {
+  width: 42px; height: 42px; margin: 0 auto 14px; border-radius: 50%;
+  background: var(--opt); color: #111; font-weight: 800; font-size: 1.2rem;
+  display: grid; place-items: center;
+}
+.step h3 { font-size: 1.1rem; margin-bottom: 8px; }
+.step p { color: var(--muted); font-size: 0.92rem; line-height: 1.55; margin: 0; }
+
+.integrations { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.integration {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 22px; display: flex; gap: 14px; align-items: flex-start;
+}
+.integration-icon { font-size: 1.7rem; flex-shrink: 0; }
+.integration h3 { font-size: 1.05rem; margin-bottom: 6px; }
+.integration p { color: var(--muted); font-size: 0.9rem; line-height: 1.55; margin: 0; }
+
+.landing-cta {
+  text-align: center; padding: 64px 24px;
+  background: radial-gradient(70% 120% at 50% 100%, rgba(244,123,32,0.14), transparent 70%);
+}
+.landing-cta h2 { font-size: 1.7rem; margin-bottom: 22px; }
+
+.landing-footer {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 22px 28px; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.85rem;
+}
+.landing-footer .brand-logo-sm { width: 110px; }
+.landing-footer .opt-brand { font-size: 1.1rem; }
+
+@media (max-width: 860px) {
+  .feature-grid, .steps, .integrations { grid-template-columns: 1fr; }
+  .landing-hero h1 { font-size: 1.8rem; }
 }
