@@ -44,7 +44,12 @@ code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font-size: 0
 }
 .brand-logo { display: block; object-fit: contain; border-radius: 8px; }
 .brand-logo-lg { width: 200px; max-width: 80%; height: auto; margin: 0 auto 16px; }
-.brand-logo-hero { width: 320px; max-width: 88%; height: auto; margin: 0 auto 22px; }
+.brand-logo-hero {
+  width: 340px; max-width: 90%; height: auto; margin: 0 auto 18px;
+  /* Logo has a solid black background — 'screen' drops the black so only the
+     artwork shows, blending it seamlessly into the dark page. */
+  mix-blend-mode: screen; border-radius: 0;
+}
 .brand-logo-sm { width: 100%; height: auto; }
 
 /* Login */
