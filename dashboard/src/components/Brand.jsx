@@ -12,7 +12,7 @@ export default function Brand({ variant = 'lg' }) {
   return (
     <div className="opt-fallback">
       <div className={`brand opt-brand ${variant === 'sm' ? '' : 'big'}`}>DCS<span>:OPT</span></div>
-      {variant !== 'sm' && <div className="opt-tagline">Operational Planning Tool</div>}
+      {variant !== 'sm' && <div className="opt-tagline">Ops Link Bot</div>}
     </div>
   );
 }

@@ -11,7 +11,7 @@
   --accent-hover: #4752c4;
   --danger: #f23f43;
   --green: #23a55a;
-  --opt: #f47b20;
+  --opt: #c850ff;
 }
 
 * { box-sizing: border-box; }
@@ -37,10 +37,10 @@ code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font-size: 0
 
 /* DCS:OPT branding (login / pre-dashboard) */
 .opt-brand { font-style: italic; letter-spacing: -1px; }
-.opt-brand span { color: #f47b20; }
+.opt-brand span { color: var(--opt); }
 .opt-tagline {
   text-transform: uppercase; letter-spacing: 3px; font-size: 0.72rem; font-weight: 700;
-  color: #f47b20; margin: -2px 0 18px;
+  color: var(--opt); margin: -2px 0 18px;
 }
 .brand-logo { display: block; object-fit: contain; border-radius: 8px; }
 .brand-logo-lg { width: 200px; max-width: 80%; height: auto; margin: 0 auto 16px; }
@@ -115,7 +115,7 @@ code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font-size: 0
 }
 .callout .callout-icon { font-size: 1.05rem; line-height: 1.3; flex-shrink: 0; }
 .callout b, .callout strong { color: var(--text); }
-.callout.tip { background: rgba(244,123,32,0.09); border-left-color: var(--opt); }
+.callout.tip { background: rgba(200,80,255,0.09); border-left-color: var(--opt); }
 .callout.warn { background: rgba(242,63,67,0.09); border-left-color: var(--danger); }
 .callout ol, .callout ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.7; }
 
@@ -257,7 +257,7 @@ a.dc-title { color: #00a8fc; }
 .landing-hero {
   text-align: center; padding: 72px 24px 64px; max-width: 880px; margin: 0 auto;
   background:
-    radial-gradient(60% 80% at 50% 0%, rgba(244,123,32,0.16), transparent 70%);
+    radial-gradient(60% 80% at 50% 0%, rgba(200,80,255,0.16), transparent 70%);
 }
 .landing-hero h1 { font-size: 2.4rem; line-height: 1.15; letter-spacing: -0.5px; margin-bottom: 16px; }
 .hero-sub { font-size: 1.1rem; color: var(--muted); max-width: 640px; margin: 0 auto 28px; line-height: 1.6; }
@@ -307,7 +307,7 @@ a.dc-title { color: #00a8fc; }
 
 .landing-cta {
   text-align: center; padding: 64px 24px;
-  background: radial-gradient(70% 120% at 50% 100%, rgba(244,123,32,0.14), transparent 70%);
+  background: radial-gradient(70% 120% at 50% 100%, rgba(200,80,255,0.14), transparent 70%);
 }
 .landing-cta h2 { font-size: 1.7rem; margin-bottom: 22px; }
 
