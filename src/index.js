@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { Client, Collection, GatewayIntentBits } from 'discord.js';
 import { startWebServer } from './web/server.js';
 import { startScheduler } from './scheduler/index.js';
+import { reportError } from './util/report.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -74,6 +75,6 @@ startWebServer(client);
 // Background scheduler for scheduled messages, reminders, giveaways, YouTube polling.
 startScheduler(client);
 
-process.on('unhandledRejection', (err) => console.error('Unhandled rejection:', err));
+process.on('unhandledRejection', (err) => reportError(client, 'unhandledRejection', err));
 
 client.login(process.env.DISCORD_TOKEN);

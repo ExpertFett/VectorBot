@@ -9,12 +9,16 @@ import { getPersonalization } from '../db/index.js';
 import { endGiveawayAndAnnounce } from '../features/giveaways.js';
 import { pollSocial } from '../features/social.js';
 import { updateStatChannels } from '../features/stats.js';
+import { maybeDailyBackup } from '../features/backup.js';
+import { reportError } from '../util/report.js';
 
 const TICK_MS = 20_000;
-const FEED_EVERY_TICKS = 15; // ~5 minutes (YouTube + social)
+const FEED_EVERY_TICKS = 15; // ~5 minutes (social incl. YouTube)
 const STATS_EVERY_TICKS = 30; // ~10 minutes (channel-rename rate limits)
+const BACKUP_EVERY_TICKS = 90; // ~30 minutes (actual backup only runs once/day)
 let feedCounter = 0;
 let statsCounter = 0;
+let backupCounter = BACKUP_EVERY_TICKS - 3; // check shortly after startup
 
 async function resolveChannel(client, id) {
   return client.channels.cache.get(id) || (await client.channels.fetch(id).catch(() => null));
@@ -63,10 +67,9 @@ async function tick(client) {
     markEventReminded(event.id);
   }
 
-  // Feeds: YouTube + social (every ~5 min)
+  // Feeds: social alerts incl. YouTube (every ~5 min)
   if (++feedCounter >= FEED_EVERY_TICKS) {
     feedCounter = 0;
-    await pollYoutube(client).catch((e) => console.error('YouTube poll error:', e.message));
     await pollSocial(client).catch((e) => console.error('Social poll error:', e.message));
   }
 
@@ -75,9 +78,15 @@ async function tick(client) {
     statsCounter = 0;
     await updateStatChannels(client).catch((e) => console.error('Stats update error:', e.message));
   }
+
+  // Daily database backup (checked ~every 30 min; runs at most once per day)
+  if (++backupCounter >= BACKUP_EVERY_TICKS) {
+    backupCounter = 0;
+    await maybeDailyBackup(client).catch((e) => reportError(client, 'backup', e));
+  }
 }
 
 export function startScheduler(client) {
-  setInterval(() => { tick(client).catch((e) => console.error('Scheduler tick error:', e)); }, TICK_MS).unref();
+  setInterval(() => { tick(client).catch((e) => reportError(client, 'scheduler', e)); }, TICK_MS).unref();
   console.log('Scheduler started (20s tick).');
 }

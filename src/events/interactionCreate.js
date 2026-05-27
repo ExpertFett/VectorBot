@@ -6,6 +6,7 @@ import { handleGiveawayButton } from '../features/giveaways.js';
 import { handleEventButton, handleEventSelect } from '../features/events.js';
 import { handleApply, handleApplyModal, handleReview } from '../features/recruitment.js';
 import { handleStart, handleNav, handleRoleToggle, handleFinish } from '../features/onboarding.js';
+import { reportError } from '../util/report.js';
 
 export default {
   name: Events.InteractionCreate,
@@ -40,7 +41,7 @@ export default {
         return;
       }
     } catch (err) {
-      console.error('Component interaction error:', err);
+      reportError(client, `component:${interaction.customId}`, err);
       return;
     }
 
@@ -52,7 +53,7 @@ export default {
     try {
       await command.execute(interaction, client);
     } catch (err) {
-      console.error(`Error in /${interaction.commandName}:`, err);
+      reportError(client, `command:/${interaction.commandName}`, err);
       const payload = { content: 'Something went wrong running that command.', flags: MessageFlags.Ephemeral };
       if (interaction.replied || interaction.deferred) await interaction.followUp(payload).catch(() => {});
       else await interaction.reply(payload).catch(() => {});
