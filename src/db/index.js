@@ -290,6 +290,7 @@ ensureColumn('guild_config', 'bullseye_lat', 'REAL');           // /bullseye ref
 ensureColumn('guild_config', 'bullseye_lon', 'REAL');
 ensureColumn('guild_config', 'recruitment', 'TEXT');            // recruitment config JSON
 ensureColumn('guild_config', 'onboarding', 'TEXT');             // onboarding wizard config JSON
+ensureColumn('guild_config', 'readyroom_ingest_url', 'TEXT');   // per-guild ReadyRoom wing ingest URL (sortie fan-out)
 ensureColumn('tickets', 'claimed_by', 'TEXT');                  // staff who claimed the ticket
 ensureColumn('events', 'embed', 'TEXT');                        // custom event embed template (JSON)
 ensureColumn('events', 'waitlist', 'INTEGER NOT NULL DEFAULT 0');     // overflow goes to a waitlist
@@ -335,7 +336,7 @@ const ALLOWED_CONFIG_COLUMNS = new Set([
   'autorole_id', 'log_channel_id', 'automod',
   'verification', 'tickets', 'bot_nickname', 'embed_color', 'invite_log_channel',
   'ingest_token', 'server_status', 'status_channel_id', 'status_message_id', 'dcs_feed_channel_id', 'status_embed',
-  'bullseye_lat', 'bullseye_lon', 'recruitment', 'onboarding',
+  'bullseye_lat', 'bullseye_lon', 'recruitment', 'onboarding', 'readyroom_ingest_url',
 ]);
 
 // --- guild config helpers ---

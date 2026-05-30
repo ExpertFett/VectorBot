@@ -57,8 +57,8 @@ export async function handleDcsEvent(client, guildId, ev) {
   } else if (ev.kind === 'sortie' && ev.pilot) {
     const seconds = Math.max(0, Number(ev.seconds) || 0);
     addSortie(guildId, { pilot: String(ev.pilot).slice(0, 80), airframe: ev.airframe ? String(ev.airframe).slice(0, 80) : null, seconds });
-    // Also fan out to ReadyRoom (no-op if READYROOM_INGEST_URL unset).
-    forwardSortie({ pilot: ev.pilot, airframe: ev.airframe, seconds });
+    // Also fan out to ReadyRoom (no-op if neither per-guild config nor env URL is set).
+    forwardSortie({ pilot: ev.pilot, airframe: ev.airframe, seconds }, guildId);
     await feed(client, guildId, `🛬 **${ev.pilot}** landed — ${fmtDuration(seconds)} sortie${ev.airframe ? ` in ${ev.airframe}` : ''}`);
   }
 }

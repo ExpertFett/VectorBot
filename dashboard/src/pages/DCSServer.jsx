@@ -11,12 +11,14 @@ export default function DCSServer() {
   const [statusChannel, setStatusChannel] = useState('');
   const [feedChannel, setFeedChannel] = useState('');
   const [embed, setEmbed] = useState(null);
+  const [readyroomUrl, setReadyroomUrl] = useState('');
   const [status, setStatus] = useState('');
 
   const load = () => Promise.all([api.getDcs(), api.guild(), api.getConfig()])
     .then(([d, g, c]) => {
       setDcs(d); setGuild(g);
       setStatusChannel(d.status_channel_id || ''); setFeedChannel(d.dcs_feed_channel_id || '');
+      setReadyroomUrl(d.readyroom_ingest_url || '');
       setEmbed(c.status_embed || null);
     })
     .catch((e) => setStatus(e.message));
@@ -27,6 +29,19 @@ export default function DCSServer() {
     setStatus('Saving…');
     try { await api.saveConfig({ status_channel_id: statusChannel || null, dcs_feed_channel_id: feedChannel || null, status_embed: embed }); setStatus('Saved ✓'); }
     catch (e) { setStatus('Save failed: ' + (e.body?.error || e.message)); }
+  };
+  const saveReadyroom = async () => {
+    const v = readyroomUrl.trim();
+    if (v && !/^https?:\/\/.+\/ingest\/.+/.test(v)) {
+      setStatus('That doesn’t look like a ReadyRoom ingest URL (should end with /ingest/<token>).');
+      return;
+    }
+    setStatus('Saving…');
+    try {
+      await api.saveConfig({ readyroom_ingest_url: v || null });
+      setDcs({ ...dcs, readyroom_ingest_url: v || null });
+      setStatus('Saved ✓');
+    } catch (e) { setStatus('Save failed: ' + (e.body?.error || e.message)); }
   };
   const regen = async () => {
     if (!window.confirm('Regenerate the ingest token? The old URL stops working — you must update the hook.')) return;
@@ -80,6 +95,28 @@ export default function DCSServer() {
           </div>
         )}
         <div className="actions"><button className="btn" onClick={saveChannels}>Save</button></div>
+      </section>
+
+      <section className="card">
+        <h2>ReadyRoom integration</h2>
+        <p className="muted">
+          Fan sortie events out to your squadron's ReadyRoom wing so they land in pilot logbooks automatically.
+          Get the URL from your ReadyRoom wing's <b>Reveal ingest URL</b> button — it ends in <code>/ingest/&lt;token&gt;</code>.
+          Leave blank to disable.
+        </p>
+        <label>ReadyRoom ingest URL
+          <input
+            value={readyroomUrl}
+            onChange={(e) => setReadyroomUrl(e.target.value)}
+            placeholder="https://your-readyroom.up.railway.app/ingest/<token>"
+            onFocus={(e) => e.target.select()}
+          />
+        </label>
+        <div className="actions"><button className="btn" onClick={saveReadyroom}>Save</button></div>
+        <p className="muted" style={{ fontSize: '0.85em' }}>
+          Once set, every DCS landing your hook captures is also POSTed to ReadyRoom. Pilots not yet
+          claimed appear under <b>unmatched aliases</b> on ReadyRoom's Wing page.
+        </p>
       </section>
 
       <section className="card">

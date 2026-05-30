@@ -163,7 +163,7 @@ export function apiRouter(client) {
 
   router.put('/config', (req, res) => {
     const b = req.body || {};
-    const textCols = ['welcome_message', 'goodbye_message'];
+    const textCols = ['welcome_message', 'goodbye_message', 'readyroom_ingest_url'];
     const idCols = ['welcome_channel_id', 'goodbye_channel_id', 'autorole_id', 'log_channel_id', 'invite_log_channel', 'status_channel_id', 'dcs_feed_channel_id'];
 
     for (const col of idCols) if (col in b) setConfigValue(req.guildId, col, cleanId(b[col]));
@@ -575,6 +575,7 @@ export function apiRouter(client) {
       status: getServerStatus(req.guildId),
       status_channel_id: c.status_channel_id || null,
       dcs_feed_channel_id: c.dcs_feed_channel_id || null,
+      readyroom_ingest_url: c.readyroom_ingest_url || null,
     });
   });
   router.post('/dcs/regen', (req, res) => {
