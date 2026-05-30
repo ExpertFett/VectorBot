@@ -12,6 +12,8 @@ export default function DCSServer() {
   const [feedChannel, setFeedChannel] = useState('');
   const [embed, setEmbed] = useState(null);
   const [readyroomUrl, setReadyroomUrl] = useState('');
+  const [readyroomEventsChannel, setReadyroomEventsChannel] = useState('');
+  const [showToken, setShowToken] = useState(false);
   const [status, setStatus] = useState('');
 
   const load = () => Promise.all([api.getDcs(), api.guild(), api.getConfig()])
@@ -19,6 +21,7 @@ export default function DCSServer() {
       setDcs(d); setGuild(g);
       setStatusChannel(d.status_channel_id || ''); setFeedChannel(d.dcs_feed_channel_id || '');
       setReadyroomUrl(d.readyroom_ingest_url || '');
+      setReadyroomEventsChannel(d.readyroom_events_channel_id || '');
       setEmbed(c.status_embed || null);
     })
     .catch((e) => setStatus(e.message));
@@ -29,6 +32,23 @@ export default function DCSServer() {
     setStatus('Saving…');
     try { await api.saveConfig({ status_channel_id: statusChannel || null, dcs_feed_channel_id: feedChannel || null, status_embed: embed }); setStatus('Saved ✓'); }
     catch (e) { setStatus('Save failed: ' + (e.body?.error || e.message)); }
+  };
+  const saveReadyroomChannel = async () => {
+    setStatus('Saving…');
+    try {
+      await api.saveConfig({ readyroom_events_channel_id: readyroomEventsChannel || null });
+      setDcs({ ...dcs, readyroom_events_channel_id: readyroomEventsChannel || null });
+      setStatus('Saved ✓');
+    } catch (e) { setStatus('Save failed: ' + (e.body?.error || e.message)); }
+  };
+  const copyToken = () => { navigator.clipboard?.writeText(dcs.readyroom_outbound_token || ''); setStatus('Token copied'); };
+  const regenToken = async () => {
+    if (!window.confirm('Regenerate the outbound token? The old one stops working — you must update it in ReadyRoom.')) return;
+    try {
+      const r = await api.regenReadyroomToken();
+      setDcs({ ...dcs, readyroom_outbound_token: r.readyroom_outbound_token });
+      setShowToken(true); setStatus('New token generated ✓');
+    } catch (e) { setStatus('Failed: ' + e.message); }
   };
   const saveReadyroom = async () => {
     const v = readyroomUrl.trim();
@@ -100,11 +120,13 @@ export default function DCSServer() {
       <section className="card">
         <h2>ReadyRoom integration</h2>
         <p className="muted">
-          Fan sortie events out to your squadron's ReadyRoom wing so they land in pilot logbooks automatically.
-          Get the URL from your ReadyRoom wing's <b>Reveal ingest URL</b> button — it ends in <code>/ingest/&lt;token&gt;</code>.
-          Leave blank to disable.
+          Wire this Discord server to a ReadyRoom wing. Two directions: <b>(1)</b> sortie events
+          from your DCS hook fan out to ReadyRoom (logbooks fill automatically); <b>(2)</b>
+          ReadyRoom can publish event embeds into a channel here.
         </p>
-        <label>ReadyRoom ingest URL
+
+        <h3>Outbound (DCS sorties → ReadyRoom)</h3>
+        <label>ReadyRoom ingest URL <span className="hint">from your ReadyRoom wing's <b>Reveal ingest URL</b></span>
           <input
             value={readyroomUrl}
             onChange={(e) => setReadyroomUrl(e.target.value)}
@@ -113,10 +135,28 @@ export default function DCSServer() {
           />
         </label>
         <div className="actions"><button className="btn" onClick={saveReadyroom}>Save</button></div>
-        <p className="muted" style={{ fontSize: '0.85em' }}>
-          Once set, every DCS landing your hook captures is also POSTed to ReadyRoom. Pilots not yet
-          claimed appear under <b>unmatched aliases</b> on ReadyRoom's Wing page.
-        </p>
+
+        <h3 style={{ marginTop: 18 }}>Inbound (ReadyRoom events → this Discord)</h3>
+        <p className="muted">Paste these two values into your ReadyRoom <b>Wing</b> page's "Discord publish" section.</p>
+        <label>Ops Bot URL (paste in ReadyRoom)
+          <input readOnly value={typeof window !== 'undefined' ? window.location.origin : ''} onFocus={(e) => e.target.select()} />
+        </label>
+        <label>Outbound token (paste in ReadyRoom) <span className="hint">treat like a password</span>
+          <input readOnly value={showToken ? (dcs.readyroom_outbound_token || '') : '••••••••••••••••••••••••'}
+                 onFocus={(e) => e.target.select()} />
+        </label>
+        <div className="actions">
+          <button className="btn" onClick={() => setShowToken((v) => !v)}>{showToken ? 'Hide' : 'Reveal'} token</button>
+          <button className="btn" onClick={copyToken}>Copy token</button>
+          <button className="link danger" onClick={regenToken}>Regenerate token</button>
+        </div>
+        <label style={{ marginTop: 10 }}>Events channel <span className="hint">where ReadyRoom event embeds will be posted</span>
+          <select value={readyroomEventsChannel} onChange={(e) => setReadyroomEventsChannel(e.target.value)}>
+            <option value="">— none (publishing disabled) —</option>
+            {guild.channels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}
+          </select>
+        </label>
+        <div className="actions"><button className="btn" onClick={saveReadyroomChannel}>Save channel</button></div>
       </section>
 
       <section className="card">

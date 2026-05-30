@@ -84,6 +84,7 @@ export const api = {
 
   getDcs: () => req('GET', '/api/dcs'),
   regenIngest: () => req('POST', '/api/dcs/regen'),
+  regenReadyroomToken: () => req('POST', '/api/dcs/regen-readyroom-token'),
   getTraps: () => req('GET', '/api/traps'),
   getBombs: () => req('GET', '/api/bombs'),
   getSorties: () => req('GET', '/api/sorties'),

@@ -290,7 +290,9 @@ ensureColumn('guild_config', 'bullseye_lat', 'REAL');           // /bullseye ref
 ensureColumn('guild_config', 'bullseye_lon', 'REAL');
 ensureColumn('guild_config', 'recruitment', 'TEXT');            // recruitment config JSON
 ensureColumn('guild_config', 'onboarding', 'TEXT');             // onboarding wizard config JSON
-ensureColumn('guild_config', 'readyroom_ingest_url', 'TEXT');   // per-guild ReadyRoom wing ingest URL (sortie fan-out)
+ensureColumn('guild_config', 'readyroom_ingest_url', 'TEXT');   // per-guild ReadyRoom wing ingest URL (sortie fan-out IN)
+ensureColumn('guild_config', 'readyroom_outbound_token', 'TEXT');  // per-guild secret ReadyRoom uses to publish to this guild (OUT)
+ensureColumn('guild_config', 'readyroom_events_channel_id', 'TEXT'); // channel to post ReadyRoom event embeds into
 ensureColumn('tickets', 'claimed_by', 'TEXT');                  // staff who claimed the ticket
 ensureColumn('events', 'embed', 'TEXT');                        // custom event embed template (JSON)
 ensureColumn('events', 'waitlist', 'INTEGER NOT NULL DEFAULT 0');     // overflow goes to a waitlist
@@ -337,6 +339,7 @@ const ALLOWED_CONFIG_COLUMNS = new Set([
   'verification', 'tickets', 'bot_nickname', 'embed_color', 'invite_log_channel',
   'ingest_token', 'server_status', 'status_channel_id', 'status_message_id', 'dcs_feed_channel_id', 'status_embed',
   'bullseye_lat', 'bullseye_lon', 'recruitment', 'onboarding', 'readyroom_ingest_url',
+  'readyroom_outbound_token', 'readyroom_events_channel_id',
 ]);
 
 // --- guild config helpers ---
@@ -756,6 +759,28 @@ export function getIngestToken(guildId) {
 export function regenerateIngestToken(guildId) {
   const token = randomBytes(24).toString('hex');
   setConfigValue(guildId, 'ingest_token', token);
+  return token;
+}
+
+// --- ReadyRoom outbound token (parallel to ingest_token, but ReadyRoom is the *caller* here) ---
+const selectGuildByOutboundToken = db.prepare(
+  'SELECT guild_id FROM guild_config WHERE readyroom_outbound_token = ?'
+);
+export function getGuildByReadyroomOutboundToken(token) {
+  if (!token) return null;
+  return selectGuildByOutboundToken.get(token)?.guild_id || null;
+}
+export function getReadyroomOutboundToken(guildId) {
+  let token = getConfig(guildId).readyroom_outbound_token;
+  if (!token) {
+    token = randomBytes(24).toString('hex');
+    setConfigValue(guildId, 'readyroom_outbound_token', token);
+  }
+  return token;
+}
+export function regenerateReadyroomOutboundToken(guildId) {
+  const token = randomBytes(24).toString('hex');
+  setConfigValue(guildId, 'readyroom_outbound_token', token);
   return token;
 }
 export function getServerStatus(guildId) {
