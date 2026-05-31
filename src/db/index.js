@@ -3,8 +3,20 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
-const dbPath = process.env.DB_PATH || './data/bot.db';
+// Resolve the SQLite file path. Priority:
+//   1. DB_PATH env var (explicit override — wins always).
+//   2. Railway persistent volume mount, if attached (auto: $VOLUME/bot.db).
+//      RAILWAY_VOLUME_MOUNT_PATH is the canonical Railway env var.
+//      RAILWAY_PERSISTENT_VOLUME_PATH is the older one — checked as a fallback.
+//   3. Local dev fallback: ./data/bot.db (NOT persistent on Railway — every
+//      deploy would wipe config; tested + documented in commit history).
+const volumeMount = (process.env.RAILWAY_VOLUME_MOUNT_PATH
+  || process.env.RAILWAY_PERSISTENT_VOLUME_PATH
+  || '').replace(/\/$/, '');
+const dbPath = process.env.DB_PATH
+  || (volumeMount ? `${volumeMount}/bot.db` : './data/bot.db');
 mkdirSync(dirname(dbPath), { recursive: true });
+console.log(`[db] SQLite at ${dbPath}`);
 
 const db = new DatabaseSync(dbPath);
 db.exec('PRAGMA journal_mode = WAL');

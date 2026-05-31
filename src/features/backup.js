@@ -3,7 +3,13 @@ import { dirname, join, basename } from 'node:path';
 import db from '../db/index.js';
 import { resolveOwnerId } from '../util/report.js';
 
-const dbPath = process.env.DB_PATH || './data/bot.db';
+// Mirror the path resolution in src/db/index.js so backups land beside the DB
+// (on the Railway volume if one is mounted).
+const volumeMount = (process.env.RAILWAY_VOLUME_MOUNT_PATH
+  || process.env.RAILWAY_PERSISTENT_VOLUME_PATH
+  || '').replace(/\/$/, '');
+const dbPath = process.env.DB_PATH
+  || (volumeMount ? `${volumeMount}/bot.db` : './data/bot.db');
 const backupDir = join(dirname(dbPath), 'backups');
 const KEEP = 14;                       // rotate: keep the newest N snapshots
 const MIN_AGE_MS = 20 * 3600_000;      // consider a new daily backup "due" after 20h
