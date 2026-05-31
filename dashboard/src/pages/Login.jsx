@@ -9,15 +9,15 @@ const DiscordMark = () => (
 );
 
 const FEATURES = [
-  { icon: '🗓️', title: 'Mission Scheduling', text: 'Post events with sign-up sheets parsed straight from your .miz — slots, flights and seats fill themselves. Reminders, waitlists and multi-crew included.' },
-  { icon: '📡', title: 'Live Server Status', text: 'A self-updating embed shows your DCS server name, mission, player count and uptime — fed by a lightweight in-game hook.' },
-  { icon: '🎯', title: 'Scores & Leaderboards', text: 'Carrier trap grades, bomb-on-target accuracy, a kill feed and sortie hours — tracked automatically and ranked.' },
-  { icon: '🧑‍✈️', title: 'Squadron Roster & Quals', text: 'Track callsigns, airframes and qualifications. Import your whole roster from a spreadsheet in seconds.' },
-  { icon: '📝', title: 'Recruitment & Onboarding', text: 'Custom application forms with staff approve/deny, plus a guided welcome tour that walks new members through roles and rules.' },
-  { icon: '🛡️', title: 'Moderation & Automod', text: 'Bans, kicks, timeouts, warnings and a filtered bulk-purge, plus automatic spam / link / word filtering — all logged.' },
-  { icon: '🎭', title: 'Roles & Engagement', text: 'Reaction, button and dropdown role menus, a verification gate, giveaways, sticky messages, scheduled posts and reminders.' },
-  { icon: '🔔', title: 'Social Alerts', text: 'Auto-post when you go live or upload — YouTube, Twitch, Kick, Reddit and any RSS feed.' },
-  { icon: '🧰', title: 'Flight-Sim Toolbox', text: '/coords, /braa, /bullseye, /metar and /taf — coordinate conversion and real-world weather, right in chat.' },
+  { title: 'Mission Scheduling', text: 'Post events with sign-up sheets parsed straight from your .miz — slots, flights and seats fill themselves. Reminders, waitlists and multi-crew included.' },
+  { title: 'Live Server Status', text: 'A self-updating embed shows your DCS server name, mission, player count and uptime — fed by a lightweight in-game hook.' },
+  { title: 'Scores & Leaderboards', text: 'Carrier trap grades, bomb-on-target accuracy, a kill feed and sortie hours — tracked automatically and ranked.' },
+  { title: 'Squadron Roster & Quals', text: 'Track callsigns, airframes and qualifications. Import your whole roster from a spreadsheet in seconds.' },
+  { title: 'Recruitment & Onboarding', text: 'Custom application forms with staff approve/deny, plus a guided welcome tour that walks new members through roles and rules.' },
+  { title: 'Moderation & Automod', text: 'Bans, kicks, timeouts, warnings and a filtered bulk-purge, plus automatic spam / link / word filtering — all logged.' },
+  { title: 'Roles & Engagement', text: 'Reaction, button and dropdown role menus, a verification gate, giveaways, sticky messages, scheduled posts and reminders.' },
+  { title: 'Social Alerts', text: 'Auto-post when you go live or upload — YouTube, Twitch, Kick, Reddit and any RSS feed.' },
+  { title: 'Flight-Sim Toolbox', text: '/coords, /braa, /bullseye, /metar and /taf — coordinate conversion and real-world weather, right in chat.' },
 ];
 
 const STEPS = [
@@ -27,9 +27,9 @@ const STEPS = [
 ];
 
 const INTEGRATIONS = [
-  { icon: '✈️', title: 'DCS World', text: 'A drop-in GameGUI Lua hook streams live server status, kills, carrier traps, bomb scores and sortie time. Mission .miz files are parsed into ready-made sign-up sheets.' },
-  { icon: '💬', title: 'Discord', text: 'A full-featured bot — roles, moderation, tickets, events, embeds and more — multi-server out of the box and driven entirely from this dashboard.' },
-  { icon: '📺', title: 'Streaming & Social', text: 'YouTube, Twitch, Kick, Reddit and RSS notifications keep your community in the loop the moment something drops.' },
+  { title: 'DCS World', text: 'A drop-in GameGUI Lua hook streams live server status, kills, carrier traps, bomb scores and sortie time. Mission .miz files are parsed into ready-made sign-up sheets.' },
+  { title: 'Discord', text: 'A full-featured bot — roles, moderation, tickets, events, embeds and more — multi-server out of the box and driven entirely from this dashboard.' },
+  { title: 'Streaming & Social', text: 'YouTube, Twitch, Kick, Reddit and RSS notifications keep your community in the loop the moment something drops.' },
 ];
 
 export default function Login({ noAccess, user }) {
@@ -74,7 +74,6 @@ export default function Login({ noAccess, user }) {
         <div className="feature-grid">
           {FEATURES.map((f) => (
             <div className="feature-card" key={f.title}>
-              <div className="feature-icon">{f.icon}</div>
               <h3>{f.title}</h3>
               <p>{f.text}</p>
             </div>
@@ -100,11 +99,8 @@ export default function Login({ noAccess, user }) {
         <div className="integrations">
           {INTEGRATIONS.map((i) => (
             <div className="integration" key={i.title}>
-              <div className="integration-icon">{i.icon}</div>
-              <div>
-                <h3>{i.title}</h3>
-                <p>{i.text}</p>
-              </div>
+              <h3>{i.title}</h3>
+              <p>{i.text}</p>
             </div>
           ))}
         </div>

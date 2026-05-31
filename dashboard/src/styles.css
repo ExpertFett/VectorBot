@@ -301,7 +301,6 @@ a.dc-title { color: #00a8fc; }
   background: var(--card); border: 1px solid var(--border);
   border-left: 3px solid var(--opt); padding: 16px 18px;
 }
-.feature-icon { font-size: 1.4rem; margin-bottom: 6px; }
 .feature-card h3 { font-size: 15px; font-weight: 700; margin: 0 0 6px; }
 .feature-card p { color: var(--muted); font-size: 13.5px; line-height: 1.5; margin: 0; }
 
@@ -323,9 +322,7 @@ a.dc-title { color: #00a8fc; }
 .integration {
   background: var(--card); border: 1px solid var(--border);
   border-left: 3px solid var(--opt); padding: 16px 18px;
-  display: flex; gap: 14px; align-items: flex-start;
 }
-.integration-icon { font-size: 1.4rem; flex-shrink: 0; line-height: 1.3; }
 .integration h3 { font-size: 15px; font-weight: 700; margin: 0 0 6px; }
 .integration p { color: var(--muted); font-size: 13.5px; line-height: 1.5; margin: 0; }
 
