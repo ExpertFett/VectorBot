@@ -26,11 +26,15 @@ import Sorties from './pages/Sorties.jsx';
 import Roster from './pages/Roster.jsx';
 import Recruitment from './pages/Recruitment.jsx';
 import Onboarding from './pages/Onboarding.jsx';
+import Setup from './pages/Setup.jsx';
 import Brand from './components/Brand.jsx';
 import DiscordButton from './components/DiscordButton.jsx';
 
 // Sidebar navigation grouped into sections. [path, icon, label]
 const NAV = [
+  { label: 'Start Here', links: [
+    ['/setup', '🚀', 'Setup Guide'],
+  ] },
   { label: 'DCS Operations', links: [
     ['/events', '🗓️', 'Mission Events'],
     ['/dcs', '📡', 'DCS Server'],
@@ -132,6 +136,7 @@ export default function App() {
       </aside>
       <main className="content">
         <Routes>
+          <Route path="/setup" element={<Setup />} />
           <Route path="/events" element={<Events />} />
           <Route path="/roster" element={<Roster />} />
           <Route path="/recruitment" element={<Recruitment />} />
@@ -155,7 +160,7 @@ export default function App() {
           <Route path="/invites" element={<Invites />} />
           <Route path="/moderation" element={<Moderation />} />
           <Route path="/personalizer" element={<Personalizer />} />
-          <Route path="*" element={<Navigate to="/welcome" replace />} />
+          <Route path="*" element={<Navigate to="/setup" replace />} />
         </Routes>
       </main>
       <DiscordButton />

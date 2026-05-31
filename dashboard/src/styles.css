@@ -127,6 +127,17 @@ code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font-size: 0
 }
 .empty-icon { display: block; font-size: 1.9rem; margin-bottom: 8px; opacity: 0.55; }
 
+/* Getting Started page — readable list of perms/channels/roles + numbered steps */
+.setup-list { list-style: none; padding: 0; margin: 0; }
+.setup-list li { padding: 7px 0; border-bottom: 1px solid var(--border); line-height: 1.55; font-size: 0.9rem; }
+.setup-list li:last-child { border-bottom: none; }
+.setup-list code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font-size: 0.9em; }
+.setup-steps { list-style: decimal; padding-left: 22px; margin: 0; }
+.setup-steps > li { margin-bottom: 16px; }
+.setup-steps > li > b { display: block; margin-bottom: 4px; font-size: 1rem; }
+.setup-steps > li > p { margin: 0 0 8px; line-height: 1.55; }
+.setup-links { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+
 /* Floating Discord community button (fixed bottom-right on every screen) */
 .discord-floater {
   position: fixed; bottom: 16px; right: 16px; z-index: 900;
