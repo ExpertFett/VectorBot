@@ -45,9 +45,10 @@ code { background: var(--bg); padding: 1px 6px; border-radius: 4px; font-size: 0
 .brand-logo { display: block; object-fit: contain; border-radius: 8px; }
 .brand-logo-lg { width: 200px; max-width: 80%; height: auto; margin: 0 auto 16px; }
 .brand-logo-hero {
-  width: 340px; max-width: 90%; height: auto; margin: 0 auto 18px;
+  width: 460px; max-width: 88%; height: auto; margin: 0 auto 12px;
   /* Logo has a solid black background — 'screen' drops the black so only the
-     artwork shows, blending it seamlessly into the dark page. */
+     artwork shows, blending it seamlessly into the dark page. Sized to match
+     the rest of the DCS:OPT family (Planner / Ready Room). */
   mix-blend-mode: screen; border-radius: 0;
 }
 .brand-logo-sm { width: 100%; height: auto; }
@@ -255,10 +256,19 @@ a.dc-title { color: #00a8fc; }
 .landing h1, .landing h2, .landing h3 { margin: 0; }
 
 .landing-hero {
-  text-align: center; padding: 72px 24px 64px; max-width: 880px; margin: 0 auto;
-  background:
-    radial-gradient(60% 80% at 50% 0%, rgba(200,80,255,0.16), transparent 70%);
+  position: relative; text-align: center; padding: 64px 24px 36px;
+  max-width: 880px; margin: 0 auto;
 }
+/* Soft purple halo behind the logo — matches the DCS:OPT family hero. */
+.landing-hero::before {
+  content: ''; position: absolute; z-index: 0; pointer-events: none;
+  top: -10px; left: 50%; transform: translateX(-50%);
+  width: 720px; max-width: 112%; height: 340px;
+  background: radial-gradient(ellipse at center,
+    rgba(200,80,255,0.34) 0%, rgba(200,80,255,0.14) 42%, rgba(200,80,255,0) 70%);
+  filter: blur(26px);
+}
+.landing-hero > * { position: relative; z-index: 1; }
 .landing-hero h1 { font-size: 2.4rem; line-height: 1.15; letter-spacing: -0.5px; margin-bottom: 16px; }
 .hero-sub { font-size: 1.1rem; color: var(--muted); max-width: 640px; margin: 0 auto 28px; line-height: 1.6; }
 .hero-cta { padding: 14px 30px !important; font-size: 1.05rem; }
