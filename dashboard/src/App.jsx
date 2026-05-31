@@ -27,6 +27,7 @@ import Roster from './pages/Roster.jsx';
 import Recruitment from './pages/Recruitment.jsx';
 import Onboarding from './pages/Onboarding.jsx';
 import Brand from './components/Brand.jsx';
+import DiscordButton from './components/DiscordButton.jsx';
 
 // Sidebar navigation grouped into sections. [path, icon, label]
 const NAV = [
@@ -85,14 +86,17 @@ export default function App() {
   useEffect(() => { refresh(); }, []);
 
   if (loading) return <div className="center muted">Loading…</div>;
-  if (!user) return <Login />;
+  if (!user) return (<><Login /><DiscordButton /></>);
 
   if (!user.selectedGuildId || picking) {
     return (
-      <ServerPicker
-        onSelected={() => { setPicking(false); setLoading(true); refresh(); }}
-        onCancel={user.selectedGuildId ? () => setPicking(false) : null}
-      />
+      <>
+        <ServerPicker
+          onSelected={() => { setPicking(false); setLoading(true); refresh(); }}
+          onCancel={user.selectedGuildId ? () => setPicking(false) : null}
+        />
+        <DiscordButton />
+      </>
     );
   }
 
@@ -154,6 +158,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/welcome" replace />} />
         </Routes>
       </main>
+      <DiscordButton />
     </div>
   );
 }
