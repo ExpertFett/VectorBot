@@ -28,7 +28,12 @@ export default function RoleMenus() {
   const removeBtn = (i) => setEditing({ ...editing, buttons: editing.buttons.filter((_, idx) => idx !== i) });
 
   const save = async () => {
-    if (!editing.title && !editing.description) return setStatus('Add a title or description.');
+    // When a custom embed is in use, title/description live on editing.embed.
+    // Otherwise they live at the top level.
+    const hasText = editing.embed
+      ? !!(editing.embed.title || editing.embed.description)
+      : !!(editing.title || editing.description);
+    if (!hasText) return setStatus('Add a title or description.');
     const payload = {
       title: editing.title,
       description: editing.description,
