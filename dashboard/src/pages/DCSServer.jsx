@@ -15,6 +15,7 @@ export default function DCSServer() {
   const [readyroomEventsChannel, setReadyroomEventsChannel] = useState('');
   const [showToken, setShowToken] = useState(false);
   const [status, setStatus] = useState('');
+  const [readyroomTestMsg, setReadyroomTestMsg] = useState('');
 
   const load = () => Promise.all([api.getDcs(), api.guild(), api.getConfig()])
     .then(([d, g, c]) => {
@@ -50,6 +51,23 @@ export default function DCSServer() {
       setShowToken(true); setStatus('New token generated ✓');
     } catch (e) { setStatus('Failed: ' + e.message); }
   };
+  // GET the configured ingest URL — ReadyRoom returns 200 + wing info if the
+  // URL+token are valid, 401 if the token's wrong, network error if unreachable.
+  const testReadyroomUrl = async () => {
+    const v = readyroomUrl.trim();
+    if (!v) return;
+    setReadyroomTestMsg('Testing…');
+    try {
+      const res = await fetch(v, { method: 'GET' });
+      const body = await res.json().catch(() => null);
+      if (res.ok && body?.ok) setReadyroomTestMsg(`✓ Connected to wing "${body.wing.name}"${body.wing.tag ? ` (${body.wing.tag})` : ''}`);
+      else if (res.status === 401) setReadyroomTestMsg('✗ Token rejected by ReadyRoom. Re-copy the ingest URL.');
+      else setReadyroomTestMsg(`✗ ${body?.error || `HTTP ${res.status}`}`);
+    } catch (err) {
+      setReadyroomTestMsg(`✗ Could not reach ReadyRoom (${err.message}). Check the URL.`);
+    }
+  };
+
   const saveReadyroom = async () => {
     const v = readyroomUrl.trim();
     if (v && !/^https?:\/\/.+\/ingest\/.+/.test(v)) {
@@ -120,28 +138,40 @@ export default function DCSServer() {
       <section className="card">
         <h2>ReadyRoom integration</h2>
         <p className="muted">
-          Wire this Discord server to a ReadyRoom wing. Two directions: <b>(1)</b> sortie events
-          from your DCS hook fan out to ReadyRoom (logbooks fill automatically); <b>(2)</b>
-          ReadyRoom can publish event embeds into a channel here.
+          Wire this Discord server to a ReadyRoom wing. Two directions, each set up independently:
         </p>
+        <ul className="muted" style={{ marginTop: 0 }}>
+          <li><b>Sorties → ReadyRoom</b> — your DCS hook fans sorties out to ReadyRoom so logbooks fill themselves. <i>Setup happens here.</i></li>
+          <li><b>Events ← ReadyRoom</b> — ReadyRoom posts event embeds into a channel here. <i>Setup happens in ReadyRoom — these fields are values you paste over there.</i></li>
+        </ul>
 
-        <h3>Outbound (DCS sorties → ReadyRoom)</h3>
-        <label>ReadyRoom ingest URL <span className="hint">from your ReadyRoom wing's <b>Reveal ingest URL</b></span>
+        <h3>① Sorties → ReadyRoom <span className="hint">paste a URL from ReadyRoom</span></h3>
+        <p className="muted" style={{ marginTop: 0 }}>
+          On ReadyRoom: <b>Wing page → Sortie ingest → Reveal URL</b>. Copy that URL, paste it below.
+        </p>
+        <label>ReadyRoom ingest URL
           <input
             value={readyroomUrl}
             onChange={(e) => setReadyroomUrl(e.target.value)}
-            placeholder="https://your-readyroom.up.railway.app/ingest/<token>"
+            placeholder="https://dcsoptreadyroom.up.railway.app/ingest/<token>"
             onFocus={(e) => e.target.select()}
           />
         </label>
-        <div className="actions"><button className="btn" onClick={saveReadyroom}>Save</button></div>
+        <div className="actions">
+          <button className="btn" onClick={saveReadyroom}>Save</button>
+          <button className="btn" disabled={!readyroomUrl} onClick={testReadyroomUrl}>Test connection</button>
+        </div>
+        {readyroomTestMsg && <p className="muted" style={{ marginTop: 6 }}>{readyroomTestMsg}</p>}
 
-        <h3 style={{ marginTop: 18 }}>Inbound (ReadyRoom events → this Discord)</h3>
-        <p className="muted">Paste these two values into your ReadyRoom <b>Wing</b> page's "Discord publish" section.</p>
-        <label>Ops Bot URL (paste in ReadyRoom)
+        <h3 style={{ marginTop: 22 }}>② Events ← ReadyRoom <span className="hint">copy these values, paste them in ReadyRoom</span></h3>
+        <p className="muted" style={{ marginTop: 0 }}>
+          On ReadyRoom: <b>Wing page → Discord publish</b>. The Ops Bot URL field there is prefilled to this site,
+          so you usually only need to paste the <b>outbound token</b> and pick a channel below.
+        </p>
+        <label>Ops Bot URL <span className="hint">already prefilled in ReadyRoom — shown here for self-hosters</span>
           <input readOnly value={typeof window !== 'undefined' ? window.location.origin : ''} onFocus={(e) => e.target.select()} />
         </label>
-        <label>Outbound token (paste in ReadyRoom) <span className="hint">treat like a password</span>
+        <label>Outbound token <span className="hint">paste into ReadyRoom — treat like a password</span>
           <input readOnly value={showToken ? (dcs.readyroom_outbound_token || '') : '••••••••••••••••••••••••'}
                  onFocus={(e) => e.target.select()} />
         </label>
@@ -150,7 +180,7 @@ export default function DCSServer() {
           <button className="btn" onClick={copyToken}>Copy token</button>
           <button className="link danger" onClick={regenToken}>Regenerate token</button>
         </div>
-        <label style={{ marginTop: 10 }}>Events channel <span className="hint">where ReadyRoom event embeds will be posted</span>
+        <label style={{ marginTop: 10 }}>Events channel <span className="hint">where ReadyRoom event embeds land</span>
           <select value={readyroomEventsChannel} onChange={(e) => setReadyroomEventsChannel(e.target.value)}>
             <option value="">— none (publishing disabled) —</option>
             {guild.channels.map((c) => <option key={c.id} value={c.id}>#{c.name}</option>)}

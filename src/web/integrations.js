@@ -77,6 +77,19 @@ async function resolveChannel(req, res, client) {
 export function integrationsRouter(client) {
   const router = Router();
 
+  // HEALTH — used by ReadyRoom's "Test connection" button to confirm the
+  // configured base URL + outbound token reach this guild AND the events
+  // channel is set + valid. Returns guild name + channel name on success.
+  router.get('/readyroom/health', async (req, res) => {
+    const channel = await resolveChannel(req, res, client);
+    if (!channel) return;
+    res.json({
+      ok: true,
+      guild: { id: channel.guild.id, name: channel.guild.name },
+      channel: { id: channel.id, name: channel.name },
+    });
+  });
+
   // CREATE — drop a new embed in the configured events channel.
   router.post('/readyroom/publish-event', async (req, res) => {
     const channel = await resolveChannel(req, res, client);
