@@ -242,6 +242,17 @@ export async function handleEventButton(interaction) {
   if (action === 'grp') {
     const grp = groupRoles(event.roles).slice(0, 23)[Number(idxStr)];
     if (!grp) return interaction.reply({ content: 'That flight no longer exists.', flags: MessageFlags.Ephemeral });
+
+    // Single-slot flight (a controller, solo recon jet, etc.) — claim directly,
+    // no picker. Matches the user expectation that one click = one sign-up.
+    if (grp.items.length === 1) {
+      const role = grp.items[0].role;
+      let result;
+      await withPromotion(interaction.client, event, () => { result = claim(event, interaction.user.id, role); });
+      if (result.changed) await rerender(interaction, event.id);
+      return interaction.reply({ content: result.msg, flags: MessageFlags.Ephemeral });
+    }
+
     const options = grp.items.slice(0, 25).map(({ role, index }) => {
       const taken = countRoleSignups(event.id, role.label);
       const cap = role.limit ? `/${role.limit}` : '';

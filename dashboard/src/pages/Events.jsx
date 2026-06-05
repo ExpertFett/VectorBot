@@ -17,12 +17,14 @@ const RECUR_LABEL = (d) => (d === 1 ? 'daily' : d === 7 ? 'weekly' : d === 14 ? 
 // Common DCS flight taskings — datalist suggestions, free text otherwise.
 const TASKINGS = ['STRIKE', 'SEAD', 'DEAD', 'CAP', 'BARCAP', 'TARCAP', 'SWEEP', 'CAS', 'OCA', 'DCA', 'ESCORT', 'TANKER', 'AWACS', 'GCI', 'JTAC', 'MARSHAL', 'ANTI-SHIP', 'RECCE', 'ELINT', 'MOB'];
 
-// One-click preset — appends a Controllers flight with the common positions.
+// One-click preset — adds each controller as its own flight so it appears as
+// its own sign-up button on the embed (single-slot flights toggle directly,
+// no picker needed). Maker can rename / re-limit / remove any of them.
 const CONTROLLERS = [
-  { label: 'AWACS', emoji: '', limit: 1, group: 'Controllers', qual: '', tasking: 'AWACS' },
-  { label: 'GCI', emoji: '', limit: 1, group: 'Controllers', qual: '', tasking: 'GCI' },
-  { label: 'JTAC', emoji: '', limit: 2, group: 'Controllers', qual: '', tasking: 'JTAC' },
-  { label: 'Marshal', emoji: '', limit: 1, group: 'Controllers', qual: '', tasking: 'MARSHAL' },
+  { label: 'AWACS', emoji: '', limit: 1, group: 'AWACS', qual: '' },
+  { label: 'GCI', emoji: '', limit: 1, group: 'GCI', qual: '' },
+  { label: 'JTAC', emoji: '', limit: 2, group: 'JTAC', qual: '' },
+  { label: 'Marshal', emoji: '', limit: 1, group: 'Marshal', qual: '' },
 ];
 
 // DCS modules that seat more than one crew -> import expands each jet into sub-positions.
@@ -234,7 +236,7 @@ export default function Events() {
             <button className="link danger" onClick={() => removeRole(i)}>✕</button>
           </div>
         ))}
-        <p className="muted">Import a .miz to auto-fill flyable slots (grouped by flight), then add support roles (AWACS, JTAC, Marshal…). Limit 0 = unlimited. <b>Req. qual</b> (optional) locks a slot to roster pilots holding that qualification 🔒. Events with grouped slots show one button per flight; clicking it opens the slot picker for that flight. Times auto-convert per member.</p>
+        <p className="muted">Import a .miz to auto-fill flyable slots (grouped by flight), or use <b>+ Add controllers</b> for one-click AWACS / GCI / JTAC / Marshal sign-up spots. Each flight or controller becomes its own button on the embed — clicking a multi-slot flight opens a slot picker, clicking a single-slot controller signs you up directly. Limit 0 = unlimited. <b>Req. qual</b> 🔒 locks a slot to roster pilots holding that qualification. Times auto-convert per member.</p>
 
         {flights.length > 0 && (
           <>
