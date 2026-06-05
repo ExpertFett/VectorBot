@@ -18,13 +18,16 @@ const RECUR_LABEL = (d) => (d === 1 ? 'daily' : d === 7 ? 'weekly' : d === 14 ? 
 const TASKINGS = ['STRIKE', 'SEAD', 'DEAD', 'CAP', 'BARCAP', 'TARCAP', 'SWEEP', 'CAS', 'OCA', 'DCA', 'ESCORT', 'TANKER', 'AWACS', 'GCI', 'JTAC', 'MARSHAL', 'ANTI-SHIP', 'RECCE', 'ELINT', 'MOB'];
 
 // One-click preset — adds each controller as its own flight so it appears as
-// its own sign-up button on the embed (single-slot flights toggle directly,
-// no picker needed). Maker can rename / re-limit / remove any of them.
+// its own sign-up button on the embed. Limits are sensible defaults — every
+// row is editable (rename, change limit, remove, add qual) after adding.
 const CONTROLLERS = [
-  { label: 'AWACS', emoji: '', limit: 1, group: 'AWACS', qual: '' },
-  { label: 'GCI', emoji: '', limit: 1, group: 'GCI', qual: '' },
-  { label: 'JTAC', emoji: '', limit: 2, group: 'JTAC', qual: '' },
-  { label: 'Marshal', emoji: '', limit: 1, group: 'Marshal', qual: '' },
+  { label: 'AWACS',   emoji: '', limit: 1, group: 'AWACS',   qual: '' },
+  { label: 'GCI',     emoji: '', limit: 1, group: 'GCI',     qual: '' },
+  { label: 'JTAC',    emoji: '', limit: 2, group: 'JTAC',    qual: '' },
+  { label: 'LSO',     emoji: '', limit: 3, group: 'LSO',     qual: '' },
+  { label: 'Marshal', emoji: '', limit: 2, group: 'Marshal', qual: '' },
+  { label: 'ATC',     emoji: '', limit: 2, group: 'ATC',     qual: '' },
+  { label: 'SOF',     emoji: '', limit: 1, group: 'SOF',     qual: '' },
 ];
 
 // DCS modules that seat more than one crew -> import expands each jet into sub-positions.
@@ -59,7 +62,20 @@ export default function Events() {
   useEffect(() => { load(); }, []);
   if (!list || !guild) return <div className="muted page">{status || 'Loading…'}</div>;
 
-  const setRole = (i, patch) => setEditing({ ...editing, roles: editing.roles.map((r, idx) => (idx === i ? { ...r, ...patch } : r)) });
+  const setRole = (i, patch) => setEditing({
+    ...editing,
+    roles: editing.roles.map((r, idx) => {
+      if (idx !== i) return r;
+      const next = { ...r, ...patch };
+      // If the user is renaming a controller (label === group), keep the group
+      // in sync so the embed's button label updates too — e.g. AWACS → EYESPY
+      // renames both fields, not just the slot label.
+      if (patch.label !== undefined && r.group && r.group === r.label) {
+        next.group = patch.label;
+      }
+      return next;
+    }),
+  });
   const addRole = () => setEditing({ ...editing, roles: [...editing.roles, { label: '', emoji: '', limit: 0, group: '', qual: '' }] });
   const removeRole = (i) => setEditing({ ...editing, roles: editing.roles.filter((_, idx) => idx !== i) });
   const addControllers = () => {
@@ -236,7 +252,7 @@ export default function Events() {
             <button className="link danger" onClick={() => removeRole(i)}>✕</button>
           </div>
         ))}
-        <p className="muted">Import a .miz to auto-fill flyable slots (grouped by flight), or use <b>+ Add controllers</b> for one-click AWACS / GCI / JTAC / Marshal sign-up spots. Each flight or controller becomes its own button on the embed — clicking a multi-slot flight opens a slot picker, clicking a single-slot controller signs you up directly. Limit 0 = unlimited. <b>Req. qual</b> 🔒 locks a slot to roster pilots holding that qualification. Times auto-convert per member.</p>
+        <p className="muted">Import a .miz to auto-fill flyable slots, or use <b>+ Add controllers</b> for one-click AWACS / GCI / JTAC / LSO / Marshal / ATC / SOF spots. Use <b>+ Add slot</b> to add a fully custom position from scratch. Each row is editable — rename the <b>Slot</b> label to whatever your group calls it (e.g. "AWACS" → "EYESPY") and the embed button follows automatically. The <b>Limit</b> field is how many people can sign up for that position (so set LSO to 3 for three LSOs, etc.); <b>0 = unlimited</b>. <b>Req. qual</b> 🔒 locks a slot to roster pilots holding that qualification. Times auto-convert per member.</p>
 
         {flights.length > 0 && (
           <>
