@@ -81,6 +81,14 @@ export const api = {
   getPersonalizer: () => req('GET', '/api/personalizer'),
   savePersonalizer: (data) => req('PUT', '/api/personalizer', data),
   setBotAvatar: (url) => req('POST', '/api/bot-avatar', { url }),
+  uploadBotAvatar: async (file) => {
+    const res = await fetch('/api/bot-avatar-upload', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': file.type || 'image/png' }, body: file,
+    });
+    if (!res.ok) { const e = new Error(`HTTP ${res.status}`); try { e.body = await res.json(); } catch { /* */ } throw e; }
+    return res.json();
+  },
 
   getDcs: () => req('GET', '/api/dcs'),
   regenIngest: () => req('POST', '/api/dcs/regen'),

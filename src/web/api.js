@@ -738,5 +738,21 @@ export function apiRouter(client) {
     }
   });
 
+  // Drag-and-drop image upload — raw image bytes in the body (any image/* type).
+  // Uses its own raw body parser so we don't have to lift the global 256kb JSON
+  // limit for one feature.
+  router.post('/bot-avatar-upload', raw({ type: 'image/*', limit: '8mb' }), async (req, res) => {
+    if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+      return res.status(400).json({ error: 'no_image' });
+    }
+    try {
+      await client.user.setAvatar(req.body);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('Avatar upload failed:', err.message);
+      res.status(400).json({ error: 'avatar_failed' });
+    }
+  });
+
   return router;
 }
