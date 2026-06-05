@@ -1,3 +1,4 @@
+// DCS:OPT Ops Link Bot — main process entrypoint.
 import 'dotenv/config';
 import { readdirSync, statSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
