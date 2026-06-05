@@ -106,16 +106,32 @@ export function apiRouter(client) {
   // Everything below requires an active server the user manages and the bot is in.
   const requireGuild = (req, res, next) => {
     const gid = req.session.guildId;
-    if (gid && (req.session.manageable || []).some((g) => g.id === gid) && client.guilds.cache.has(gid)) {
-      req.guildId = gid;
-      return next();
+    if (!gid || !(req.session.manageable || []).some((g) => g.id === gid)) {
+      return res.status(409).json({ error: 'no_guild_selected' });
     }
-    return res.status(409).json({ error: 'no_guild_selected' });
+    // Only enforce "bot must be in this guild" once the bot has finished its
+    // gateway IDENTIFY and synced the guild cache. Otherwise every API call
+    // 409s for the first 5–15s after a deploy and the frontend Promise.all
+    // shows an empty events list — events look "gone" though they're in the DB.
+    if (client.isReady() && !client.guilds.cache.has(gid)) {
+      return res.status(400).json({ error: 'bot_not_in_guild' });
+    }
+    req.guildId = gid;
+    next();
   };
   router.use(requireGuild);
 
   // Guild metadata for pickers (channels, roles)
-  router.get('/guild', (req, res) => {
+  router.get('/guild', async (req, res) => {
+    // The bot's guild cache populates a few seconds after a deploy. Wait briefly
+    // so this endpoint succeeds and the Events / Welcome / etc. pages don't
+    // half-load (their Promise.all in the dashboard rejects on a single 503).
+    if (!client.guilds.cache.has(req.guildId)) {
+      const start = Date.now();
+      while (Date.now() - start < 8000 && !client.guilds.cache.has(req.guildId)) {
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
     const guild = client.guilds.cache.get(req.guildId);
     if (!guild) return res.status(503).json({ error: 'bot_not_in_guild_yet' });
 
