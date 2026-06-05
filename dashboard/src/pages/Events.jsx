@@ -148,9 +148,15 @@ export default function Events() {
     };
     try {
       let id = editing.id;
-      if (id) await api.updateEvent(id, payload);
-      else { const r = await api.createEvent(payload); id = r.id; }
-      setStatus('Saved ✓');
+      let reposted = false;
+      if (id) {
+        const r = await api.updateEvent(id, payload);
+        reposted = !!r?.reposted;
+      } else {
+        const r = await api.createEvent(payload);
+        id = r.id;
+      }
+      setStatus(reposted ? 'Saved ✓ · Discord embed updated' : 'Saved ✓');
       setEditing({ ...editing, id });
       load();
     } catch (e) { setStatus('Save failed: ' + (e.body?.error || e.message)); }

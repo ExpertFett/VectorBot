@@ -547,7 +547,7 @@ export function apiRouter(client) {
     res.json({ ok: true, id });
   });
 
-  router.put('/events/:id', (req, res) => {
+  router.put('/events/:id', async (req, res) => {
     const id = Number(req.params.id);
     const existing = getEvent(id);
     if (!existing || existing.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
@@ -564,7 +564,16 @@ export function apiRouter(client) {
       recur_days: Math.max(0, Number(b.recur_days) || 0),
       taskings: sanitizeTaskings(b.taskings, roles),
     });
-    res.json({ ok: true });
+    // If this event was already posted, refresh the Discord embed automatically
+    // so the maker doesn't have to also click "Post / Update in Discord". A
+    // failure to repost (perms, channel changed, message deleted) doesn't fail
+    // the save — they can fall back to the explicit Post button.
+    let reposted = false;
+    if (existing.message_id) {
+      try { await postEvent(client, getEvent(id)); reposted = true; }
+      catch (e) { console.error('Event auto-repost failed:', e.message); }
+    }
+    res.json({ ok: true, reposted });
   });
 
   router.post('/events/:id/post', async (req, res) => {
