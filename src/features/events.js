@@ -58,7 +58,13 @@ export function buildEventMessage(event, signups = []) {
   const mention = (ids) => (ids.length ? ids.map((id) => `<@${id}>`).join(', ') : '—');
 
   const roles = event.roles || [];
-  if (roles.length <= BUTTON_LIMIT) {
+  const taskings = event.taskings || {};
+  const hasGroups = roles.some((r) => r.group);
+  // Use direct buttons only when the event is small AND has no flight grouping
+  // (e.g. a simple Attending/Maybe RSVP). Otherwise compact group-button flow.
+  const useDirectButtons = !hasGroups && roles.length <= BUTTON_LIMIT;
+
+  if (useDirectButtons) {
     for (const role of roles) {
       const { active, waiting, cap } = split(role);
       let val = active.length ? active.map((id) => `<@${id}>`).join('\n') : '—';
@@ -80,7 +86,9 @@ export function buildEventMessage(event, signups = []) {
           lines.push(`${lbl}: ${mention(active)}${waiting.length ? ` *(+${waiting.length} WL)*` : ''}`);
         }
       }
-      const header = `${grp.name || 'Slots'}${cap ? ` (${filled}/${cap})` : ` (${filled})`}`;
+      const tasking = taskings[grp.name];
+      const flight = grp.name || 'Slots';
+      const header = `${tasking ? `${tasking} — ` : ''}${flight}${cap ? ` (${filled}/${cap})` : ` (${filled})`}`;
       embed.addFields({ name: header, value: lines.length ? lines.join('\n').slice(0, 1024) : '*all open*', inline: true });
     }
   }
@@ -92,7 +100,7 @@ export function buildEventMessage(event, signups = []) {
   if (cancelled) return { embeds: [embed], components: [] };
 
   const rows = [];
-  if (roles.length <= BUTTON_LIMIT) {
+  if (useDirectButtons) {
     let row = new ActionRowBuilder();
     roles.forEach((role, i) => {
       if (row.components.length === 5) { rows.push(row); row = new ActionRowBuilder(); }
@@ -111,9 +119,12 @@ export function buildEventMessage(event, signups = []) {
       if (row.components.length === 5) { rows.push(row); row = new ActionRowBuilder(); }
       const filled = grp.items.reduce((n, { role }) => n + split(role).active.length, 0);
       const cap = grp.items.reduce((n, { role }) => n + (role.limit || 0), 0);
+      const tasking = taskings[grp.name];
+      const flight = grp.name || 'Slots';
+      const label = tasking ? `${tasking}: ${flight}` : flight;
       row.components.push(new ButtonBuilder()
         .setCustomId(`event:${event.id}:grp:${gi}`)
-        .setLabel(`${grp.name || 'Slots'} (${filled}${cap ? `/${cap}` : ''})`.slice(0, 80))
+        .setLabel(`${label} (${filled}${cap ? `/${cap}` : ''})`.slice(0, 80))
         .setStyle(ButtonStyle.Primary));
     });
     if (row.components.length === 5) { rows.push(row); row = new ActionRowBuilder(); }
@@ -239,9 +250,11 @@ export async function handleEventButton(interaction) {
       if (role.emoji) o.emoji = role.emoji;
       return o;
     });
+    const tasking = (event.taskings || {})[grp.name];
+    const flightLabel = `${tasking ? `${tasking} — ` : ''}${grp.name || 'this flight'}`;
     const select = new StringSelectMenuBuilder().setCustomId(`event:${event.id}:gsel`)
       .setPlaceholder(`Pick your slot in ${grp.name || 'this flight'}`).setMinValues(0).setMaxValues(1).addOptions(options);
-    return interaction.reply({ content: `Choose a slot in **${grp.name || 'this flight'}**:`, components: [new ActionRowBuilder().addComponents(select)], flags: MessageFlags.Ephemeral });
+    return interaction.reply({ content: `Choose a slot in **${flightLabel}**:`, components: [new ActionRowBuilder().addComponents(select)], flags: MessageFlags.Ephemeral });
   }
 
   const role = event.roles[Number(idxStr)];

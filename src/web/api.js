@@ -501,6 +501,20 @@ export function apiRouter(client) {
       qual: r.qual ? String(r.qual).slice(0, 40) : '',
     }));
 
+  // {flight: tasking} — only keep entries for flights that actually exist
+  // in the roles list, and trim values.
+  const sanitizeTaskings = (taskings, roles) => {
+    if (!taskings || typeof taskings !== 'object') return {};
+    const flights = new Set(roles.map((r) => r.group).filter(Boolean));
+    const out = {};
+    for (const [k, v] of Object.entries(taskings)) {
+      if (!flights.has(k) || !v) continue;
+      out[k] = String(v).slice(0, 30).toUpperCase().trim();
+      if (!out[k]) delete out[k];
+    }
+    return out;
+  };
+
   // Parse an uploaded .miz (raw binary body) into flyable slots for the sign-up sheet.
   router.post('/events/parse-miz', raw({ type: '*/*', limit: '12mb' }), (req, res) => {
     try {
@@ -519,13 +533,15 @@ export function apiRouter(client) {
     if (!b.title || !b.start_at) return res.status(400).json({ error: 'missing_fields' });
     const start = new Date(b.start_at).getTime();
     if (!Number.isFinite(start)) return res.status(400).json({ error: 'bad_date' });
+    const roles = sanitizeRoles(b.roles);
     const id = createEvent(req.guildId, {
       channel_id: cleanId(b.channel_id), title: String(b.title), description: b.description || null,
       mission: b.mission || null, map: b.map || null, image: b.image || null,
       start_at: start, reminder_minutes: Math.max(0, Number(b.reminder_minutes) || 0),
-      roles: sanitizeRoles(b.roles), embed: b.embed || null,
+      roles, embed: b.embed || null,
       waitlist: !!b.waitlist, multi_signup: !!b.multi_signup,
       recur_days: Math.max(0, Number(b.recur_days) || 0),
+      taskings: sanitizeTaskings(b.taskings, roles),
       created_by: req.session.user.id,
     });
     res.json({ ok: true, id });
@@ -538,13 +554,15 @@ export function apiRouter(client) {
     const b = req.body || {};
     const start = new Date(b.start_at).getTime();
     if (!b.title || !Number.isFinite(start)) return res.status(400).json({ error: 'bad_input' });
+    const roles = sanitizeRoles(b.roles);
     updateEvent(id, req.guildId, {
       channel_id: cleanId(b.channel_id), title: String(b.title), description: b.description || null,
       mission: b.mission || null, map: b.map || null, image: b.image || null,
       start_at: start, reminder_minutes: Math.max(0, Number(b.reminder_minutes) || 0),
-      roles: sanitizeRoles(b.roles), embed: b.embed || null,
+      roles, embed: b.embed || null,
       waitlist: !!b.waitlist, multi_signup: !!b.multi_signup,
       recur_days: Math.max(0, Number(b.recur_days) || 0),
+      taskings: sanitizeTaskings(b.taskings, roles),
     });
     res.json({ ok: true });
   });

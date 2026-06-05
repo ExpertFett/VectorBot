@@ -9,9 +9,21 @@ const BLANK = {
   start_at: '', reminder_minutes: 30, image: '', embed: null,
   waitlist: false, multi_signup: false, recur_days: 0,
   roles: [{ label: 'Attending', emoji: '✅', limit: 0, group: '', qual: '' }],
+  taskings: {},
 };
 
 const RECUR_LABEL = (d) => (d === 1 ? 'daily' : d === 7 ? 'weekly' : d === 14 ? 'biweekly' : `every ${d}d`);
+
+// Common DCS flight taskings — datalist suggestions, free text otherwise.
+const TASKINGS = ['STRIKE', 'SEAD', 'DEAD', 'CAP', 'BARCAP', 'TARCAP', 'SWEEP', 'CAS', 'OCA', 'DCA', 'ESCORT', 'TANKER', 'AWACS', 'GCI', 'JTAC', 'MARSHAL', 'ANTI-SHIP', 'RECCE', 'ELINT', 'MOB'];
+
+// One-click preset — appends a Controllers flight with the common positions.
+const CONTROLLERS = [
+  { label: 'AWACS', emoji: '', limit: 1, group: 'Controllers', qual: '', tasking: 'AWACS' },
+  { label: 'GCI', emoji: '', limit: 1, group: 'Controllers', qual: '', tasking: 'GCI' },
+  { label: 'JTAC', emoji: '', limit: 2, group: 'Controllers', qual: '', tasking: 'JTAC' },
+  { label: 'Marshal', emoji: '', limit: 1, group: 'Controllers', qual: '', tasking: 'MARSHAL' },
+];
 
 // DCS modules that seat more than one crew -> import expands each jet into sub-positions.
 const MULTICREW = {
@@ -45,6 +57,21 @@ export default function Events() {
   const setRole = (i, patch) => setEditing({ ...editing, roles: editing.roles.map((r, idx) => (idx === i ? { ...r, ...patch } : r)) });
   const addRole = () => setEditing({ ...editing, roles: [...editing.roles, { label: '', emoji: '', limit: 0, group: '', qual: '' }] });
   const removeRole = (i) => setEditing({ ...editing, roles: editing.roles.filter((_, idx) => idx !== i) });
+  const addControllers = () => {
+    const have = new Set(editing.roles.map((r) => r.label));
+    const added = CONTROLLERS.filter((c) => !have.has(c.label));
+    setEditing({ ...editing, roles: [...editing.roles, ...added] });
+  };
+  const setTasking = (flight, val) => setEditing({
+    ...editing,
+    taskings: val ? { ...editing.taskings, [flight]: val } : Object.fromEntries(Object.entries(editing.taskings).filter(([k]) => k !== flight)),
+  });
+  // Derive unique flight names (preserving the order they first appear in roles).
+  const flights = [];
+  const seen = new Set();
+  for (const r of editing.roles) {
+    if (r.group && !seen.has(r.group)) { seen.add(r.group); flights.push(r.group); }
+  }
 
   const importMiz = async (e) => {
     const file = e.target.files?.[0];
@@ -81,6 +108,7 @@ export default function Events() {
       embed: editing.embed || null,
       waitlist: editing.waitlist, multi_signup: editing.multi_signup,
       recur_days: editing.recur_days || 0,
+      taskings: editing.taskings || {},
     };
     try {
       let id = editing.id;
@@ -101,6 +129,7 @@ export default function Events() {
     image: e.image || '', embed: e.embed || null, waitlist: !!e.waitlist, multi_signup: !!e.multi_signup,
     recur_days: e.recur_days || 0,
     roles: e.roles?.length ? e.roles.map((r) => ({ ...r, qual: r.qual || '' })) : BLANK.roles,
+    taskings: e.taskings || {},
   });
 
   return (
@@ -162,6 +191,7 @@ export default function Events() {
               ⬆ Import .miz
               <input type="file" accept=".miz" style={{ display: 'none' }} onChange={importMiz} />
             </label>
+            <button className="link" onClick={addControllers}>+ Add controllers</button>
             {editing.roles.length < 100 && <button className="link" onClick={addRole}>+ Add slot</button>}
           </span>
         </div>
@@ -175,7 +205,25 @@ export default function Events() {
             <button className="link danger" onClick={() => removeRole(i)}>✕</button>
           </div>
         ))}
-        <p className="muted">Import a .miz to auto-fill flyable slots (grouped by flight), then add support roles (AWACS, ATC, Marshall…). Limit 0 = unlimited. <b>Req. qual</b> (optional) locks a slot to roster pilots holding that qualification 🔒. ≤20 slots show as buttons; more become flight dropdowns. Times auto-convert per member.</p>
+        <p className="muted">Import a .miz to auto-fill flyable slots (grouped by flight), then add support roles (AWACS, JTAC, Marshal…). Limit 0 = unlimited. <b>Req. qual</b> (optional) locks a slot to roster pilots holding that qualification 🔒. Events with grouped slots show one button per flight; clicking it opens the slot picker for that flight. Times auto-convert per member.</p>
+
+        {flights.length > 0 && (
+          <>
+            <div className="fields-head" style={{ marginTop: 14 }}>
+              <span>Flight taskings</span>
+              <span className="hint">shown on the flight button + roster</span>
+            </div>
+            <datalist id="dcs-taskings">{TASKINGS.map((t) => <option key={t} value={t} />)}</datalist>
+            {flights.map((f) => (
+              <div className="tasking-row" key={f}>
+                <span>{f}</span>
+                <input list="dcs-taskings" placeholder="e.g. STRIKE, SEAD, CAP…"
+                  value={editing.taskings[f] || ''}
+                  onChange={(e) => setTasking(f, e.target.value)} />
+              </div>
+            ))}
+          </>
+        )}
 
         <div className="actions">
           <button className="btn" onClick={save}>{editing.id ? 'Save' : 'Create'}</button>

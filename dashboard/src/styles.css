@@ -235,6 +235,11 @@ a.dc-title { color: #00a8fc; }
 /* Mission-event slot rows add a required-qual column (label, group, emoji, limit, qual, remove) */
 .event-role-row.evt-qual { grid-template-columns: 1.3fr 0.9fr 52px 58px 0.9fr auto; }
 
+/* Per-flight tasking editor rows (flight name + tasking input) */
+.tasking-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: center; margin-bottom: 6px; }
+.tasking-row > span { font-weight: 600; font-size: 0.9rem; color: var(--text); }
+.tasking-row input { margin-top: 0; text-transform: uppercase; }
+
 /* Mod log table */
 .modlog { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .modlog th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); }
