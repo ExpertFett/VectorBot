@@ -257,19 +257,45 @@ export async function handleEventButton(interaction) {
       return interaction.reply({ content: result.msg, flags: MessageFlags.Ephemeral });
     }
 
-    const options = grp.items.slice(0, 25).map(({ role, index }) => {
-      const taken = countRoleSignups(event.id, role.label);
-      const cap = role.limit ? `/${role.limit}` : '';
-      const desc = (role.qual ? `🔒 needs ${role.qual} · ` : '') + `${taken}${cap} signed`;
-      const o = { label: role.label.slice(0, 100), value: String(index), description: desc.slice(0, 100) };
-      if (role.emoji) o.emoji = role.emoji;
-      return o;
-    });
+    // One button per slot — green ✓ if the member already holds it, disabled
+    // grey if it's full (and no waitlist), blue otherwise. Max 25 buttons (5×5).
     const tasking = (event.taskings || {})[grp.name];
     const flightLabel = `${tasking ? `${tasking} — ` : ''}${grp.name || 'this flight'}`;
-    const select = new StringSelectMenuBuilder().setCustomId(`event:${event.id}:gsel`)
-      .setPlaceholder(`Pick your slot in ${grp.name || 'this flight'}`).setMinValues(0).setMaxValues(1).addOptions(options);
-    return interaction.reply({ content: `Choose a slot in **${flightLabel}**:`, components: [new ActionRowBuilder().addComponents(select)], flags: MessageFlags.Ephemeral });
+    const myLabels = new Set(getUserSignups(event.id, interaction.user.id).map((s) => s.role_label));
+    const rows = [];
+    let row = new ActionRowBuilder();
+    for (const { role, index } of grp.items.slice(0, 25)) {
+      if (row.components.length === 5) { rows.push(row); row = new ActionRowBuilder(); }
+      const taken = countRoleSignups(event.id, role.label);
+      const cap = role.limit;
+      const isFull = cap > 0 && taken >= cap;
+      const isMine = myLabels.has(role.label);
+      const countStr = cap > 0 ? `${taken}/${cap}` : `${taken}`;
+      const label = `${role.label} (${countStr})${isMine ? ' ✓' : ''}`.slice(0, 80);
+      let style = ButtonStyle.Primary;
+      if (isMine) style = ButtonStyle.Success;
+      else if (isFull && !event.waitlist) style = ButtonStyle.Secondary;
+      const btn = new ButtonBuilder().setCustomId(`event:${event.id}:pr:${index}`).setLabel(label).setStyle(style);
+      if (role.emoji) { try { btn.setEmoji(role.emoji); } catch { /* invalid */ } }
+      if (isFull && !event.waitlist && !isMine) btn.setDisabled(true);
+      row.components.push(btn);
+    }
+    if (row.components.length) rows.push(row);
+
+    let content = `**${flightLabel}** — click a slot to toggle your sign-up.`;
+    const qualNotes = grp.items.filter(({ role }) => role.qual).map(({ role }) => `· ${role.label}: 🔒 ${role.qual}`);
+    if (qualNotes.length) content += `\n${qualNotes.join('\n')}`;
+    return interaction.reply({ content, components: rows, flags: MessageFlags.Ephemeral });
+  }
+
+  // Picker-slot button click (inside the ephemeral slot picker).
+  if (action === 'pr') {
+    const role = event.roles[Number(idxStr)];
+    if (!role) return interaction.update({ content: 'That slot no longer exists.', components: [] }).catch(() => {});
+    let result;
+    await withPromotion(interaction.client, event, () => { result = claim(event, interaction.user.id, role); });
+    if (result.changed) await rerenderStored(interaction.client, event.id);
+    return interaction.update({ content: result.msg, components: [] }).catch(() => {});
   }
 
   const role = event.roles[Number(idxStr)];
