@@ -287,13 +287,13 @@ export default function Events() {
           <>
             <div className="fields-head" style={{ marginTop: 14 }}>
               <span>Flight taskings</span>
-              <span className="hint">shown on the flight button + roster</span>
+              <span className="hint">pick from the list or type your own — shown on the flight button + roster</span>
             </div>
             <datalist id="dcs-taskings">{TASKINGS.map((t) => <option key={t} value={t} />)}</datalist>
             {flights.map((f) => (
               <div className="tasking-row" key={f}>
                 <span>{f}</span>
-                <input list="dcs-taskings" placeholder="e.g. STRIKE, SEAD, CAP…"
+                <input list="dcs-taskings" placeholder="Pick or type any tasking…"
                   value={editing.taskings[f] || ''}
                   onChange={(e) => setTasking(f, e.target.value)} />
               </div>
