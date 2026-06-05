@@ -34,6 +34,7 @@ import DiscordButton from './components/DiscordButton.jsx';
 const NAV = [
   { label: 'Start Here', links: [
     ['/setup', '🚀', 'Setup Guide'],
+    ['/personalizer', '🎨', 'Customize'],
   ] },
   { label: 'DCS Operations', links: [
     ['/events', '🗓️', 'Mission Events'],
@@ -68,7 +69,6 @@ const NAV = [
   { label: 'Server', links: [
     ['/stats', '📊', 'Stats Channels'],
     ['/invites', '🎟️', 'Invite Tracker'],
-    ['/personalizer', '🎨', 'Personalizer'],
   ] },
 ];
 

@@ -43,9 +43,9 @@ const ROLES = [
 // Setup priority — what to configure first, with links to the relevant tabs.
 const STEPS = [
   {
-    title: 'Personalize the bot',
+    title: 'Customize the bot',
     body: 'Set the bot’s nickname for this server and the accent color used on every embed it sends.',
-    pages: [['Personalizer', '/personalizer']],
+    pages: [['Customize', '/personalizer']],
   },
   {
     title: 'Stand up the welcome flow',

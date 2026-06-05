@@ -1,18 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import PageHeader from '../components/PageHeader.jsx';
+import Callout from '../components/Callout.jsx';
 
 const toHex = (n) => (typeof n === 'number' ? '#' + (n & 0xffffff).toString(16).padStart(6, '0') : '#5865f2');
-const MAX_AVATAR_BYTES = 8 * 1024 * 1024; // 8 MB — matches the server-side raw body limit
 
 export default function Personalizer() {
   const [cfg, setCfg] = useState(null);
-  const [avatarUrl, setAvatarUrl] = useState('');
-  const [avatarFile, setAvatarFile] = useState(null);
-  const [avatarPreview, setAvatarPreview] = useState('');
-  const [dragging, setDragging] = useState(false);
   const [status, setStatus] = useState('');
-  const fileInputRef = useRef(null);
 
   useEffect(() => { api.getPersonalizer().then(setCfg).catch((e) => setStatus(e.message)); }, []);
   if (!cfg) return <div className="muted page">{status || 'Loading…'}</div>;
@@ -25,93 +20,45 @@ export default function Personalizer() {
     } catch (e) { setStatus('Save failed: ' + (e.body?.error || e.message)); }
   };
 
-  const acceptFile = (file) => {
-    if (!file) return;
-    if (!file.type.startsWith('image/')) return setStatus('Drop an image file (PNG, JPG, GIF, WebP).');
-    if (file.size > MAX_AVATAR_BYTES) return setStatus(`Image too large (max ${MAX_AVATAR_BYTES / 1024 / 1024} MB).`);
-    setAvatarFile(file);
-    const reader = new FileReader();
-    reader.onload = () => setAvatarPreview(reader.result);
-    reader.readAsDataURL(file);
-    setStatus('');
-  };
-
-  const onDrop = (e) => { e.preventDefault(); setDragging(false); acceptFile(e.dataTransfer.files?.[0]); };
-  const onDragOver = (e) => { e.preventDefault(); setDragging(true); };
-  const onDragLeave = () => setDragging(false);
-
-  const uploadAvatar = async () => {
-    if (!avatarFile) return setStatus('Drop or choose an image first.');
-    setStatus('Uploading avatar…');
-    try {
-      await api.uploadBotAvatar(avatarFile);
-      setStatus('Avatar updated ✓ (may take a moment to show)');
-      setAvatarFile(null); setAvatarPreview('');
-    } catch (e) {
-      setStatus('Upload failed: ' + (e.body?.error === 'avatar_failed' ? 'Discord rejected it (bad image or rate-limited).' : (e.body?.error || e.message)));
-    }
-  };
-
-  const updateAvatarFromUrl = async () => {
-    if (!avatarUrl) return setStatus('Enter an image URL.');
-    setStatus('Updating avatar…');
-    try { await api.setBotAvatar(avatarUrl); setStatus('Avatar updated ✓ (may take a moment to show)'); setAvatarUrl(''); }
-    catch (e) { setStatus('Avatar failed: ' + (e.body?.error === 'avatar_failed' ? 'Discord rejected it (bad image or rate-limited).' : (e.body?.error || e.message))); }
-  };
-
   return (
     <div className="page">
-      <PageHeader title="Personalizer" sub="Customise the bot’s per-server nickname and the accent color used on its embeds.">
+      <PageHeader title="Customize" sub="Per-server tweaks to how the bot shows up here, plus the path to running your own fully-branded instance.">
         <span className="status">{status}</span><button className="btn" onClick={save}>Save</button>
       </PageHeader>
+
       <section className="card">
         <h2>This server</h2>
-        <p className="muted">The bot’s username and avatar are global (set in the Developer Portal). Per-server you can set its nickname and an accent color used on bot-generated embeds (verification, tickets, giveaways).</p>
+        <p className="muted">These tweaks are <b>per-server</b> — what you set here doesn’t leak to any other server the bot is in.</p>
         <label>Bot nickname (this server)
-          <input value={cfg.bot_nickname || ''} maxLength={32} placeholder="Leave blank to reset"
+          <input value={cfg.bot_nickname || ''} maxLength={32} placeholder="Leave blank to reset to the bot’s default"
             onChange={(e) => setCfg({ ...cfg, bot_nickname: e.target.value })} />
         </label>
         <label>Embed accent color
           <input type="color" value={toHex(cfg.embed_color)}
             onChange={(e) => setCfg({ ...cfg, embed_color: parseInt(e.target.value.slice(1), 16) })} />
         </label>
+        <p className="muted">Accent color applies to every embed the bot generates (verification panel, tickets, giveaways, event sheets, social alerts…).</p>
       </section>
 
       <section className="card">
-        <h2>Bot avatar</h2>
-        <p className="muted"><b>Global:</b> the bot has one avatar across <i>every</i> server it’s in — changing it here changes it everywhere. Discord rate-limits avatar changes, so don’t spam it.</p>
+        <h2>Want your own custom-branded bot?</h2>
+        <p className="muted">Discord ties the bot’s <b>username, avatar, and banner</b> to the underlying application — they’re global across every server the bot is in. There’s no way for the bot to look one way here and a different way somewhere else.</p>
+        <p className="muted">The workaround that Mee6 and similar bots offer (and the only way Discord lets this work) is to <b>run your own copy of the bot</b> under your own Discord application. Your application = your username, avatar, banner, status — your server only sees that one.</p>
 
-        <div
-          className={`avatar-drop${dragging ? ' dragover' : ''}`}
-          onDrop={onDrop} onDragOver={onDragOver} onDragLeave={onDragLeave}
-          onClick={() => fileInputRef.current?.click()}
-          role="button" tabIndex={0}
-        >
-          {avatarPreview
-            ? <img className="avatar-preview" src={avatarPreview} alt="" />
-            : <div className="avatar-drop-icon" aria-hidden="true">⤓</div>}
-          <div>
-            {avatarFile
-              ? <><b>{avatarFile.name}</b> <span className="muted">({Math.round(avatarFile.size / 1024)} KB)</span></>
-              : <>Drag &amp; drop an image here, or <span className="link">click to choose</span></>}
-          </div>
-          <div className="muted" style={{ fontSize: '0.8rem', marginTop: 4 }}>PNG / JPG / GIF / WebP · square works best · max 8 MB</div>
-          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }}
-            onChange={(e) => acceptFile(e.target.files?.[0])} />
-        </div>
+        <Callout type="tip">
+          <b>The high-level steps look like this:</b>
+          <ol>
+            <li>Create a new application in the <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer">Discord Developer Portal</a> — give it your group’s name, upload your avatar/banner there.</li>
+            <li>Add a bot to the app, copy its token, enable the privileged intents (Server Members + Message Content).</li>
+            <li>Invite your bot to your server with the install URL the portal gives you.</li>
+            <li>Paste the token into a “Run my own bot” page here — we spin up a dedicated bot instance just for your server using your token.</li>
+            <li>Remove DCS:OPT’s shared bot from your server (your custom one takes over every feature).</li>
+          </ol>
+        </Callout>
 
-        <div className="actions">
-          <button className="btn" onClick={uploadAvatar} disabled={!avatarFile}>Update avatar</button>
-          {avatarFile && <button className="link" onClick={() => { setAvatarFile(null); setAvatarPreview(''); }}>Clear</button>}
-        </div>
-
-        <details style={{ marginTop: 14 }}>
-          <summary className="muted" style={{ cursor: 'pointer' }}>Or paste an image URL instead</summary>
-          <div style={{ marginTop: 8 }}>
-            <label>Image URL<input value={avatarUrl} placeholder="https://… (png/jpg)" onChange={(e) => setAvatarUrl(e.target.value)} /></label>
-            <div className="actions"><button className="btn" onClick={updateAvatarFromUrl}>Update from URL</button></div>
-          </div>
-        </details>
+        <Callout type="warn">
+          <b>Status: planned, not built yet.</b> Steps 1–3 you can do on the Developer Portal today; step 4 needs multi-tenant runtime work on our side (spawning a separate Discord client per token, routing every interaction / scheduled message / DCS hook event through the right bot). It’s a real feature, just not finished — I didn’t want to ship a token input that secretly does nothing. When the runtime lands this section turns into the actual setup form.
+        </Callout>
       </section>
     </div>
   );
