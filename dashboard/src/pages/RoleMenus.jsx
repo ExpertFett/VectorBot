@@ -71,6 +71,27 @@ export default function RoleMenus() {
       </PageHeader>
 
       <section className="card">
+        <h2>Menus ({menus.length})</h2>
+        {menus.length === 0 ? <p className="muted">No role menus yet — create one below.</p> : (
+          <ul className="cmd-list">
+            {menus.map((m) => (
+              <li key={m.id}>
+                <span style={{ flex: 1 }}>
+                  <b>{m.title || '(untitled)'}</b>
+                  <span className="muted"> · {m.buttons.length} role(s) · {m.message_id ? 'posted' : 'not posted'}</span>
+                </span>
+                <span className="row-actions">
+                  <button className="link" onClick={() => { setEditing({ ...m, channel_id: m.channel_id || '' }); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); }}>Edit</button>
+                  <button className="link" onClick={() => post(m.id)}>Post</button>
+                  <button className="link danger" onClick={() => del(m.id)}>Delete</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="card">
         <h2>{editing.id ? 'Edit menu' : 'New role menu'}</h2>
         <label className="checkbox"><input type="checkbox" checked={!!editing.embed} onChange={(e) => setEditing({ ...editing, embed: e.target.checked ? (editing.embed || {}) : null })} /> Use a custom embed</label>
         {editing.embed ? (
@@ -135,26 +156,6 @@ export default function RoleMenus() {
         <p className="muted">Save first, then <b>Post</b> to send (or re-sync) the message in the chosen channel.</p>
       </section>
 
-      <section className="card">
-        <h2>Menus ({menus.length})</h2>
-        {menus.length === 0 ? <p className="muted">No menus yet.</p> : (
-          <ul className="cmd-list">
-            {menus.map((m) => (
-              <li key={m.id}>
-                <span style={{ flex: 1 }}>
-                  <b>{m.title || '(untitled)'}</b>
-                  <span className="muted"> · {m.buttons.length} role(s) · {m.message_id ? 'posted' : 'not posted'}</span>
-                </span>
-                <span className="row-actions">
-                  <button className="link" onClick={() => setEditing({ ...m, channel_id: m.channel_id || '' })}>Edit</button>
-                  <button className="link" onClick={() => post(m.id)}>Post</button>
-                  <button className="link danger" onClick={() => del(m.id)}>Delete</button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </div>
   );
 }

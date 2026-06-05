@@ -40,6 +40,22 @@ export default function ScheduledMessages() {
         <span className="status">{status}</span>
       </PageHeader>
       <section className="card">
+        <h2>Scheduled ({list.length})</h2>
+        {list.length === 0 ? <p className="muted">No scheduled messages yet — create one below.</p> : (
+          <ul className="cmd-list">{list.map((s) => {
+            const ch = guild.channels.find((c) => c.id === s.channel_id);
+            return (
+              <li key={s.id}>
+                <span style={{ flex: 1 }}>{s.content ? s.content.slice(0, 45) : '[embed]'}
+                  <span className="muted"> · #{ch ? ch.name : s.channel_id} · {s.type === 'interval' ? `every ${Math.round(s.interval_seconds / 60)}m` : 'once'} · next {new Date(s.next_run).toLocaleString()}{s.enabled ? '' : ' · disabled'}</span>
+                </span>
+                <span className="row-actions"><button className="link" onClick={() => edit(s)}>Edit</button><button className="link danger" onClick={() => del(s.id)}>Delete</button></span>
+              </li>
+            );
+          })}</ul>
+        )}
+      </section>
+      <section className="card">
         <h2>{editing.id ? 'Edit' : 'New'} scheduled message</h2>
         <label>Channel
           <select value={editing.channel_id} onChange={(e) => setEditing({ ...editing, channel_id: e.target.value })}>
@@ -77,22 +93,6 @@ export default function ScheduledMessages() {
         </div>
         <label className="checkbox"><input type="checkbox" checked={editing.enabled} onChange={(e) => setEditing({ ...editing, enabled: e.target.checked })} /> Enabled</label>
         <div className="actions"><button className="btn" onClick={save}>{editing.id ? 'Save' : 'Create'}</button>{editing.id && <button className="link" onClick={() => setEditing(BLANK)}>New</button>}</div>
-      </section>
-      <section className="card">
-        <h2>Scheduled ({list.length})</h2>
-        {list.length === 0 ? <p className="muted">None yet.</p> : (
-          <ul className="cmd-list">{list.map((s) => {
-            const ch = guild.channels.find((c) => c.id === s.channel_id);
-            return (
-              <li key={s.id}>
-                <span style={{ flex: 1 }}>{s.content ? s.content.slice(0, 45) : '[embed]'}
-                  <span className="muted"> · #{ch ? ch.name : s.channel_id} · {s.type === 'interval' ? `every ${Math.round(s.interval_seconds / 60)}m` : 'once'} · next {new Date(s.next_run).toLocaleString()}{s.enabled ? '' : ' · disabled'}</span>
-                </span>
-                <span className="row-actions"><button className="link" onClick={() => edit(s)}>Edit</button><button className="link danger" onClick={() => del(s.id)}>Delete</button></span>
-              </li>
-            );
-          })}</ul>
-        )}
       </section>
     </div>
   );

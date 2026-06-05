@@ -33,7 +33,24 @@ export default function Sticky() {
         <span className="status">{status}</span>
       </PageHeader>
       <section className="card">
-        <h2>Set sticky</h2>
+        <h2>Active stickies ({list.length})</h2>
+        {list.length === 0 ? <p className="muted">No stickies yet — set one up below.</p> : (
+          <ul className="cmd-list">{list.map((s) => {
+            const ch = guild.channels.find((c) => c.id === s.channel_id);
+            return (
+              <li key={s.channel_id}>
+                <span style={{ flex: 1 }}>#{ch ? ch.name : s.channel_id} <span className="muted">· {s.content ? s.content.slice(0, 40) : '[embed]'}{s.enabled ? '' : ' · disabled'}</span></span>
+                <span className="row-actions">
+                  <button className="link" onClick={() => setEditing({ channel_id: s.channel_id, content: s.content || '', embed: s.embed || null, enabled: !!s.enabled })}>Edit</button>
+                  <button className="link danger" onClick={() => del(s.channel_id)}>Delete</button>
+                </span>
+              </li>
+            );
+          })}</ul>
+        )}
+      </section>
+      <section className="card">
+        <h2>{editing.channel_id ? 'Edit sticky' : 'New sticky'}</h2>
         <p className="muted">A sticky message is re-posted to the bottom of a channel whenever someone else posts (throttled).</p>
         <label>Channel
           <select value={editing.channel_id} onChange={(e) => setEditing({ ...editing, channel_id: e.target.value })}>
@@ -51,23 +68,6 @@ export default function Sticky() {
         )}
         <label className="checkbox"><input type="checkbox" checked={editing.enabled} onChange={(e) => setEditing({ ...editing, enabled: e.target.checked })} /> Enabled</label>
         <div className="actions"><button className="btn" onClick={save}>Save sticky</button>{editing.channel_id && <button className="link" onClick={() => setEditing(BLANK)}>Clear</button>}</div>
-      </section>
-      <section className="card">
-        <h2>Active stickies ({list.length})</h2>
-        {list.length === 0 ? <p className="muted">None.</p> : (
-          <ul className="cmd-list">{list.map((s) => {
-            const ch = guild.channels.find((c) => c.id === s.channel_id);
-            return (
-              <li key={s.channel_id}>
-                <span style={{ flex: 1 }}>#{ch ? ch.name : s.channel_id} <span className="muted">· {s.content ? s.content.slice(0, 40) : '[embed]'}{s.enabled ? '' : ' · disabled'}</span></span>
-                <span className="row-actions">
-                  <button className="link" onClick={() => setEditing({ channel_id: s.channel_id, content: s.content || '', embed: s.embed || null, enabled: !!s.enabled })}>Edit</button>
-                  <button className="link danger" onClick={() => del(s.channel_id)}>Delete</button>
-                </span>
-              </li>
-            );
-          })}</ul>
-        )}
       </section>
     </div>
   );

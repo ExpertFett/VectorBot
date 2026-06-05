@@ -41,6 +41,20 @@ export default function Social() {
         <span className="status">{status}</span>
       </PageHeader>
       <section className="card">
+        <h2>Sources ({list.length})</h2>
+        {list.length === 0 ? <p className="muted">No social sources yet — add one below.</p> : (
+          <ul className="cmd-list">{list.map((s) => {
+            const ch = guild.channels.find((c) => c.id === s.discord_channel_id);
+            return (
+              <li key={s.id}>
+                <span style={{ flex: 1 }}><span className="tag">{s.platform}</span> <code>{s.query}</code> <span className="muted">→ #{ch ? ch.name : s.discord_channel_id}</span></span>
+                <button className="link danger" onClick={() => del(s.id)}>Delete</button>
+              </li>
+            );
+          })}</ul>
+        )}
+      </section>
+      <section className="card">
         <h2>Add a source</h2>
         <div className="row2">
           <label>Platform
@@ -68,20 +82,6 @@ export default function Social() {
         </div>
         <div className="actions"><button className="btn" onClick={add}>Add</button></div>
         <p className="muted">Reddit/RSS post new items; Twitch/Kick post when the channel goes live. Checked every ~5 min. (TikTok, Instagram and X have no free API — use an RSS-bridge URL with the RSS option.)</p>
-      </section>
-      <section className="card">
-        <h2>Sources ({list.length})</h2>
-        {list.length === 0 ? <p className="muted">None.</p> : (
-          <ul className="cmd-list">{list.map((s) => {
-            const ch = guild.channels.find((c) => c.id === s.discord_channel_id);
-            return (
-              <li key={s.id}>
-                <span style={{ flex: 1 }}><span className="tag">{s.platform}</span> <code>{s.query}</code> <span className="muted">→ #{ch ? ch.name : s.discord_channel_id}</span></span>
-                <button className="link danger" onClick={() => del(s.id)}>Delete</button>
-              </li>
-            );
-          })}</ul>
-        )}
       </section>
     </div>
   );

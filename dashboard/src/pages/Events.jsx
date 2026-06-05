@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
@@ -48,6 +48,9 @@ export default function Events() {
   const [guild, setGuild] = useState(null);
   const [editing, setEditing] = useState(BLANK);
   const [status, setStatus] = useState('');
+  const formRef = useRef(null);
+  const scrollToForm = () => setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30);
+  const startNew = () => { setEditing(BLANK); setStatus(''); scrollToForm(); };
 
   const load = () => Promise.all([api.getEvents(), api.guild()])
     .then(([l, g]) => { setList(l); setGuild(g); }).catch((e) => setStatus(e.message));
@@ -123,14 +126,17 @@ export default function Events() {
   const post = async (id) => { setStatus('Posting…'); try { await api.postEvent(id); setStatus('Posted ✓'); load(); } catch (e) { setStatus('Post failed: ' + (e.body?.error || e.message)); } };
   const cancel = async (id) => { if (!window.confirm('Cancel this event?')) return; await api.cancelEvent(id); load(); };
   const del = async (id) => { if (!window.confirm('Delete this event?')) return; await api.deleteEvent(id); if (editing.id === id) setEditing(BLANK); load(); };
-  const edit = (e) => setEditing({
-    id: e.id, title: e.title, description: e.description || '', mission: e.mission || '', map: e.map || '',
-    channel_id: e.channel_id || '', start_at: toLocalInput(e.start_at), reminder_minutes: e.reminder_minutes,
-    image: e.image || '', embed: e.embed || null, waitlist: !!e.waitlist, multi_signup: !!e.multi_signup,
-    recur_days: e.recur_days || 0,
-    roles: e.roles?.length ? e.roles.map((r) => ({ ...r, qual: r.qual || '' })) : BLANK.roles,
-    taskings: e.taskings || {},
-  });
+  const edit = (e) => {
+    setEditing({
+      id: e.id, title: e.title, description: e.description || '', mission: e.mission || '', map: e.map || '',
+      channel_id: e.channel_id || '', start_at: toLocalInput(e.start_at), reminder_minutes: e.reminder_minutes,
+      image: e.image || '', embed: e.embed || null, waitlist: !!e.waitlist, multi_signup: !!e.multi_signup,
+      recur_days: e.recur_days || 0,
+      roles: e.roles?.length ? e.roles.map((r) => ({ ...r, qual: r.qual || '' })) : BLANK.roles,
+      taskings: e.taskings || {},
+    });
+    scrollToForm();
+  };
 
   return (
     <div className="page">
@@ -139,6 +145,29 @@ export default function Events() {
       </PageHeader>
 
       <section className="card">
+        <div className="fields-head">
+          <h2 style={{ margin: 0 }}>Events ({list.length})</h2>
+          <button className="link" onClick={startNew}>+ New event</button>
+        </div>
+        {list.length === 0 ? <p className="muted">No events yet — click <b>+ New event</b> or fill in the form below to create your first.</p> : (
+          <ul className="cmd-list">{list.map((e) => (
+            <li key={e.id}>
+              <span style={{ flex: 1 }}>
+                <b>{e.title}</b>
+                <span className="muted"> · {new Date(e.start_at).toLocaleString()} · {e.signups.length} signed up{e.recur_days ? ` · 🔁 ${RECUR_LABEL(e.recur_days)}` : ''}{e.status !== 'scheduled' ? ` · ${e.status}` : ''}</span>
+              </span>
+              <span className="row-actions">
+                <button className="link" onClick={() => edit(e)}>Edit</button>
+                <button className="link" onClick={() => post(e.id)}>Post</button>
+                {e.status === 'scheduled' && <button className="link" onClick={() => cancel(e.id)}>Cancel</button>}
+                <button className="link danger" onClick={() => del(e.id)}>Delete</button>
+              </span>
+            </li>
+          ))}</ul>
+        )}
+      </section>
+
+      <section className="card" ref={formRef}>
         <h2>{editing.id ? `Edit event #${editing.id}` : 'New event'}</h2>
         <div className="row2">
           <label>Title<input value={editing.title} placeholder="Friday Night Ops" onChange={(e) => setEditing({ ...editing, title: e.target.value })} /></label>
@@ -232,25 +261,6 @@ export default function Events() {
         </div>
       </section>
 
-      <section className="card">
-        <h2>Events ({list.length})</h2>
-        {list.length === 0 ? <p className="muted">None yet.</p> : (
-          <ul className="cmd-list">{list.map((e) => (
-            <li key={e.id}>
-              <span style={{ flex: 1 }}>
-                <b>{e.title}</b>
-                <span className="muted"> · {new Date(e.start_at).toLocaleString()} · {e.signups.length} signed up{e.recur_days ? ` · 🔁 ${RECUR_LABEL(e.recur_days)}` : ''}{e.status !== 'scheduled' ? ` · ${e.status}` : ''}</span>
-              </span>
-              <span className="row-actions">
-                <button className="link" onClick={() => edit(e)}>Edit</button>
-                <button className="link" onClick={() => post(e.id)}>Post</button>
-                {e.status === 'scheduled' && <button className="link" onClick={() => cancel(e.id)}>Cancel</button>}
-                <button className="link danger" onClick={() => del(e.id)}>Delete</button>
-              </span>
-            </li>
-          ))}</ul>
-        )}
-      </section>
     </div>
   );
 }

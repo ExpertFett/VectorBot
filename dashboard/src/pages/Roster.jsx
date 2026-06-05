@@ -43,6 +43,26 @@ export default function Roster() {
       </PageHeader>
 
       <section className="card">
+        <h2>Roster ({roster.length})</h2>
+        {roster.length === 0 ? <p className="muted">No pilots yet — add one below or import a CSV.</p> : (
+          <table className="modlog">
+            <thead><tr><th>Callsign</th><th>Pilot</th><th>Airframes</th><th>Quals</th><th /></tr></thead>
+            <tbody>
+              {roster.map((r) => (
+                <tr key={r.user_id}>
+                  <td><b>{r.callsign || '—'}</b></td>
+                  <td className="muted">{tagOf(r.user_id)}</td>
+                  <td>{r.airframes || '—'}</td>
+                  <td>{r.quals || '—'}</td>
+                  <td className="row-actions"><button className="link" onClick={() => { edit(r); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); }}>Edit</button><button className="link danger" onClick={() => del(r.user_id)}>✕</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className="card">
         <h2>{roster.some((r) => r.user_id === editing.user_id) ? 'Edit entry' : 'Add / edit pilot'}</h2>
         <div className="row2">
           <label>Member
@@ -57,26 +77,6 @@ export default function Roster() {
         <label>Qualifications <span className="hint">e.g. CQ, Flight Lead, JTAC, GM, ATC</span><input value={editing.quals} placeholder="CQ, Flight Lead, JTAC" onChange={(e) => setEditing({ ...editing, quals: e.target.value })} /></label>
         <label>Notes<textarea rows={2} value={editing.notes} onChange={(e) => setEditing({ ...editing, notes: e.target.value })} /></label>
         <div className="actions"><button className="btn" onClick={save}>Save</button>{editing.user_id && <button className="link" onClick={() => setEditing(BLANK)}>Clear</button>}</div>
-      </section>
-
-      <section className="card">
-        <h2>Roster ({roster.length})</h2>
-        {roster.length === 0 ? <p className="muted">No pilots yet.</p> : (
-          <table className="modlog">
-            <thead><tr><th>Callsign</th><th>Pilot</th><th>Airframes</th><th>Quals</th><th /></tr></thead>
-            <tbody>
-              {roster.map((r) => (
-                <tr key={r.user_id}>
-                  <td><b>{r.callsign || '—'}</b></td>
-                  <td className="muted">{tagOf(r.user_id)}</td>
-                  <td>{r.airframes || '—'}</td>
-                  <td>{r.quals || '—'}</td>
-                  <td className="row-actions"><button className="link" onClick={() => edit(r)}>Edit</button><button className="link danger" onClick={() => del(r.user_id)}>✕</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
       </section>
 
       <section className="card">

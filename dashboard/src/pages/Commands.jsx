@@ -46,6 +46,26 @@ export default function Commands() {
       </PageHeader>
 
       <section className="card">
+        <h2>Existing ({list.length})</h2>
+        {list.length === 0 ? (
+          <p className="muted">No custom commands yet — create one below.</p>
+        ) : (
+          <ul className="cmd-list">
+            {list.map((c) => (
+              <li key={c.name}>
+                <code>!{c.name}</code>
+                <span className="cmd-preview">{c.embed ? '[embed]' : (c.response || '').slice(0, 70)}</span>
+                <span className="row-actions">
+                  <button className="link" onClick={() => { setEditing({ name: c.name, response: c.response || '', embed: c.embed || null }); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); }}>Edit</button>
+                  <button className="link danger" onClick={() => del(c.name)}>Delete</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="card">
         <h2>{isExisting && editing.name ? `Edit !${editing.name}` : 'New command'}</h2>
         <label>Name <span className="hint">triggered as !name in chat</span>
           <input value={editing.name} placeholder="rules"
@@ -73,26 +93,6 @@ export default function Commands() {
           <button className="btn" onClick={save}>Save command</button>
           <button className="link" onClick={() => { setEditing(BLANK); setStatus(''); }}>Clear</button>
         </div>
-      </section>
-
-      <section className="card">
-        <h2>Existing ({list.length})</h2>
-        {list.length === 0 ? (
-          <p className="muted">No custom commands yet.</p>
-        ) : (
-          <ul className="cmd-list">
-            {list.map((c) => (
-              <li key={c.name}>
-                <code>!{c.name}</code>
-                <span className="cmd-preview">{c.embed ? '[embed]' : (c.response || '').slice(0, 70)}</span>
-                <span className="row-actions">
-                  <button className="link" onClick={() => { setEditing({ name: c.name, response: c.response || '', embed: c.embed || null }); window.scrollTo(0, 0); }}>Edit</button>
-                  <button className="link danger" onClick={() => del(c.name)}>Delete</button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
       </section>
     </div>
   );

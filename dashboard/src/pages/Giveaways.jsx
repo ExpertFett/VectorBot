@@ -32,6 +32,23 @@ export default function Giveaways() {
         <span className="status">{status}</span>
       </PageHeader>
       <section className="card">
+        <h2>Giveaways ({list.length})</h2>
+        {list.length === 0 ? <p className="muted">No giveaways yet — start one below.</p> : (
+          <ul className="cmd-list">{list.map((g) => (
+            <li key={g.id}>
+              <span style={{ flex: 1 }}><b>{g.prize}</b>
+                <span className="muted"> · {g.entries} entries · {g.winners} winner(s) · {g.ended ? 'ended' : `ends ${new Date(g.ends_at).toLocaleString()}`}</span>
+              </span>
+              <span className="row-actions">
+                {!g.ended && <button className="link" onClick={() => end(g.id)}>End now</button>}
+                {g.ended && <button className="link" onClick={() => reroll(g.id)}>Reroll</button>}
+                <button className="link danger" onClick={() => del(g.id)}>Delete</button>
+              </span>
+            </li>
+          ))}</ul>
+        )}
+      </section>
+      <section className="card">
         <h2>New giveaway</h2>
         <div className="row2">
           <label>Channel
@@ -56,23 +73,6 @@ export default function Giveaways() {
         <label>Description (optional)<textarea rows={2} value={form.description} placeholder="Extra text shown above the entry details" onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>
         <label>Image URL (optional)<input value={form.image} placeholder="https://…" onChange={(e) => setForm({ ...form, image: e.target.value })} /></label>
         <div className="actions"><button className="btn" onClick={create}>Start giveaway</button></div>
-      </section>
-      <section className="card">
-        <h2>Giveaways ({list.length})</h2>
-        {list.length === 0 ? <p className="muted">None.</p> : (
-          <ul className="cmd-list">{list.map((g) => (
-            <li key={g.id}>
-              <span style={{ flex: 1 }}><b>{g.prize}</b>
-                <span className="muted"> · {g.entries} entries · {g.winners} winner(s) · {g.ended ? 'ended' : `ends ${new Date(g.ends_at).toLocaleString()}`}</span>
-              </span>
-              <span className="row-actions">
-                {!g.ended && <button className="link" onClick={() => end(g.id)}>End now</button>}
-                {g.ended && <button className="link" onClick={() => reroll(g.id)}>Reroll</button>}
-                <button className="link danger" onClick={() => del(g.id)}>Delete</button>
-              </span>
-            </li>
-          ))}</ul>
-        )}
       </section>
     </div>
   );
