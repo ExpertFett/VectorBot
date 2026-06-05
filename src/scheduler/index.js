@@ -4,7 +4,6 @@ import {
   getGiveawaysDue,
   getEventsToRemind, markEventReminded, getSignups,
   getRecurringDue, rolloverEvent, getEvent,
-  getExpiredEvents, setEventStatus,
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 import { getPersonalization } from '../db/index.js';
@@ -21,7 +20,6 @@ const FEED_EVERY_TICKS = 15; // ~5 minutes (social incl. YouTube)
 const STATS_EVERY_TICKS = 30; // ~10 minutes (channel-rename rate limits)
 const BACKUP_EVERY_TICKS = 90; // ~30 minutes (actual backup only runs once/day)
 const RECUR_GRACE_MS = 6 * 3600_000; // keep a recurring sheet up ~6h past start, then roll over
-const EXPIRE_AFTER_MS = 24 * 3600_000; // mark one-off events 'completed' 24h past start
 const DAY_MS = 86_400_000;
 let feedCounter = 0;
 let statsCounter = 0;
@@ -92,16 +90,13 @@ async function tick(client) {
     if (fresh?.message_id) await postEvent(botFor(fresh.guild_id), fresh).catch((e) => reportError(client, 'recur', e));
   }
 
-  // One-off events past their start (+ 24h grace) → mark completed and
-  // re-render the embed with locked buttons, so the event message can't be
-  // signed up for forever and the dashboard list stops showing it as active.
-  for (const ev of getExpiredEvents(now - EXPIRE_AFTER_MS)) {
-    setEventStatus(ev.id, ev.guild_id, 'completed');
-    if (ev.message_id) {
-      const fresh = getEvent(ev.id);
-      await postEvent(botFor(fresh.guild_id), fresh).catch((e) => reportError(client, 'expire', e));
-    }
-  }
+  // Note: there used to be an auto-archive step here that marked one-off
+  // events 'completed' 24h past start_at and re-rendered the embed with
+  // locked buttons. Removed because the catch-up tick that fires ~2s after
+  // every deploy was using it to kill buttons on any event older than a
+  // day, which is exactly the "embeds stop working after we update" thing
+  // the user kept hitting. If an event needs to be closed, the admin can
+  // Cancel it from the dashboard.
 
   // Feeds: social alerts incl. YouTube (every ~5 min)
   if (++feedCounter >= FEED_EVERY_TICKS) {
