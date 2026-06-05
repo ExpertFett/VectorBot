@@ -21,6 +21,27 @@ console.log(`[db] SQLite at ${dbPath}`);
 const db = new DatabaseSync(dbPath);
 db.exec('PRAGMA journal_mode = WAL');
 
+// Boot diagnostics — make it obvious whether persisted state survived this
+// deploy. If guild_config and role_menus are empty on every boot, the volume
+// isn't attached and config is getting wiped → embeds stop working because
+// button handlers look up their menu/event/ticket records in the DB.
+try {
+  const tablesExist = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('guild_config','role_menus')"
+  ).all().length;
+  if (tablesExist === 2) {
+    const cfgRows = db.prepare('SELECT COUNT(*) AS n FROM guild_config').get().n;
+    const menuRows = db.prepare('SELECT COUNT(*) AS n FROM role_menus').get().n;
+    const onVolume = !!(process.env.RAILWAY_VOLUME_MOUNT_PATH || process.env.RAILWAY_PERSISTENT_VOLUME_PATH || process.env.DB_PATH);
+    console.log(`[db] persistence probe: ${cfgRows} guild config row(s) · ${menuRows} role menu(s) · volume=${onVolume ? 'attached' : 'NOT ATTACHED'}`);
+    if (!onVolume) {
+      console.warn('[db] ⚠️  DB is on ephemeral storage. Every deploy wipes config + role menus + tickets + giveaways. Attach a Railway volume at /data to fix.');
+    }
+  }
+} catch (err) {
+  console.warn('[db] persistence probe failed:', err.message);
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS guild_config (
     guild_id           TEXT PRIMARY KEY,
