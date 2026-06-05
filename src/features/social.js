@@ -79,9 +79,11 @@ async function fetchNewItem(sub) {
   return null;
 }
 
-export async function pollSocial(client) {
+export async function pollSocial(mainClient) {
+  const { getBotForGuild } = await import('../customBots/index.js');
   for (const sub of getAllSocialSubs()) {
     try {
+      const client = getBotForGuild(sub.guild_id, mainClient);
       const channel = await resolveChannel(client, sub.discord_channel_id);
       if (!channel?.isTextBased()) continue;
       const content = sub.mention_role_id ? `<@&${sub.mention_role_id}>` : undefined;

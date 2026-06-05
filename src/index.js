@@ -6,6 +6,7 @@ import { Client, Collection, GatewayIntentBits } from 'discord.js';
 import { startWebServer } from './web/server.js';
 import { startScheduler } from './scheduler/index.js';
 import { reportError } from './util/report.js';
+import { initCustomBotRuntime, loadAllCustomBots } from './customBots/index.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -52,6 +53,9 @@ async function loadCommands() {
   console.log(`Loaded ${client.commands.size} slash command(s).`);
 }
 
+// Load every event module once and keep the list so we can also attach the
+// same handlers to custom-bot clients spawned at runtime.
+const eventModules = [];
 async function loadEvents() {
   const eventsDir = join(__dirname, 'events');
   for (const file of collectFiles(eventsDir)) {
@@ -61,6 +65,7 @@ async function loadEvents() {
       console.warn(`Skipping event ${file}: missing "name" or "execute".`);
       continue;
     }
+    eventModules.push(event);
     if (event.once) client.once(event.name, (...args) => event.execute(...args, client));
     else client.on(event.name, (...args) => event.execute(...args, client));
   }
@@ -69,6 +74,10 @@ async function loadEvents() {
 await loadCommands();
 await loadEvents();
 
+// Wire up the multi-tenant runtime so each guild's custom bot (if any) shares
+// the same command Collection + event modules as the main bot.
+initCustomBotRuntime({ commands: client.commands, events: eventModules, mainClient: client });
+
 // Web dashboard runs in the same process and shares the bot client + database.
 startWebServer(client);
 
@@ -76,5 +85,11 @@ startWebServer(client);
 startScheduler(client);
 
 process.on('unhandledRejection', (err) => reportError(client, 'unhandledRejection', err));
+
+client.once('ready', () => {
+  // Spawn any custom bots configured per-guild. Failures are reported but
+  // don't take down the main bot.
+  loadAllCustomBots().catch((e) => reportError(client, 'customBot:bootstrap', e));
+});
 
 client.login(process.env.DISCORD_TOKEN);

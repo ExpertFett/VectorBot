@@ -302,6 +302,7 @@ ensureColumn('guild_config', 'bullseye_lat', 'REAL');           // /bullseye ref
 ensureColumn('guild_config', 'bullseye_lon', 'REAL');
 ensureColumn('guild_config', 'recruitment', 'TEXT');            // recruitment config JSON
 ensureColumn('guild_config', 'onboarding', 'TEXT');             // onboarding wizard config JSON
+ensureColumn('guild_config', 'custom_bot_token', 'TEXT');       // optional per-guild bot token (Mee6-style "personalized bot")
 ensureColumn('guild_config', 'readyroom_ingest_url', 'TEXT');   // per-guild ReadyRoom wing ingest URL (sortie fan-out IN)
 ensureColumn('guild_config', 'readyroom_outbound_token', 'TEXT');  // per-guild secret ReadyRoom uses to publish to this guild (OUT)
 ensureColumn('guild_config', 'readyroom_events_channel_id', 'TEXT'); // channel to post ReadyRoom event embeds into
@@ -353,6 +354,7 @@ const ALLOWED_CONFIG_COLUMNS = new Set([
   'ingest_token', 'server_status', 'status_channel_id', 'status_message_id', 'dcs_feed_channel_id', 'status_embed',
   'bullseye_lat', 'bullseye_lon', 'recruitment', 'onboarding', 'readyroom_ingest_url',
   'readyroom_outbound_token', 'readyroom_events_channel_id',
+  'custom_bot_token',
 ]);
 
 // --- guild config helpers ---
@@ -678,6 +680,12 @@ const incInvite = db.prepare(`
 const selectInvites = db.prepare('SELECT * FROM invite_counts WHERE guild_id = ? ORDER BY count DESC LIMIT 100');
 export function incrementInvite(guildId, inviterId) { incInvite.run(guildId, inviterId); }
 export function getInviteLeaderboard(guildId) { return selectInvites.all(guildId); }
+
+// --- custom (per-guild) bot tokens ---
+export function getCustomBotToken(guildId) { return getConfig(guildId).custom_bot_token || null; }
+export function setCustomBotToken(guildId, token) { setConfigValue(guildId, 'custom_bot_token', token || null); }
+const selectAllCustomBots = db.prepare("SELECT guild_id, custom_bot_token FROM guild_config WHERE custom_bot_token IS NOT NULL AND custom_bot_token != ''");
+export function getAllCustomBotTokens() { return selectAllCustomBots.all(); }
 
 // --- personalizer ---
 export function getPersonalization(guildId) {

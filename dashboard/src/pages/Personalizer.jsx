@@ -7,9 +7,17 @@ const toHex = (n) => (typeof n === 'number' ? '#' + (n & 0xffffff).toString(16).
 
 export default function Personalizer() {
   const [cfg, setCfg] = useState(null);
+  const [bot, setBot] = useState(null);
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState('');
 
-  useEffect(() => { api.getPersonalizer().then(setCfg).catch((e) => setStatus(e.message)); }, []);
+  const loadBot = () => api.getCustomBot().then(setBot).catch(() => {});
+
+  useEffect(() => {
+    api.getPersonalizer().then(setCfg).catch((e) => setStatus(e.message));
+    loadBot();
+  }, []);
   if (!cfg) return <div className="muted page">{status || 'Loading…'}</div>;
 
   const save = async () => {
@@ -18,6 +26,35 @@ export default function Personalizer() {
       setCfg(await api.savePersonalizer({ bot_nickname: cfg.bot_nickname || null, embed_color: cfg.embed_color }));
       setStatus('Saved ✓');
     } catch (e) { setStatus('Save failed: ' + (e.body?.error || e.message)); }
+  };
+
+  const connectBot = async () => {
+    if (!token.trim()) return setStatus('Paste your bot token first.');
+    setBusy(true);
+    setStatus('Connecting your bot…');
+    try {
+      const r = await api.saveCustomBot(token.trim());
+      setStatus(`Connected ✓ — running as ${r.bot_tag || 'your bot'}`);
+      setToken('');
+      await loadBot();
+    } catch (e) {
+      const code = e.body?.error;
+      setStatus(code === 'invalid_token' ? 'That token doesn’t look right (too short).' :
+        code === 'login_failed' ? `Discord rejected the token: ${e.body?.detail || 'invalid token'}` :
+        'Connect failed: ' + (e.body?.error || e.message));
+    } finally { setBusy(false); }
+  };
+
+  const disconnectBot = async () => {
+    if (!window.confirm('Stop running your custom bot? The shared DCS:OPT bot will take over (re-invite it if you removed it).')) return;
+    setBusy(true);
+    setStatus('Disconnecting…');
+    try {
+      await api.removeCustomBot();
+      setStatus('Disconnected ✓');
+      await loadBot();
+    } catch (e) { setStatus('Disconnect failed: ' + (e.body?.error || e.message)); }
+    finally { setBusy(false); }
   };
 
   return (
@@ -41,24 +78,48 @@ export default function Personalizer() {
       </section>
 
       <section className="card">
-        <h2>Want your own custom-branded bot?</h2>
-        <p className="muted">Discord ties the bot’s <b>username, avatar, and banner</b> to the underlying application — they’re global across every server the bot is in. There’s no way for the bot to look one way here and a different way somewhere else.</p>
-        <p className="muted">The workaround that Mee6 and similar bots offer (and the only way Discord lets this work) is to <b>run your own copy of the bot</b> under your own Discord application. Your application = your username, avatar, banner, status — your server only sees that one.</p>
+        <h2>Run your own bot for this server</h2>
+        <p className="muted">Discord ties the bot’s <b>username, avatar, and banner</b> to the application itself — they’re global. The only way to give the bot a server-specific identity is to wire up your own Discord application; we’ll run a dedicated client with your token, and your server only sees your bot.</p>
 
-        <Callout type="tip">
-          <b>The high-level steps look like this:</b>
-          <ol>
-            <li>Create a new application in the <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer">Discord Developer Portal</a> — give it your group’s name, upload your avatar/banner there.</li>
-            <li>Add a bot to the app, copy its token, enable the privileged intents (Server Members + Message Content).</li>
-            <li>Invite your bot to your server with the install URL the portal gives you.</li>
-            <li>Paste the token into a “Run my own bot” page here — we spin up a dedicated bot instance just for your server using your token.</li>
-            <li>Remove DCS:OPT’s shared bot from your server (your custom one takes over every feature).</li>
-          </ol>
-        </Callout>
+        {bot?.running ? (
+          <>
+            <div className="custom-bot-status">
+              {bot.bot_avatar && <img src={bot.bot_avatar} alt="" />}
+              <div>
+                <div><b>{bot.bot_tag || 'Custom bot'}</b> <span className="tag" style={{ background: 'var(--green)', color: '#fff' }}>RUNNING</span></div>
+                <div className="muted" style={{ fontSize: '0.85rem' }}>Application ID: <code>{bot.bot_id}</code></div>
+              </div>
+            </div>
+            <Callout type="tip">
+              Every feature in this dashboard is now driven by your bot for this server. If the shared DCS:OPT bot is still in your member list, kick it — your custom bot has taken over.
+            </Callout>
+            <div className="actions">
+              <button className="link danger" onClick={disconnectBot} disabled={busy}>Disconnect &amp; revert to shared bot</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <Callout type="tip">
+              <b>One-time setup on Discord’s side:</b>
+              <ol>
+                <li>Open the <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer">Discord Developer Portal</a> → <b>New Application</b>. Give it your squadron’s name; upload your avatar (and banner if you want).</li>
+                <li>Go to <b>Bot</b> on the left → enable <b>Server Members Intent</b> and <b>Message Content Intent</b> (both are privileged but required for our features).</li>
+                <li>Click <b>Reset Token</b> on that page and <b>copy</b> the new token. <b>Don’t share it</b> — it’s the key to your bot.</li>
+                <li>Go to <b>OAuth2 → URL Generator</b>. Tick <code>bot</code> + <code>applications.commands</code>, paste this permissions integer in the field: <code>1099780156438</code>. Open the generated URL and invite your bot to <b>this</b> server.</li>
+                <li>If the shared DCS:OPT bot is still in your server, kick it once your bot is running below — they shouldn’t both be there.</li>
+              </ol>
+            </Callout>
 
-        <Callout type="warn">
-          <b>Status: planned, not built yet.</b> Steps 1–3 you can do on the Developer Portal today; step 4 needs multi-tenant runtime work on our side (spawning a separate Discord client per token, routing every interaction / scheduled message / DCS hook event through the right bot). It’s a real feature, just not finished — I didn’t want to ship a token input that secretly does nothing. When the runtime lands this section turns into the actual setup form.
-        </Callout>
+            <label>Bot token
+              <input type="password" value={token} placeholder="Paste the token you copied from the Bot page"
+                onChange={(e) => setToken(e.target.value)} autoComplete="off" />
+            </label>
+            <p className="muted" style={{ fontSize: '0.85rem' }}>Stored in the database for this guild only. Disconnect any time to revert.</p>
+            <div className="actions">
+              <button className="btn" onClick={connectBot} disabled={busy || !token.trim()}>Connect bot</button>
+            </div>
+          </>
+        )}
       </section>
     </div>
   );

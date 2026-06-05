@@ -80,6 +80,9 @@ export const api = {
 
   getPersonalizer: () => req('GET', '/api/personalizer'),
   savePersonalizer: (data) => req('PUT', '/api/personalizer', data),
+  getCustomBot: () => req('GET', '/api/custom-bot'),
+  saveCustomBot: (token) => req('PUT', '/api/custom-bot', { token }),
+  removeCustomBot: () => req('DELETE', '/api/custom-bot'),
   setBotAvatar: (url) => req('POST', '/api/bot-avatar', { url }),
   uploadBotAvatar: async (file) => {
     const res = await fetch('/api/bot-avatar-upload', {

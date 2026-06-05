@@ -14,6 +14,7 @@ import { pollSocial } from '../features/social.js';
 import { updateStatChannels } from '../features/stats.js';
 import { maybeDailyBackup } from '../features/backup.js';
 import { reportError } from '../util/report.js';
+import { getBotForGuild } from '../customBots/index.js';
 
 const TICK_MS = 20_000;
 const FEED_EVERY_TICKS = 15; // ~5 minutes (social incl. YouTube)
@@ -32,10 +33,14 @@ async function resolveChannel(client, id) {
 
 async function tick(client) {
   const now = Date.now();
+  // Helper: pick the right Client for outbound work in a given guild. If the
+  // guild has a custom bot wired up, send from that one so it appears as their
+  // bot's identity (and their bot's perms are what get checked).
+  const botFor = (guildId) => getBotForGuild(guildId, client);
 
   // Scheduled messages
   for (const s of getScheduledDue(now)) {
-    const channel = await resolveChannel(client, s.channel_id);
+    const channel = await resolveChannel(botFor(s.guild_id), s.channel_id);
     if (channel?.isTextBased()) {
       const payload = {};
       if (s.content) payload.content = s.content;
@@ -50,7 +55,7 @@ async function tick(client) {
 
   // Reminders
   for (const r of getRemindersDue(now)) {
-    const channel = await resolveChannel(client, r.channel_id);
+    const channel = await resolveChannel(botFor(r.guild_id), r.channel_id);
     if (channel?.isTextBased()) {
       await channel.send(`⏰ <@${r.user_id}>, reminder: ${r.message || '(no message)'}`).catch(() => {});
     }
@@ -59,13 +64,13 @@ async function tick(client) {
 
   // Giveaways ending
   for (const g of getGiveawaysDue(now)) {
-    await endGiveawayAndAnnounce(client, g).catch((e) => console.error('Giveaway end error:', e.message));
+    await endGiveawayAndAnnounce(botFor(g.guild_id), g).catch((e) => console.error('Giveaway end error:', e.message));
   }
 
   // Event step reminders. Reminders fire up to 30 min past start so a deploy
   // gap during the reminder window doesn't permanently drop the ping.
   for (const event of getEventsToRemind(now)) {
-    const channel = await resolveChannel(client, event.channel_id);
+    const channel = await resolveChannel(botFor(event.guild_id), event.channel_id);
     const signups = getSignups(event.id);
     if (channel?.isTextBased() && signups.length) {
       const pings = signups.map((s) => `<@${s.user_id}>`).join(' ');
@@ -84,7 +89,7 @@ async function tick(client) {
     while (next <= now) next += step;
     rolloverEvent(ev.id, next);
     const fresh = getEvent(ev.id);
-    if (fresh?.message_id) await postEvent(client, fresh).catch((e) => reportError(client, 'recur', e));
+    if (fresh?.message_id) await postEvent(botFor(fresh.guild_id), fresh).catch((e) => reportError(client, 'recur', e));
   }
 
   // One-off events past their start (+ 24h grace) → mark completed and
@@ -94,7 +99,7 @@ async function tick(client) {
     setEventStatus(ev.id, ev.guild_id, 'completed');
     if (ev.message_id) {
       const fresh = getEvent(ev.id);
-      await postEvent(client, fresh).catch((e) => reportError(client, 'expire', e));
+      await postEvent(botFor(fresh.guild_id), fresh).catch((e) => reportError(client, 'expire', e));
     }
   }
 

@@ -25,6 +25,12 @@ import {
   getOnboarding, setOnboarding,
 } from '../db/index.js';
 import { getBaseUrl } from './oauth.js';
+import {
+  getCustomBotToken, setCustomBotToken,
+} from '../db/index.js';
+import {
+  startCustomBot, stopCustomBot, getBotForGuild, isGuildReachable, getCustomBotStatus,
+} from '../customBots/index.js';
 import { buildEmbed } from '../util/embed.js';
 import { postRoleMenu } from '../features/roleMenus.js';
 import { postVerifyPanel } from '../features/verification.js';
@@ -113,7 +119,9 @@ export function apiRouter(client) {
     // gateway IDENTIFY and synced the guild cache. Otherwise every API call
     // 409s for the first 5–15s after a deploy and the frontend Promise.all
     // shows an empty events list — events look "gone" though they're in the DB.
-    if (client.isReady() && !client.guilds.cache.has(gid)) {
+    // Once the main bot is ready, require SOME bot of ours to be in this guild
+    // — could be the main bot OR a custom bot the guild has wired up.
+    if (client.isReady() && !isGuildReachable(gid, client)) {
       return res.status(400).json({ error: 'bot_not_in_guild' });
     }
     req.guildId = gid;
@@ -126,13 +134,19 @@ export function apiRouter(client) {
     // The bot's guild cache populates a few seconds after a deploy. Wait briefly
     // so this endpoint succeeds and the Events / Welcome / etc. pages don't
     // half-load (their Promise.all in the dashboard rejects on a single 503).
-    if (!client.guilds.cache.has(req.guildId)) {
+    // Wait briefly for any of our bots (main or custom) to have the guild in
+    // cache after a restart.
+    const haveGuild = () => isGuildReachable(req.guildId, client);
+    if (!haveGuild()) {
       const start = Date.now();
-      while (Date.now() - start < 8000 && !client.guilds.cache.has(req.guildId)) {
+      while (Date.now() - start < 8000 && !haveGuild()) {
         await new Promise((r) => setTimeout(r, 250));
       }
     }
-    const guild = client.guilds.cache.get(req.guildId);
+    // Prefer the custom bot's view if it's running — its perms / role hierarchy
+    // are what actually matter for that guild's operations.
+    const bot = getBotForGuild(req.guildId, client);
+    const guild = bot.guilds.cache.get(req.guildId);
     if (!guild) return res.status(503).json({ error: 'bot_not_in_guild_yet' });
 
     const channels = guild.channels.cache
@@ -220,7 +234,7 @@ export function apiRouter(client) {
   // --- send an embed/message to a channel right now ---
   router.post('/announce', async (req, res) => {
     const { channel_id, content, embed } = req.body || {};
-    const channel = client.channels.cache.get(cleanId(channel_id));
+    const channel = getBotForGuild(req.guildId, client).channels.cache.get(cleanId(channel_id));
     if (!channel?.isTextBased() || channel.guildId !== req.guildId) return res.status(400).json({ error: 'invalid_channel' });
 
     const payload = {};
@@ -272,7 +286,7 @@ export function apiRouter(client) {
       return res.status(400).json({ error: 'Add at least one button with a role selected, then Save, before posting.' });
     }
     try {
-      const messageId = await postRoleMenu(client, menu);
+      const messageId = await postRoleMenu(getBotForGuild(req.guildId, client), menu);
       res.json({ ok: true, message_id: messageId });
     } catch (err) {
       console.error('Post role menu failed:', err.message);
@@ -284,7 +298,7 @@ export function apiRouter(client) {
   router.get('/modlog', (req, res) => res.json(getModLog(req.guildId, 100)));
 
   router.get('/warnings', (req, res) => {
-    const guild = client.guilds.cache.get(req.guildId);
+    const guild = getBotForGuild(req.guildId, client).guilds.cache.get(req.guildId);
     const tag = (id) => guild?.members.cache.get(id)?.user?.tag || null;
     res.json(getAllWarnings(req.guildId).map((w) => ({
       ...w,
@@ -315,7 +329,7 @@ export function apiRouter(client) {
     }));
   });
   router.post('/verification/post', async (req, res) => {
-    try { res.json({ ok: true, message_id: await postVerifyPanel(client, req.guildId) }); }
+    try { res.json({ ok: true, message_id: await postVerifyPanel(getBotForGuild(req.guildId, client), req.guildId) }); }
     catch (err) { res.status(400).json({ error: err.message }); }
   });
 
@@ -333,7 +347,7 @@ export function apiRouter(client) {
     }));
   });
   router.post('/tickets/post', async (req, res) => {
-    try { res.json({ ok: true, message_id: await postTicketPanel(client, req.guildId) }); }
+    try { res.json({ ok: true, message_id: await postTicketPanel(getBotForGuild(req.guildId, client), req.guildId) }); }
     catch (err) { res.status(400).json({ error: err.message }); }
   });
 
@@ -397,7 +411,7 @@ export function apiRouter(client) {
       image: b.image || null, description: b.description || null,
     });
     try {
-      await postGiveaway(client, getGiveaway(id));
+      await postGiveaway(getBotForGuild(req.guildId, client), getGiveaway(id));
       res.json({ ok: true, id });
     } catch (err) {
       deleteGiveaway(id, req.guildId);
@@ -409,13 +423,13 @@ export function apiRouter(client) {
     const g = getGiveaway(Number(req.params.id));
     if (!g || g.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
     if (g.ended) return res.status(400).json({ error: 'already_ended' });
-    res.json({ winners: await endGiveawayAndAnnounce(client, g) });
+    res.json({ winners: await endGiveawayAndAnnounce(getBotForGuild(req.guildId, client), g) });
   });
 
   router.post('/giveaways/:id/reroll', async (req, res) => {
     const g = getGiveaway(Number(req.params.id));
     if (!g || g.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
-    res.json({ winners: await rerollGiveaway(client, g) });
+    res.json({ winners: await rerollGiveaway(getBotForGuild(req.guildId, client), g) });
   });
 
   router.delete('/giveaways/:id', (req, res) => res.json({ ok: deleteGiveaway(Number(req.params.id), req.guildId) > 0 }));
@@ -456,7 +470,7 @@ export function apiRouter(client) {
     const type = req.body?.type || 'members';
     const template = (req.body?.template || 'Members: {count}').slice(0, 90);
     if (!STAT_TYPES.includes(type)) return res.status(400).json({ error: 'invalid_type' });
-    const guild = client.guilds.cache.get(req.guildId);
+    const guild = getBotForGuild(req.guildId, client).guilds.cache.get(req.guildId);
     if (!guild) return res.status(503).json({ error: 'bot_not_in_guild' });
     if (!guild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels)) {
       return res.status(400).json({ error: 'I need the “Manage Channels” permission to create counter channels.' });
@@ -479,13 +493,13 @@ export function apiRouter(client) {
   router.delete('/stats/:id', async (req, res) => {
     const s = getStatChannels(req.guildId).find((x) => x.id === Number(req.params.id));
     deleteStatChannel(Number(req.params.id), req.guildId);
-    if (s) { const ch = client.channels.cache.get(s.channel_id); if (ch) await ch.delete('Stat channel removed').catch(() => {}); }
+    if (s) { const ch = getBotForGuild(req.guildId, client).channels.cache.get(s.channel_id); if (ch) await ch.delete('Stat channel removed').catch(() => {}); }
     res.json({ ok: true });
   });
 
   // --- invite tracker ---
   router.get('/invites', (req, res) => {
-    const guild = client.guilds.cache.get(req.guildId);
+    const guild = getBotForGuild(req.guildId, client).guilds.cache.get(req.guildId);
     const tag = (id) => guild?.members.cache.get(id)?.user?.tag || null;
     res.json(getInviteLeaderboard(req.guildId).map((r) => ({ ...r, tag: tag(r.inviter_id) })));
   });
@@ -498,11 +512,47 @@ export function apiRouter(client) {
       bot_nickname: b.bot_nickname ? String(b.bot_nickname).slice(0, 32) : null,
       embed_color: Number.isFinite(b.embed_color) ? b.embed_color : null,
     });
-    const guild = client.guilds.cache.get(req.guildId);
+    const bot = getBotForGuild(req.guildId, client);
+    const guild = bot.guilds.cache.get(req.guildId);
     if (guild?.members?.me) {
       try { await guild.members.me.setNickname(saved.bot_nickname || null); } catch { /* missing perm */ }
     }
     res.json(saved);
+  });
+
+  // --- custom (per-guild) bot ---
+  // Status + minimal identity for the "Customize" page.
+  router.get('/custom-bot', (req, res) => {
+    const token = getCustomBotToken(req.guildId);
+    res.json({
+      configured: !!token,
+      ...getCustomBotStatus(req.guildId),
+    });
+  });
+
+  // Save a new token + boot the custom client. Validates the token by actually
+  // logging in — if Discord rejects it we tell the user instead of silently
+  // storing junk.
+  router.put('/custom-bot', async (req, res) => {
+    const token = String(req.body?.token || '').trim();
+    if (token.length < 50) return res.status(400).json({ error: 'invalid_token' });
+    try {
+      const c = await startCustomBot(req.guildId, token);
+      // Only persist once login + ready succeed.
+      setCustomBotToken(req.guildId, token);
+      res.json({ ok: true, bot_tag: c.user?.tag || null, bot_id: c.user?.id || null });
+    } catch (err) {
+      console.error('Custom bot start failed:', err.message);
+      // Make sure no half-spawned client lingers.
+      try { await stopCustomBot(req.guildId); } catch { /* ignore */ }
+      res.status(400).json({ error: 'login_failed', detail: err.message });
+    }
+  });
+
+  router.delete('/custom-bot', async (req, res) => {
+    try { await stopCustomBot(req.guildId); } catch { /* ignore */ }
+    setCustomBotToken(req.guildId, null);
+    res.json({ ok: true });
   });
 
   // --- events (mission scheduler) ---
@@ -586,7 +636,7 @@ export function apiRouter(client) {
     // the save — they can fall back to the explicit Post button.
     let reposted = false;
     if (existing.message_id) {
-      try { await postEvent(client, getEvent(id)); reposted = true; }
+      try { await postEvent(getBotForGuild(req.guildId, client), getEvent(id)); reposted = true; }
       catch (e) { console.error('Event auto-repost failed:', e.message); }
     }
     res.json({ ok: true, reposted });
@@ -596,7 +646,7 @@ export function apiRouter(client) {
     const event = getEvent(Number(req.params.id));
     if (!event || event.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
     if (!event.channel_id) return res.status(400).json({ error: 'no_channel' });
-    try { res.json({ ok: true, message_id: await postEvent(client, event) }); }
+    try { res.json({ ok: true, message_id: await postEvent(getBotForGuild(req.guildId, client), event) }); }
     catch (err) { res.status(400).json({ error: err.message === 'invalid_channel' ? 'invalid_channel' : 'post_failed' }); }
   });
 
@@ -604,7 +654,7 @@ export function apiRouter(client) {
     const event = getEvent(Number(req.params.id));
     if (!event || event.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
     setEventStatus(event.id, req.guildId, 'cancelled');
-    try { if (event.message_id) await postEvent(client, getEvent(event.id)); } catch { /* ignore */ }
+    try { if (event.message_id) await postEvent(getBotForGuild(req.guildId, client), getEvent(event.id)); } catch { /* ignore */ }
     res.json({ ok: true });
   });
 
@@ -651,7 +701,7 @@ export function apiRouter(client) {
   router.get('/roster', (req, res) => res.json(getRoster(req.guildId)));
 
   router.get('/members', async (req, res) => {
-    const guild = client.guilds.cache.get(req.guildId);
+    const guild = getBotForGuild(req.guildId, client).guilds.cache.get(req.guildId);
     if (!guild) return res.status(503).json({ error: 'bot_not_in_guild' });
     try {
       const members = await guild.members.fetch();
@@ -687,7 +737,7 @@ export function apiRouter(client) {
     }));
   });
   router.post('/recruitment/post', async (req, res) => {
-    try { res.json({ ok: true, message_id: await postRecruitPanel(client, req.guildId) }); }
+    try { res.json({ ok: true, message_id: await postRecruitPanel(getBotForGuild(req.guildId, client), req.guildId) }); }
     catch (err) { res.status(400).json({ error: err.message }); }
   });
   router.get('/applications', (req, res) => res.json(getApplications(req.guildId)));
@@ -715,7 +765,7 @@ export function apiRouter(client) {
     }));
   });
   router.post('/onboarding/post', async (req, res) => {
-    try { res.json({ ok: true, message_id: await postOnboardPanel(client, req.guildId) }); }
+    try { res.json({ ok: true, message_id: await postOnboardPanel(getBotForGuild(req.guildId, client), req.guildId) }); }
     catch (err) { res.status(400).json({ error: err.message }); }
   });
 
@@ -724,7 +774,7 @@ export function apiRouter(client) {
     if (!rows.length) return res.status(400).json({ error: 'empty_csv' });
     let members = null;
     if (rows.some((r) => !r.user_id && (r.username || r.name))) {
-      members = await client.guilds.cache.get(req.guildId)?.members.fetch().catch(() => null);
+      members = await getBotForGuild(req.guildId, client).guilds.cache.get(req.guildId)?.members.fetch().catch(() => null);
     }
     let imported = 0;
     for (const r of rows) {

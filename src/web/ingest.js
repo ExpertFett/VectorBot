@@ -2,15 +2,17 @@ import { Router } from 'express';
 import { getGuildByIngestToken, setServerStatus, getConfig } from '../db/index.js';
 import { renderServerStatus } from '../features/serverStatus.js';
 import { handleDcsEvent } from '../features/dcsEvents.js';
+import { getBotForGuild } from '../customBots/index.js';
 
 // Public, token-authenticated endpoint for DCS server hooks (machine-to-machine).
 // Mounted OUTSIDE the dashboard's session auth.
-export function ingestRouter(client) {
+export function ingestRouter(mainClient) {
   const router = Router();
 
   router.post('/:token', async (req, res) => {
     const guildId = getGuildByIngestToken(req.params.token);
     if (!guildId) return res.status(401).json({ error: 'bad_token' });
+    const client = getBotForGuild(guildId, mainClient);
 
     const b = req.body || {};
 

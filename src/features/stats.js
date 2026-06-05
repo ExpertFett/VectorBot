@@ -14,7 +14,8 @@ export function computeStat(guild, type, members) {
   }
 }
 
-export async function updateStatChannels(client) {
+export async function updateStatChannels(mainClient) {
+  const { getBotForGuild } = await import('../customBots/index.js');
   const byGuild = new Map();
   for (const s of getAllStatChannels()) {
     if (!byGuild.has(s.guild_id)) byGuild.set(s.guild_id, []);
@@ -22,7 +23,8 @@ export async function updateStatChannels(client) {
   }
 
   for (const [guildId, list] of byGuild) {
-    const guild = client.guilds.cache.get(guildId);
+    const bot = getBotForGuild(guildId, mainClient);
+    const guild = bot.guilds.cache.get(guildId);
     if (!guild) continue;
 
     // Only fetch the full member list if a counter needs the human/bot split.

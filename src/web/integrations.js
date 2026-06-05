@@ -55,7 +55,7 @@ function buildEmbed(b) {
 
 // Resolves bearer → guildId → events channel; returns the channel object
 // (or sends an error response and returns null).
-async function resolveChannel(req, res, client) {
+async function resolveChannel(req, res, mainClient) {
   const token = authToken(req);
   if (!token) { res.status(401).json({ error: 'missing_bearer' }); return null; }
   const guildId = getGuildByReadyroomOutboundToken(token);
@@ -65,6 +65,8 @@ async function resolveChannel(req, res, client) {
     res.status(409).json({ error: 'no_events_channel_configured' });
     return null;
   }
+  const { getBotForGuild } = await import('../customBots/index.js');
+  const client = getBotForGuild(guildId, mainClient);
   const channel = client.channels.cache.get(cfg.readyroom_events_channel_id)
     || (await client.channels.fetch(cfg.readyroom_events_channel_id).catch(() => null));
   if (!channel?.isTextBased()) {
