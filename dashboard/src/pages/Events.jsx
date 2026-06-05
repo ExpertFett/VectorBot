@@ -83,6 +83,21 @@ export default function Events() {
     const added = CONTROLLERS.filter((c) => !have.has(c.label));
     setEditing({ ...editing, roles: [...editing.roles, ...added] });
   };
+  // Creates a multi-seat flight in one shot — N rows all sharing the same Group
+  // (so the embed renders one flight button that opens a slot picker).
+  const addFlight = () => {
+    const name = window.prompt('Flight name (e.g. Winder 1):')?.trim();
+    if (!name) return;
+    const seatsStr = window.prompt(`How many seats in ${name}?`, '4');
+    const seats = Math.max(1, Math.min(8, parseInt(seatsStr, 10) || 4));
+    const have = new Set(editing.roles.map((r) => r.label));
+    const added = [];
+    for (let i = 1; i <= seats; i++) {
+      const label = `${name}-${i}`;
+      if (!have.has(label)) added.push({ label, emoji: '', limit: 1, group: name, qual: '' });
+    }
+    if (added.length) setEditing({ ...editing, roles: [...editing.roles, ...added] });
+  };
   const setTasking = (flight, val) => setEditing({
     ...editing,
     taskings: val ? { ...editing.taskings, [flight]: val } : Object.fromEntries(Object.entries(editing.taskings).filter(([k]) => k !== flight)),
@@ -233,26 +248,34 @@ export default function Events() {
 
         <div className="fields-head">
           <span>Slots / roles ({editing.roles.length}/100)</span>
-          <span style={{ display: 'flex', gap: '12px' }}>
+          <span style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <label className="link" style={{ cursor: 'pointer' }}>
               ⬆ Import .miz
               <input type="file" accept=".miz" style={{ display: 'none' }} onChange={importMiz} />
             </label>
+            <button className="link" onClick={addFlight}>+ Add flight</button>
             <button className="link" onClick={addControllers}>+ Add controllers</button>
             {editing.roles.length < 100 && <button className="link" onClick={addRole}>+ Add slot</button>}
           </span>
         </div>
         {editing.roles.map((r, i) => (
           <div className="event-role-row evt-qual" key={i}>
-            <input placeholder="Slot / role (e.g. Winder 3-1)" value={r.label} onChange={(e) => setRole(i, { label: e.target.value })} />
-            <input placeholder="Group (flight)" value={r.group || ''} onChange={(e) => setRole(i, { group: e.target.value })} />
+            <input placeholder="Slot label (e.g. Winder 1-1)" value={r.label} onChange={(e) => setRole(i, { label: e.target.value })} />
+            <input placeholder="Flight name" value={r.group || ''} onChange={(e) => setRole(i, { group: e.target.value })} title="Slots that share a Flight name show as one button on the embed (with a picker for the seats)." />
             <input className="emoji-in" placeholder="🛩️" value={r.emoji} onChange={(e) => setRole(i, { emoji: e.target.value })} />
             <input type="number" min="0" placeholder="limit" value={r.limit} onChange={(e) => setRole(i, { limit: +e.target.value })} title="0 = unlimited" />
             <input placeholder="Req. qual" value={r.qual || ''} onChange={(e) => setRole(i, { qual: e.target.value })} title="Optional — only roster pilots whose quals include this can take the slot" />
             <button className="link danger" onClick={() => removeRole(i)}>✕</button>
           </div>
         ))}
-        <p className="muted">Import a .miz to auto-fill flyable slots, or use <b>+ Add controllers</b> for one-click AWACS / GCI / JTAC / LSO / Marshal / ATC / SOF spots. Use <b>+ Add slot</b> to add a fully custom position from scratch. Each row is editable — rename the <b>Slot</b> label to whatever your group calls it (e.g. "AWACS" → "EYESPY") and the embed button follows automatically. The <b>Limit</b> field is how many people can sign up for that position (so set LSO to 3 for three LSOs, etc.); <b>0 = unlimited</b>. <b>Req. qual</b> 🔒 locks a slot to roster pilots holding that qualification. Times auto-convert per member.</p>
+        <p className="muted">
+          <b>How to build the sheet:</b><br />
+          • <b>⬆ Import .miz</b> — auto-fills every flyable slot from your mission.<br />
+          • <b>+ Add flight</b> — builds a multi-seat flight in one click (e.g. <i>Winder 1</i> × 4 → one button on the embed that opens a picker for seats 1-4).<br />
+          • <b>+ Add controllers</b> — drops in AWACS / GCI / JTAC / LSO / Marshal / ATC / SOF as individual sign-up spots.<br />
+          • <b>+ Add slot</b> — a single blank row for a one-off position; set its <b>Flight name</b> to put it in an existing flight.<br /><br />
+          Every row is editable. Rename the <b>Slot label</b> to whatever your group calls it (e.g. "AWACS" → "EYESPY") — the embed button follows automatically. <b>Limit</b> is how many people can sign up for that position (LSO = 3 for three LSOs, etc.); <b>0 = unlimited</b>. <b>Req. qual</b> 🔒 locks a slot to roster pilots holding that qualification. Times auto-convert per member.
+        </p>
 
         {flights.length > 0 && (
           <>
