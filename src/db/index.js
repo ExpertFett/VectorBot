@@ -705,8 +705,10 @@ const setEventMsgStmt = db.prepare('UPDATE events SET channel_id = ?, message_id
 const setEventStatusStmt = db.prepare('UPDATE events SET status = ? WHERE id = ? AND guild_id = ?');
 const markRemindedStmt = db.prepare('UPDATE events SET reminded = 1 WHERE id = ?');
 const deleteEventStmt = db.prepare('DELETE FROM events WHERE id = ? AND guild_id = ?');
+// Allow reminders up to 30 minutes past start so a deploy gap during the
+// reminder window doesn't silently drop the ping.
 const selectEventsToRemind = db.prepare(
-  "SELECT * FROM events WHERE status = 'scheduled' AND reminded = 0 AND reminder_minutes > 0 AND ? >= (start_at - reminder_minutes * 60000) AND ? < start_at"
+  "SELECT * FROM events WHERE status = 'scheduled' AND reminded = 0 AND reminder_minutes > 0 AND ? >= (start_at - reminder_minutes * 60000) AND ? < start_at + 1800000"
 );
 const parseEvent = (r) => (r ? { ...r, roles: safeParse(r.roles, []), embed: safeParse(r.embed, null), taskings: safeParse(r.taskings, {}), waitlist: !!r.waitlist, multi_signup: !!r.multi_signup } : null);
 
@@ -736,6 +738,11 @@ export function setEventStatus(id, guildId, status) { return setEventStatusStmt.
 export function markEventReminded(id) { markRemindedStmt.run(id); }
 export function deleteEvent(id, guildId) { return deleteEventStmt.run(id, guildId).changes; }
 export function getEventsToRemind(now) { return selectEventsToRemind.all(now, now).map(parseEvent); }
+
+// Past one-off events that should be auto-archived (caller passes now - grace).
+// Recurring events skip this — they roll over instead via getRecurringDue().
+const selectExpiredEvents = db.prepare("SELECT * FROM events WHERE status = 'scheduled' AND recur_days = 0 AND start_at < ?");
+export function getExpiredEvents(cutoff) { return selectExpiredEvents.all(cutoff).map(parseEvent); }
 
 // Recurring events whose occurrence is already past (caller passes now - grace).
 const selectRecurringDue = db.prepare("SELECT * FROM events WHERE recur_days > 0 AND status = 'scheduled' AND start_at <= ?");

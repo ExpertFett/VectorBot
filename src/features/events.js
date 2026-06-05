@@ -25,16 +25,20 @@ function groupRoles(roles) {
 export function buildEventMessage(event, signups = []) {
   const accent = getPersonalization(event.guild_id).embed_color ?? 0x5865f2;
   const cancelled = event.status === 'cancelled';
+  const completed = event.status === 'completed';
+  const closed = cancelled || completed;
+  const prefix = cancelled ? '[CANCELLED] ' : completed ? '[COMPLETED] ' : '';
+  const closedColor = cancelled ? 0xf23f43 : 0x4f545c; // red for cancelled, slate for completed
   const ts = Math.floor(event.start_at / 1000);
 
   let embed = event.embed ? buildEmbed(event.embed, undefined, accent) : null;
   if (embed) {
     if (!embed.data.title) embed.setTitle(event.title);
-    if (cancelled) { embed.setColor(0xf23f43); embed.setTitle(`[CANCELLED] ${embed.data.title}`); }
+    if (closed) { embed.setColor(closedColor); embed.setTitle(`${prefix}${embed.data.title}`); }
   } else {
     embed = new EmbedBuilder()
-      .setColor(cancelled ? 0xf23f43 : accent)
-      .setTitle(`${cancelled ? '[CANCELLED] ' : ''}${event.title}`)
+      .setColor(closed ? closedColor : accent)
+      .setTitle(`${prefix}${event.title}`)
       .setDescription(event.description || null);
     const meta = [];
     if (event.mission) meta.push({ name: 'Mission', value: event.mission, inline: true });
@@ -97,7 +101,7 @@ export function buildEventMessage(event, signups = []) {
   const flags = [event.multi_signup ? 'multi-slot' : '1 slot/person', event.waitlist ? 'waitlist on' : null].filter(Boolean).join(' · ');
   embed.setFooter({ text: `Event #${event.id} · ${flags}` });
 
-  if (cancelled) return { embeds: [embed], components: [] };
+  if (closed) return { embeds: [embed], components: [] };
 
   const rows = [];
   if (useDirectButtons) {

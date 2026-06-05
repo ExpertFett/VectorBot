@@ -4,6 +4,7 @@ import {
   getGiveawaysDue,
   getEventsToRemind, markEventReminded, getSignups,
   getRecurringDue, rolloverEvent, getEvent,
+  getExpiredEvents, setEventStatus,
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 import { getPersonalization } from '../db/index.js';
@@ -19,6 +20,7 @@ const FEED_EVERY_TICKS = 15; // ~5 minutes (social incl. YouTube)
 const STATS_EVERY_TICKS = 30; // ~10 minutes (channel-rename rate limits)
 const BACKUP_EVERY_TICKS = 90; // ~30 minutes (actual backup only runs once/day)
 const RECUR_GRACE_MS = 6 * 3600_000; // keep a recurring sheet up ~6h past start, then roll over
+const EXPIRE_AFTER_MS = 24 * 3600_000; // mark one-off events 'completed' 24h past start
 const DAY_MS = 86_400_000;
 let feedCounter = 0;
 let statsCounter = 0;
@@ -60,13 +62,16 @@ async function tick(client) {
     await endGiveawayAndAnnounce(client, g).catch((e) => console.error('Giveaway end error:', e.message));
   }
 
-  // Event step reminders
+  // Event step reminders. Reminders fire up to 30 min past start so a deploy
+  // gap during the reminder window doesn't permanently drop the ping.
   for (const event of getEventsToRemind(now)) {
     const channel = await resolveChannel(client, event.channel_id);
     const signups = getSignups(event.id);
     if (channel?.isTextBased() && signups.length) {
       const pings = signups.map((s) => `<@${s.user_id}>`).join(' ');
-      await channel.send(`⏰ **${event.title}** starts <t:${Math.floor(event.start_at / 1000)}:R> — ${pings}`).catch(() => {});
+      const tsec = Math.floor(event.start_at / 1000);
+      const phrase = now >= event.start_at ? 'just started' : `starts <t:${tsec}:R>`;
+      await channel.send(`⏰ **${event.title}** ${phrase} — ${pings}`).catch(() => {});
     }
     markEventReminded(event.id);
   }
@@ -80,6 +85,17 @@ async function tick(client) {
     rolloverEvent(ev.id, next);
     const fresh = getEvent(ev.id);
     if (fresh?.message_id) await postEvent(client, fresh).catch((e) => reportError(client, 'recur', e));
+  }
+
+  // One-off events past their start (+ 24h grace) → mark completed and
+  // re-render the embed with locked buttons, so the event message can't be
+  // signed up for forever and the dashboard list stops showing it as active.
+  for (const ev of getExpiredEvents(now - EXPIRE_AFTER_MS)) {
+    setEventStatus(ev.id, ev.guild_id, 'completed');
+    if (ev.message_id) {
+      const fresh = getEvent(ev.id);
+      await postEvent(client, fresh).catch((e) => reportError(client, 'expire', e));
+    }
   }
 
   // Feeds: social alerts incl. YouTube (every ~5 min)
@@ -102,6 +118,13 @@ async function tick(client) {
 }
 
 export function startScheduler(client) {
-  setInterval(() => { tick(client).catch((e) => reportError(client, 'scheduler', e)); }, TICK_MS).unref();
-  console.log('Scheduler started (20s tick).');
+  const runTick = () => tick(client).catch((e) => reportError(client, 'scheduler', e));
+  setInterval(runTick, TICK_MS).unref();
+  // Catch up on any time-sensitive work as soon as the bot is ready — a Railway
+  // redeploy can land in the middle of a reminder window, and waiting 20s for
+  // the first tick to catch up just makes the gap worse.
+  const catchUp = () => setTimeout(runTick, 2000); // small delay so caches warm
+  if (client.isReady()) catchUp();
+  else client.once('ready', catchUp);
+  console.log('Scheduler started (20s tick, catch-up on ready).');
 }
