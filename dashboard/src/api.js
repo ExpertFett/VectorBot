@@ -26,6 +26,9 @@ export const api = {
   saveCommand: (name, data) => req('PUT', `/api/commands/${encodeURIComponent(name)}`, data),
   deleteCommand: (name) => req('DELETE', `/api/commands/${encodeURIComponent(name)}`),
   announce: (data) => req('POST', '/api/announce', data),
+  getSentEmbeds: () => req('GET', '/api/embeds'),
+  updateSentEmbed: (id, data) => req('PUT', `/api/embeds/${id}`, data),
+  deleteSentEmbed: (id) => req('DELETE', `/api/embeds/${id}`),
 
   getAutomod: () => req('GET', '/api/automod'),
   saveAutomod: (data) => req('PUT', '/api/automod', data),

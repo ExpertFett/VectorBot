@@ -27,6 +27,7 @@ import {
 import { getBaseUrl } from './oauth.js';
 import {
   getCustomBotToken, setCustomBotToken,
+  createSentEmbed, getSentEmbed, getSentEmbeds, updateSentEmbed, deleteSentEmbed,
 } from '../db/index.js';
 import {
   startCustomBot, stopCustomBot, getBotForGuild, isGuildReachable, getCustomBotStatus,
@@ -234,7 +235,8 @@ export function apiRouter(client) {
   // --- send an embed/message to a channel right now ---
   router.post('/announce', async (req, res) => {
     const { channel_id, content, embed } = req.body || {};
-    const channel = getBotForGuild(req.guildId, client).channels.cache.get(cleanId(channel_id));
+    const cleanCh = cleanId(channel_id);
+    const channel = getBotForGuild(req.guildId, client).channels.cache.get(cleanCh);
     if (!channel?.isTextBased() || channel.guildId !== req.guildId) return res.status(400).json({ error: 'invalid_channel' });
 
     const payload = {};
@@ -244,12 +246,66 @@ export function apiRouter(client) {
     if (!payload.content && !payload.embeds) return res.status(400).json({ error: 'empty_message' });
 
     try {
-      await channel.send(payload);
-      res.json({ ok: true });
+      const sent = await channel.send(payload);
+      // Save so it can be edited / deleted from the dashboard later.
+      const id = createSentEmbed(req.guildId, {
+        channel_id: cleanCh, message_id: sent.id,
+        content: content || null, embed: embed || null,
+        created_by: req.session.user?.id || null,
+      });
+      res.json({ ok: true, id, message_id: sent.id });
     } catch (err) {
       console.error('Announce failed:', err.message);
       res.status(500).json({ error: 'send_failed' });
     }
+  });
+
+  // --- sent embed history (edit / delete after the fact) ---
+  router.get('/embeds', (req, res) => res.json(getSentEmbeds(req.guildId)));
+
+  router.put('/embeds/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = getSentEmbed(id, req.guildId);
+    if (!existing) return res.status(404).json({ error: 'not_found' });
+    const { content, embed } = req.body || {};
+    if (!content && !embed) return res.status(400).json({ error: 'empty_message' });
+
+    const bot = getBotForGuild(req.guildId, client);
+    const channel = bot.channels.cache.get(existing.channel_id)
+      || (await bot.channels.fetch(existing.channel_id).catch(() => null));
+    if (!channel?.isTextBased()) return res.status(400).json({ error: 'invalid_channel' });
+    const msg = await channel.messages.fetch(existing.message_id).catch(() => null);
+    if (!msg) return res.status(404).json({ error: 'message_gone', detail: 'The original message is no longer in Discord. Delete this record and send a new one.' });
+
+    const payload = { content: content || '', embeds: [] };
+    const built = embed ? buildEmbed(embed, undefined, getPersonalization(req.guildId).embed_color ?? undefined) : null;
+    if (built) payload.embeds = [built];
+
+    try {
+      await msg.edit(payload);
+      updateSentEmbed(id, req.guildId, { content: content || null, embed: embed || null });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('Embed edit failed:', err.message);
+      res.status(500).json({ error: 'edit_failed', detail: err.message });
+    }
+  });
+
+  router.delete('/embeds/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    const existing = getSentEmbed(id, req.guildId);
+    if (!existing) return res.status(404).json({ error: 'not_found' });
+
+    // Best-effort delete the Discord message; either way drop the DB row.
+    const bot = getBotForGuild(req.guildId, client);
+    const channel = bot.channels.cache.get(existing.channel_id)
+      || (await bot.channels.fetch(existing.channel_id).catch(() => null));
+    if (channel?.isTextBased()) {
+      const msg = await channel.messages.fetch(existing.message_id).catch(() => null);
+      if (msg) await msg.delete().catch(() => {});
+    }
+    deleteSentEmbed(id, req.guildId);
+    res.json({ ok: true });
   });
 
   // --- auto-moderation ---

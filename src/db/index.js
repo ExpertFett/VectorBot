@@ -324,6 +324,20 @@ ensureColumn('guild_config', 'bullseye_lon', 'REAL');
 ensureColumn('guild_config', 'recruitment', 'TEXT');            // recruitment config JSON
 ensureColumn('guild_config', 'onboarding', 'TEXT');             // onboarding wizard config JSON
 ensureColumn('guild_config', 'custom_bot_token', 'TEXT');       // optional per-guild bot token (Mee6-style "personalized bot")
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sent_embeds (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id   TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    message_id TEXT NOT NULL,
+    content    TEXT,
+    embed      TEXT,
+    created_by TEXT,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_sent_embeds_guild ON sent_embeds (guild_id, created_at);
+`);
 ensureColumn('guild_config', 'readyroom_ingest_url', 'TEXT');   // per-guild ReadyRoom wing ingest URL (sortie fan-out IN)
 ensureColumn('guild_config', 'readyroom_outbound_token', 'TEXT');  // per-guild secret ReadyRoom uses to publish to this guild (OUT)
 ensureColumn('guild_config', 'readyroom_events_channel_id', 'TEXT'); // channel to post ReadyRoom event embeds into
@@ -701,6 +715,25 @@ const incInvite = db.prepare(`
 const selectInvites = db.prepare('SELECT * FROM invite_counts WHERE guild_id = ? ORDER BY count DESC LIMIT 100');
 export function incrementInvite(guildId, inviterId) { incInvite.run(guildId, inviterId); }
 export function getInviteLeaderboard(guildId) { return selectInvites.all(guildId); }
+
+// --- sent embeds (tracked /announce posts so they can be edited / deleted later) ---
+const insertSentEmbed = db.prepare(
+  'INSERT INTO sent_embeds (guild_id, channel_id, message_id, content, embed, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+);
+const selectSentEmbed = db.prepare('SELECT * FROM sent_embeds WHERE id = ? AND guild_id = ?');
+const selectSentEmbeds = db.prepare('SELECT * FROM sent_embeds WHERE guild_id = ? ORDER BY created_at DESC LIMIT 100');
+const updateSentEmbedStmt = db.prepare('UPDATE sent_embeds SET content = ?, embed = ? WHERE id = ? AND guild_id = ?');
+const deleteSentEmbedStmt = db.prepare('DELETE FROM sent_embeds WHERE id = ? AND guild_id = ?');
+const parseSentEmbed = (r) => (r ? { ...r, embed: safeParse(r.embed, null) } : null);
+export function createSentEmbed(guildId, { channel_id, message_id, content, embed, created_by }) {
+  return Number(insertSentEmbed.run(guildId, channel_id, message_id, content ?? null, embed ? JSON.stringify(embed) : null, created_by ?? null, Date.now()).lastInsertRowid);
+}
+export function getSentEmbed(id, guildId) { return parseSentEmbed(selectSentEmbed.get(id, guildId)); }
+export function getSentEmbeds(guildId) { return selectSentEmbeds.all(guildId).map(parseSentEmbed); }
+export function updateSentEmbed(id, guildId, { content, embed }) {
+  return updateSentEmbedStmt.run(content ?? null, embed ? JSON.stringify(embed) : null, id, guildId).changes;
+}
+export function deleteSentEmbed(id, guildId) { return deleteSentEmbedStmt.run(id, guildId).changes; }
 
 // --- custom (per-guild) bot tokens ---
 export function getCustomBotToken(guildId) { return getConfig(guildId).custom_bot_token || null; }
