@@ -7,6 +7,7 @@ import {
   getOpenTicketByOpener, getTicketByChannel, closeTicket, claimTicket, getPersonalization,
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
+import { fireTrigger } from '../automations/engine.js';
 
 // Ticket control buttons (claim / close / delete).
 function ticketControls({ claimed = false, closed = false } = {}) {
@@ -81,7 +82,6 @@ export async function handleOpenTicket(interaction) {
     createTicket(guild.id, channel.id, interaction.user.id);
 
     // Fire any 'ticket.opened' automations.
-    const { fireTrigger } = await import('../automations/engine.js');
     fireTrigger('ticket.opened', {
       guild, member: interaction.member, user: interaction.user, channel,
     }, interaction.client).catch(() => {});
@@ -123,7 +123,6 @@ export async function handleCloseTicket(interaction) {
   await interaction.followUp({ content: `🔒 Ticket closed by ${interaction.user}. Staff can **Delete** it when done.` }).catch(() => {});
 
   // Fire any 'ticket.closed' automations.
-  const { fireTrigger } = await import('../automations/engine.js');
   fireTrigger('ticket.closed', {
     guild: interaction.guild, member: interaction.member, user: interaction.user, channel: interaction.channel,
   }, interaction.client).catch(() => {});

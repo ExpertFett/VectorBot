@@ -30,33 +30,34 @@ function paramsMatch(triggerType, params, ctx) {
   }
 }
 
-function buildVars(ctx) {
-  if (!ctx.member && !ctx.user) return { server: ctx.guild?.name };
-  const user = ctx.user || ctx.member?.user;
-  return {
-    user: user ? `<@${user.id}>` : '',
-    username: user?.username || '',
-    displayname: ctx.member?.displayName || user?.username || '',
-    tag: user?.tag || user?.username || '',
-    id: user?.id || '',
-    server: ctx.guild?.name || '',
-    membercount: String(ctx.guild?.memberCount ?? ''),
-  };
-}
-
-function fill(template, vars) {
+function fill(template, ctx) {
   if (!template) return template;
-  // Reuse the welcome/onboarding placeholder helper for consistency.
-  return applyPlaceholders(String(template), {
-    member: { id: vars.id, displayName: vars.displayname, user: { id: vars.id, username: vars.username, tag: vars.tag, displayAvatarURL: () => '' } },
-    guild: { name: vars.server, memberCount: Number(vars.membercount) || 0 },
-    mention: true,
-  });
+  // Reuse the welcome/onboarding placeholder helper. When we have a real
+  // GuildMember (the common case), pass it straight through so {avatar} et al
+  // resolve to real CDN URLs. Fall back to a minimal synthetic shape only
+  // when no member is in context (e.g. send.message on a member.leave where
+  // the partial member is gone — the user shape is enough for {username}).
+  const guild = ctx.guild ? { name: ctx.guild.name, memberCount: ctx.guild.memberCount ?? 0 } : { name: '', memberCount: 0 };
+  if (ctx.member?.user?.displayAvatarURL) {
+    return applyPlaceholders(String(template), { member: ctx.member, guild, mention: true });
+  }
+  const user = ctx.user || ctx.member?.user;
+  const synthetic = {
+    id: user?.id || '',
+    displayName: user?.username || '',
+    user: {
+      id: user?.id || '',
+      username: user?.username || '',
+      tag: user?.tag || user?.username || '',
+      // Default-avatar fallback so {avatar} at least renders SOMETHING.
+      displayAvatarURL: () => 'https://cdn.discordapp.com/embed/avatars/0.png',
+    },
+  };
+  return applyPlaceholders(String(template), { member: synthetic, guild, mention: true });
 }
 
 async function runAction(action, ctx, mainClient) {
   const { type, params = {} } = action;
-  const vars = buildVars(ctx);
   const bot = getBotForGuild(ctx.guild.id, mainClient);
 
   switch (type) {
@@ -65,12 +66,14 @@ async function runAction(action, ctx, mainClient) {
       if (!channelId) return;
       const ch = bot.channels.cache.get(channelId) || (await bot.channels.fetch(channelId).catch(() => null));
       if (!ch?.isTextBased()) return;
-      await ch.send({ content: fill(params.content || '', vars).slice(0, 2000) }).catch((e) => console.warn('[automations] send.message failed:', e.message));
+      await ch.send({ content: fill(params.content || '', ctx).slice(0, 2000) }).catch((e) => console.warn('[automations] send.message failed:', e.message));
       return;
     }
     case 'send.dm': {
-      if (!ctx.member) return;
-      await ctx.member.send({ content: fill(params.content || '', vars).slice(0, 2000) }).catch(() => { /* user has DMs off — best effort */ });
+      // ctx.member is normally a GuildMember (has .send); guard for bots /
+      // partials where .send is missing so we never hit "not a function".
+      if (!ctx.member || typeof ctx.member.send !== 'function') return;
+      await ctx.member.send({ content: fill(params.content || '', ctx).slice(0, 2000) }).catch(() => { /* user has DMs off — best effort */ });
       return;
     }
     case 'role.add': {

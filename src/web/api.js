@@ -356,7 +356,7 @@ export function apiRouter(client) {
 
   router.get('/welcome/log', (req, res) => res.json(getWelcomeLog(req.guildId)));
 
-  router.delete('/welcome/log/:id', async (req, res) => {
+  router.delete('/welcome/log/:id', requireAction('welcome.manage'), async (req, res) => {
     const id = Number(req.params.id);
     const entry = getWelcomeLogEntry(id, req.guildId);
     if (!entry) return res.status(404).json({ error: 'not_found' });
@@ -379,7 +379,7 @@ export function apiRouter(client) {
     res.json(getAllCustomCommands(req.guildId).map((r) => ({ ...r, embed: parseJson(r.embed) })));
   });
 
-  router.put('/commands/:name', (req, res) => {
+  router.put('/commands/:name', requireAdmin, (req, res) => {
     const name = String(req.params.name).toLowerCase();
     if (!NAME_RE.test(name)) return res.status(400).json({ error: 'invalid_name' });
     const { response = null, embed = null } = req.body || {};
@@ -388,7 +388,7 @@ export function apiRouter(client) {
     res.json({ ok: true, name });
   });
 
-  router.delete('/commands/:name', (req, res) => {
+  router.delete('/commands/:name', requireAdmin, (req, res) => {
     const removed = removeCustomCommand(req.guildId, String(req.params.name).toLowerCase());
     res.json({ ok: removed > 0 });
   });
@@ -524,11 +524,11 @@ export function apiRouter(client) {
     })));
   });
 
-  router.delete('/warnings/:id', (req, res) => {
+  router.delete('/warnings/:id', requireAdmin, (req, res) => {
     res.json({ ok: deleteWarningById(req.guildId, Number(req.params.id)) > 0 });
   });
 
-  router.post('/warnings/clear', (req, res) => {
+  router.post('/warnings/clear', requireAdmin, (req, res) => {
     const userId = cleanId(req.body?.user_id);
     if (!userId) return res.status(400).json({ error: 'missing_user' });
     res.json({ cleared: clearWarnings(req.guildId, userId) });
@@ -664,7 +664,7 @@ export function apiRouter(client) {
 
   // --- youtube notifications ---
   router.get('/youtube', (req, res) => res.json(getYoutubeSubs(req.guildId)));
-  router.post('/youtube', (req, res) => {
+  router.post('/youtube', requireAdmin, (req, res) => {
     const b = req.body || {};
     const ytId = String(b.youtube_channel_id || '').trim();
     const discordChannel = cleanId(b.discord_channel_id);
@@ -673,11 +673,11 @@ export function apiRouter(client) {
     const id = createYoutubeSub(req.guildId, { youtube_channel_id: ytId, discord_channel_id: discordChannel, mention_role_id: cleanId(b.mention_role_id) });
     res.json({ ok: true, id });
   });
-  router.delete('/youtube/:id', (req, res) => res.json({ ok: deleteYoutubeSub(Number(req.params.id), req.guildId) > 0 }));
+  router.delete('/youtube/:id', requireAdmin, (req, res) => res.json({ ok: deleteYoutubeSub(Number(req.params.id), req.guildId) > 0 }));
 
   // --- social alerts (reddit / rss / twitch / kick) ---
   router.get('/social', (req, res) => res.json(getSocialSubs(req.guildId)));
-  router.post('/social', (req, res) => {
+  router.post('/social', requireAdmin, (req, res) => {
     const b = req.body || {};
     const platform = b.platform;
     const query = String(b.query || '').trim().replace(/^\/?r\//i, ''); // tolerate "r/foo"
@@ -690,11 +690,11 @@ export function apiRouter(client) {
     const id = createSocialSub(req.guildId, { platform, query, discord_channel_id: channel, mention_role_id: cleanId(b.mention_role_id) });
     res.json({ ok: true, id });
   });
-  router.delete('/social/:id', (req, res) => res.json({ ok: deleteSocialSub(Number(req.params.id), req.guildId) > 0 }));
+  router.delete('/social/:id', requireAdmin, (req, res) => res.json({ ok: deleteSocialSub(Number(req.params.id), req.guildId) > 0 }));
 
   // --- stats counter channels ---
   router.get('/stats', (req, res) => res.json(getStatChannels(req.guildId)));
-  router.post('/stats', async (req, res) => {
+  router.post('/stats', requireAdmin, async (req, res) => {
     const type = req.body?.type || 'members';
     const template = (req.body?.template || 'Members: {count}').slice(0, 90);
     if (!STAT_TYPES.includes(type)) return res.status(400).json({ error: 'invalid_type' });
@@ -718,7 +718,7 @@ export function apiRouter(client) {
       res.status(500).json({ error: err.message || 'create_failed' });
     }
   });
-  router.delete('/stats/:id', async (req, res) => {
+  router.delete('/stats/:id', requireAdmin, async (req, res) => {
     const s = getStatChannels(req.guildId).find((x) => x.id === Number(req.params.id));
     deleteStatChannel(Number(req.params.id), req.guildId);
     if (s) { const ch = getBotForGuild(req.guildId, client).channels.cache.get(s.channel_id); if (ch) await ch.delete('Stat channel removed').catch(() => {}); }
@@ -902,11 +902,11 @@ export function apiRouter(client) {
       readyroom_events_channel_id: c.readyroom_events_channel_id || null,
     });
   });
-  router.post('/dcs/regen', (req, res) => {
+  router.post('/dcs/regen', requireAdmin, (req, res) => {
     const token = regenerateIngestToken(req.guildId);
     res.json({ ingest_url: `${getBaseUrl()}/ingest/${token}` });
   });
-  router.post('/dcs/regen-readyroom-token', (req, res) => {
+  router.post('/dcs/regen-readyroom-token', requireAdmin, (req, res) => {
     res.json({ readyroom_outbound_token: regenerateReadyroomOutboundToken(req.guildId) });
   });
 

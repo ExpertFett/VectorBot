@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags } from 'discord.js';
 import { getVerification, setVerification, getPersonalization } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
+import { fireTrigger } from '../automations/engine.js';
 
 export function buildVerifyMessage(cfg, accent = 0x23a55a) {
   const embed = (cfg.embed && buildEmbed(cfg.embed, undefined, accent)) || new EmbedBuilder().setColor(accent)
@@ -49,7 +50,6 @@ export async function handleVerify(interaction) {
     await interaction.member.roles.add(role.id, 'Verification');
     await interaction.reply({ content: 'You’re verified — welcome! ✅', flags: MessageFlags.Ephemeral });
     // Fire any 'verification.passed' automations.
-    const { fireTrigger } = await import('../automations/engine.js');
     fireTrigger('verification.passed', {
       guild: interaction.guild,
       member: interaction.member,
