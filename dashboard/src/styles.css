@@ -229,6 +229,25 @@ textarea { resize: vertical; }
 .welcome-columns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 8px; }
 @media (max-width: 900px) { .welcome-columns { grid-template-columns: 1fr; } }
 .welcome-column-card { border: 1px solid var(--border); border-radius: 6px; padding: 10px; background: var(--bg-2); }
+
+/* Access Groups */
+.access-group-card { border-left: 3px solid var(--accent); }
+.access-role-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.access-role-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 18px; background: var(--bg-2); font-size: 0.85rem; cursor: pointer; transition: border-color 0.1s, background 0.1s; }
+.access-role-chip:hover { background: var(--bg-3, #1f1f29); }
+.access-role-chip.selected { background: rgba(145, 25, 245, 0.15); border-width: 2px; padding: 4px 9px; }
+.role-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.permission-category { margin-top: 16px; }
+.permission-category h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); margin: 0 0 8px; }
+.permission-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); align-items: start; }
+.permission-row:last-child { border-bottom: none; }
+@media (max-width: 700px) { .permission-row { grid-template-columns: 1fr; } }
+.permission-controls { display: flex; flex-direction: column; gap: 8px; }
+.permission-controls select { width: 100%; }
+.group-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.group-chip { padding: 4px 10px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-2); font-size: 0.8rem; cursor: pointer; transition: border-color 0.1s, background 0.1s; }
+.group-chip:hover { background: var(--bg-3, #1f1f29); }
+.group-chip.selected { border-width: 2px; padding: 3px 9px; font-weight: 600; }
 .field-row input[type="text"], .field-row .f-name, .field-row .f-val { margin-top: 0; }
 
 /* Discord-like preview */

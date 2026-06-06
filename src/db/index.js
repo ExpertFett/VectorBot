@@ -304,6 +304,19 @@ db.exec(`
     status     TEXT NOT NULL DEFAULT 'pending',
     created_at INTEGER NOT NULL
   );
+
+  -- Access Groups: named groups of Discord roles (e.g. "JTAC", "GM", "ATC") that
+  -- can be granted permission to perform specific gated bot actions. Per-action
+  -- overrides live in guild_config.permission_overrides (JSON).
+  CREATE TABLE IF NOT EXISTS access_groups (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id   TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    color      TEXT,
+    role_ids   TEXT NOT NULL DEFAULT '[]',
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_access_groups_guild ON access_groups (guild_id);
 `);
 
 // --- batch 5 schema (embed options + invite log) ---
@@ -325,6 +338,7 @@ ensureColumn('guild_config', 'recruitment', 'TEXT');            // recruitment c
 ensureColumn('guild_config', 'onboarding', 'TEXT');             // onboarding wizard config JSON
 ensureColumn('guild_config', 'custom_bot_token', 'TEXT');       // optional per-guild bot token (Mee6-style "personalized bot")
 ensureColumn('guild_config', 'welcome_page', 'TEXT');           // welcome-channel landing-page layout (Mee6-style)
+ensureColumn('guild_config', 'permission_overrides', 'TEXT');   // {actionKey: {mode, group_ids[]}} for Access Groups
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS sent_embeds (
@@ -1049,6 +1063,60 @@ export function setOnboarding(guildId, obj) {
   const merged = mergeOnboarding({ ...getOnboarding(guildId), ...obj });
   setConfigValue(guildId, 'onboarding', JSON.stringify(merged));
   return merged;
+}
+
+// --- Access Groups (JTAC/GM/ATC-style named role bundles for gated actions) ---
+const insertAccessGroup = db.prepare('INSERT INTO access_groups (guild_id, name, color, role_ids, created_at) VALUES (?, ?, ?, ?, ?)');
+const updateAccessGroup = db.prepare('UPDATE access_groups SET name = ?, color = ?, role_ids = ? WHERE id = ? AND guild_id = ?');
+const deleteAccessGroupStmt = db.prepare('DELETE FROM access_groups WHERE id = ? AND guild_id = ?');
+const selectAccessGroup = db.prepare('SELECT * FROM access_groups WHERE id = ? AND guild_id = ?');
+const selectAccessGroups = db.prepare('SELECT * FROM access_groups WHERE guild_id = ? ORDER BY created_at');
+const parseGroup = (r) => (r ? { ...r, role_ids: safeParse(r.role_ids, []) } : null);
+
+export function getAccessGroups(guildId) {
+  return selectAccessGroups.all(guildId).map(parseGroup);
+}
+export function getAccessGroup(guildId, id) {
+  return parseGroup(selectAccessGroup.get(id, guildId));
+}
+export function createAccessGroup(guildId, { name, color, role_ids }) {
+  const id = Number(insertAccessGroup.run(
+    guildId, String(name || 'New group').slice(0, 80),
+    color || null,
+    JSON.stringify(Array.isArray(role_ids) ? role_ids : []),
+    Date.now()
+  ).lastInsertRowid);
+  return getAccessGroup(guildId, id);
+}
+export function updateAccessGroupRow(guildId, id, { name, color, role_ids }) {
+  updateAccessGroup.run(
+    String(name || 'Group').slice(0, 80),
+    color || null,
+    JSON.stringify(Array.isArray(role_ids) ? role_ids : []),
+    id, guildId,
+  );
+  return getAccessGroup(guildId, id);
+}
+export function deleteAccessGroup(guildId, id) {
+  return deleteAccessGroupStmt.run(id, guildId).changes;
+}
+
+// Permission overrides: a JSON map of {actionKey: {mode, group_ids[]}}.
+// mode='admin' → ManageGuild required (the default if not configured)
+// mode='groups' → any role in any listed group permits the action
+// mode='everyone' → no extra check beyond what Discord's own perms enforce
+export function getPermissionOverrides(guildId) {
+  return safeParse(getConfig(guildId).permission_overrides, {}) || {};
+}
+export function setPermissionOverrides(guildId, map) {
+  const clean = {};
+  for (const [key, v] of Object.entries(map || {})) {
+    const mode = ['admin', 'groups', 'everyone'].includes(v?.mode) ? v.mode : 'admin';
+    const groupIds = Array.isArray(v?.group_ids) ? v.group_ids.map((n) => Number(n)).filter((n) => Number.isFinite(n)) : [];
+    clean[String(key)] = { mode, group_ids: groupIds };
+  }
+  setConfigValue(guildId, 'permission_overrides', JSON.stringify(clean));
+  return clean;
 }
 
 // --- welcome-channel landing page (Mee6-style multi-element welcome page) ---

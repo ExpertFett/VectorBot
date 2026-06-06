@@ -24,7 +24,10 @@ import {
   getRecruitment, setRecruitment, getApplications,
   getOnboarding, setOnboarding,
   getWelcomePage, setWelcomePage,
+  getAccessGroups, getAccessGroup, createAccessGroup, updateAccessGroupRow, deleteAccessGroup,
+  getPermissionOverrides, setPermissionOverrides,
 } from '../db/index.js';
+import { ACTIONS } from '../access/registry.js';
 import { getBaseUrl } from './oauth.js';
 import {
   getCustomBotToken, setCustomBotToken,
@@ -954,6 +957,60 @@ export function apiRouter(client) {
   router.post('/welcome-page/clear', async (req, res) => {
     try { await clearWelcomePage(getBotForGuild(req.guildId, client), req.guildId); res.json({ ok: true }); }
     catch (err) { res.status(400).json({ error: err.message }); }
+  });
+
+  // --- Access Groups + permission overrides ---
+  router.get('/access/actions', (_req, res) => res.json(ACTIONS));
+  router.get('/access/groups', (req, res) => res.json(getAccessGroups(req.guildId)));
+  router.post('/access/groups', (req, res) => {
+    const b = req.body || {};
+    const role_ids = (Array.isArray(b.role_ids) ? b.role_ids : []).map(cleanId).filter(Boolean).slice(0, 50);
+    const group = createAccessGroup(req.guildId, {
+      name: String(b.name || 'New group').slice(0, 80),
+      color: b.color || null,
+      role_ids,
+    });
+    res.json(group);
+  });
+  router.put('/access/groups/:id', (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'bad_id' });
+    const existing = getAccessGroup(req.guildId, id);
+    if (!existing) return res.status(404).json({ error: 'not_found' });
+    const b = req.body || {};
+    const role_ids = (Array.isArray(b.role_ids) ? b.role_ids : existing.role_ids).map(cleanId).filter(Boolean).slice(0, 50);
+    const group = updateAccessGroupRow(req.guildId, id, {
+      name: String(b.name ?? existing.name).slice(0, 80),
+      color: b.color !== undefined ? b.color : existing.color,
+      role_ids,
+    });
+    res.json(group);
+  });
+  router.delete('/access/groups/:id', (req, res) => {
+    const id = Number(req.params.id);
+    const changes = deleteAccessGroup(req.guildId, id);
+    // Also strip the deleted group from every permission override that referenced it.
+    if (changes) {
+      const overrides = getPermissionOverrides(req.guildId);
+      let touched = false;
+      for (const k of Object.keys(overrides)) {
+        const before = overrides[k].group_ids?.length || 0;
+        overrides[k] = { ...overrides[k], group_ids: (overrides[k].group_ids || []).filter((g) => g !== id) };
+        if ((overrides[k].group_ids?.length || 0) !== before) touched = true;
+      }
+      if (touched) setPermissionOverrides(req.guildId, overrides);
+    }
+    res.json({ ok: true, deleted: changes });
+  });
+
+  router.get('/access/permissions', (req, res) => res.json(getPermissionOverrides(req.guildId)));
+  router.put('/access/permissions', (req, res) => {
+    const validKeys = new Set(ACTIONS.map((a) => a.key));
+    const filtered = {};
+    for (const [k, v] of Object.entries(req.body || {})) {
+      if (validKeys.has(k)) filtered[k] = v;
+    }
+    res.json(setPermissionOverrides(req.guildId, filtered));
   });
 
   router.post('/roster/import', async (req, res) => {

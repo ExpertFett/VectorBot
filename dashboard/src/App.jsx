@@ -27,6 +27,7 @@ import Roster from './pages/Roster.jsx';
 import Recruitment from './pages/Recruitment.jsx';
 import Onboarding from './pages/Onboarding.jsx';
 import WelcomeChannelPage from './pages/WelcomeChannelPage.jsx';
+import AccessGroups from './pages/AccessGroups.jsx';
 import Setup from './pages/Setup.jsx';
 import SetupWizard from './pages/SetupWizard.jsx';
 import Brand from './components/Brand.jsx';
@@ -71,6 +72,7 @@ const NAV = [
     ['/moderation', '🔨', 'Moderation'],
   ] },
   { label: 'Server', links: [
+    ['/access', '🛂', 'Access Groups'],
     ['/stats', '📊', 'Stats Channels'],
     ['/invites', '🎟️', 'Invite Tracker'],
   ] },
@@ -164,6 +166,7 @@ export default function App() {
           <Route path="/social" element={<Social />} />
           <Route path="/stats" element={<Stats />} />
           <Route path="/invites" element={<Invites />} />
+          <Route path="/access" element={<AccessGroups />} />
           <Route path="/moderation" element={<Moderation />} />
           <Route path="/personalizer" element={<Personalizer />} />
           <Route path="*" element={<Navigate to="/wizard" replace />} />

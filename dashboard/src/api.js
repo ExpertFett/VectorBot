@@ -128,6 +128,15 @@ export const api = {
   publishWelcomePage: () => req('POST', '/api/welcome-page/publish'),
   clearWelcomePage: () => req('POST', '/api/welcome-page/clear'),
 
+  // Access Groups + permission overrides.
+  getActions: () => req('GET', '/api/access/actions'),
+  getAccessGroups: () => req('GET', '/api/access/groups'),
+  createAccessGroup: (data) => req('POST', '/api/access/groups', data),
+  updateAccessGroup: (id, data) => req('PUT', `/api/access/groups/${id}`, data),
+  deleteAccessGroup: (id) => req('DELETE', `/api/access/groups/${id}`),
+  getPermissions: () => req('GET', '/api/access/permissions'),
+  savePermissions: (data) => req('PUT', '/api/access/permissions', data),
+
   getEvents: () => req('GET', '/api/events'),
   parseMiz: async (file) => {
     const res = await fetch('/api/events/parse-miz', {
