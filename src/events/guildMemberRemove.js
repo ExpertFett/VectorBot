@@ -1,5 +1,5 @@
 import { Events } from 'discord.js';
-import { getConfig, getPersonalization } from '../db/index.js';
+import { getConfig, getPersonalization, logWelcome } from '../db/index.js';
 import { applyPlaceholders } from '../util/format.js';
 import { buildEmbed } from '../util/embed.js';
 
@@ -21,7 +21,13 @@ export default {
     if (embed) payload.embeds = [embed];
 
     if (payload.content || payload.embeds) {
-      await channel.send(payload).catch((err) => console.error('Goodbye send failed:', err.message));
+      const sent = await channel.send(payload).catch((err) => { console.error('Goodbye send failed:', err.message); return null; });
+      if (sent) {
+        logWelcome(member.guild.id, {
+          kind: 'goodbye', user_id: member.id, user_tag: member.user.tag,
+          channel_id: channel.id, message_id: sent.id,
+        });
+      }
     }
   },
 };

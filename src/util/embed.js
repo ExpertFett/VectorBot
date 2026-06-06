@@ -39,20 +39,28 @@ export function buildEmbed(data, transform = (s) => s, defaultColor = null) {
   if (color != null) embed.setColor(color);
   else if (defaultColor != null) embed.setColor(defaultColor);
 
-  if (isHttpUrl(o.thumbnail)) embed.setThumbnail(o.thumbnail);
-  if (isHttpUrl(o.image)) embed.setImage(o.image);
+  // Image URLs go through the same placeholder transform so authors can put
+  // e.g. {avatar} in Thumbnail / Image / icon fields and the runtime resolves
+  // it to the joining member's actual avatar URL.
+  const transformUrl = (u) => (u ? transform(String(u)) : null);
+  const thumb = transformUrl(o.thumbnail);
+  const img = transformUrl(o.image);
+  if (isHttpUrl(thumb)) embed.setThumbnail(thumb);
+  if (isHttpUrl(img)) embed.setImage(img);
 
   if (o.author?.name) {
+    const authorIcon = transformUrl(o.author.icon_url);
     embed.setAuthor({
       name: transform(String(o.author.name)).slice(0, 256),
-      iconURL: isHttpUrl(o.author.icon_url) ? o.author.icon_url : undefined,
+      iconURL: isHttpUrl(authorIcon) ? authorIcon : undefined,
       url: isHttpUrl(o.author.url) ? o.author.url : undefined,
     });
   }
   if (o.footer?.text) {
+    const footerIcon = transformUrl(o.footer.icon_url);
     embed.setFooter({
       text: transform(String(o.footer.text)).slice(0, 2048),
-      iconURL: isHttpUrl(o.footer.icon_url) ? o.footer.icon_url : undefined,
+      iconURL: isHttpUrl(footerIcon) ? footerIcon : undefined,
     });
   }
   if (o.timestamp) embed.setTimestamp(o.timestamp === true ? Date.now() : new Date(o.timestamp));

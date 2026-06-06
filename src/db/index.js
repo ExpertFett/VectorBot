@@ -337,6 +337,19 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_sent_embeds_guild ON sent_embeds (guild_id, created_at);
+
+  CREATE TABLE IF NOT EXISTS welcome_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id   TEXT NOT NULL,
+    kind       TEXT NOT NULL,     -- 'welcome' | 'goodbye'
+    user_id    TEXT,
+    user_tag   TEXT,
+    channel_id TEXT NOT NULL,
+    message_id TEXT,
+    test       INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_welcome_log_guild ON welcome_log (guild_id, created_at);
 `);
 ensureColumn('guild_config', 'readyroom_ingest_url', 'TEXT');   // per-guild ReadyRoom wing ingest URL (sortie fan-out IN)
 ensureColumn('guild_config', 'readyroom_outbound_token', 'TEXT');  // per-guild secret ReadyRoom uses to publish to this guild (OUT)
@@ -715,6 +728,23 @@ const incInvite = db.prepare(`
 const selectInvites = db.prepare('SELECT * FROM invite_counts WHERE guild_id = ? ORDER BY count DESC LIMIT 100');
 export function incrementInvite(guildId, inviterId) { incInvite.run(guildId, inviterId); }
 export function getInviteLeaderboard(guildId) { return selectInvites.all(guildId); }
+
+// --- welcome / goodbye send log (for the dashboard "Recent posts" panel) ---
+const insertWelcomeLog = db.prepare(
+  'INSERT INTO welcome_log (guild_id, kind, user_id, user_tag, channel_id, message_id, test, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+);
+const selectWelcomeLog = db.prepare('SELECT * FROM welcome_log WHERE guild_id = ? ORDER BY created_at DESC LIMIT 50');
+const selectWelcomeLogById = db.prepare('SELECT * FROM welcome_log WHERE id = ? AND guild_id = ?');
+const deleteWelcomeLogStmt = db.prepare('DELETE FROM welcome_log WHERE id = ? AND guild_id = ?');
+export function logWelcome(guildId, { kind, user_id, user_tag, channel_id, message_id, test = false }) {
+  return Number(insertWelcomeLog.run(guildId, kind, user_id ?? null, user_tag ?? null, channel_id, message_id ?? null, test ? 1 : 0, Date.now()).lastInsertRowid);
+}
+export function getWelcomeLog(guildId) { return selectWelcomeLog.all(guildId).map((r) => ({ ...r, test: !!r.test })); }
+export function getWelcomeLogEntry(id, guildId) {
+  const r = selectWelcomeLogById.get(id, guildId);
+  return r ? { ...r, test: !!r.test } : null;
+}
+export function deleteWelcomeLogEntry(id, guildId) { return deleteWelcomeLogStmt.run(id, guildId).changes; }
 
 // --- sent embeds (tracked /announce posts so they can be edited / deleted later) ---
 const insertSentEmbed = db.prepare(

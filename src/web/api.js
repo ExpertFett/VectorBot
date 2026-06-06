@@ -28,7 +28,9 @@ import { getBaseUrl } from './oauth.js';
 import {
   getCustomBotToken, setCustomBotToken,
   createSentEmbed, getSentEmbed, getSentEmbeds, updateSentEmbed, deleteSentEmbed,
+  logWelcome, getWelcomeLog, getWelcomeLogEntry, deleteWelcomeLogEntry,
 } from '../db/index.js';
+import { applyPlaceholders } from '../util/format.js';
 import {
   startCustomBot, stopCustomBot, getBotForGuild, isGuildReachable, getCustomBotStatus,
 } from '../customBots/index.js';
@@ -211,6 +213,71 @@ export function apiRouter(client) {
       goodbye_embed: parseJson(c.goodbye_embed),
       status_embed: parseJson(c.status_embed),
     });
+  });
+
+  // --- welcome / goodbye: test sends + recent-post log ---
+  // Posts the configured welcome OR goodbye message to its channel right now,
+  // using the requesting admin as the "joining/leaving member" so they can
+  // verify it looks right without needing a real member event.
+  router.post('/welcome/test', async (req, res) => {
+    const kind = req.body?.kind === 'goodbye' ? 'goodbye' : 'welcome';
+    const cfg = getConfig(req.guildId);
+    const channelKey = kind === 'goodbye' ? 'goodbye_channel_id' : 'welcome_channel_id';
+    const messageKey = kind === 'goodbye' ? 'goodbye_message' : 'welcome_message';
+    const embedKey = kind === 'goodbye' ? 'goodbye_embed' : 'welcome_embed';
+
+    if (!cfg[channelKey]) return res.status(400).json({ error: 'Pick a channel and message for ' + kind + ' before testing.' });
+    if (!cfg[messageKey] && !cfg[embedKey]) return res.status(400).json({ error: 'Add a message or embed for ' + kind + ' before testing.' });
+
+    const bot = getBotForGuild(req.guildId, client);
+    const guild = bot.guilds.cache.get(req.guildId);
+    if (!guild) return res.status(503).json({ error: 'guild_not_ready' });
+    const member = await guild.members.fetch(req.session.user.id).catch(() => null);
+    if (!member) return res.status(400).json({ error: 'You aren’t a member of this server, so I can’t use you as the test member.' });
+
+    const channel = bot.channels.cache.get(cfg[channelKey])
+      || (await bot.channels.fetch(cfg[channelKey]).catch(() => null));
+    if (!channel?.isTextBased()) return res.status(400).json({ error: 'invalid_channel' });
+
+    const sub = (s) => applyPlaceholders(s, { member, guild, mention: kind === 'welcome' });
+    const payload = {};
+    if (cfg[messageKey]) payload.content = `🧪 *Test ${kind}* — ` + sub(cfg[messageKey]);
+    const embedJson = parseJson(cfg[embedKey]);
+    const accent = getPersonalization(req.guildId).embed_color ?? undefined;
+    const builtEmbed = embedJson ? buildEmbed(embedJson, sub, accent) : null;
+    if (builtEmbed) payload.embeds = [builtEmbed];
+
+    try {
+      const sent = await channel.send(payload);
+      logWelcome(req.guildId, {
+        kind, user_id: member.id, user_tag: member.user.tag,
+        channel_id: channel.id, message_id: sent.id, test: true,
+      });
+      res.json({ ok: true, message_id: sent.id });
+    } catch (err) {
+      console.error(`${kind} test failed:`, err.message);
+      res.status(500).json({ error: 'send_failed', detail: err.message });
+    }
+  });
+
+  router.get('/welcome/log', (req, res) => res.json(getWelcomeLog(req.guildId)));
+
+  router.delete('/welcome/log/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    const entry = getWelcomeLogEntry(id, req.guildId);
+    if (!entry) return res.status(404).json({ error: 'not_found' });
+    // Best-effort delete the Discord message; drop the row either way.
+    if (entry.message_id) {
+      const bot = getBotForGuild(req.guildId, client);
+      const channel = bot.channels.cache.get(entry.channel_id)
+        || (await bot.channels.fetch(entry.channel_id).catch(() => null));
+      if (channel?.isTextBased()) {
+        const msg = await channel.messages.fetch(entry.message_id).catch(() => null);
+        if (msg) await msg.delete().catch(() => {});
+      }
+    }
+    deleteWelcomeLogEntry(id, req.guildId);
+    res.json({ ok: true });
   });
 
   // --- custom commands ---

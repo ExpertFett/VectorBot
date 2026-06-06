@@ -22,6 +22,10 @@ export const api = {
   guild: () => req('GET', '/api/guild'),
   getConfig: () => req('GET', '/api/config'),
   saveConfig: (data) => req('PUT', '/api/config', data),
+  testWelcome: (kind) => req('POST', '/api/welcome/test', { kind }),
+  getWelcomeLog: () => req('GET', '/api/welcome/log'),
+  deleteWelcomeLog: (id) => req('DELETE', `/api/welcome/log/${id}`),
+
   getCommands: () => req('GET', '/api/commands'),
   saveCommand: (name, data) => req('PUT', `/api/commands/${encodeURIComponent(name)}`, data),
   deleteCommand: (name) => req('DELETE', `/api/commands/${encodeURIComponent(name)}`),
