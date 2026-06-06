@@ -4,10 +4,10 @@ import {
 import { getOnboarding, setOnboarding, getPersonalization } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 
-const accentOf = (guildId) => getPersonalization(guildId).embed_color ?? 0x5865f2;
+const accentOf = (guildId) => getPersonalization(guildId).embed_color ?? 0x9119f5;
 
 // The public panel that lives in a channel — a single "Get Started" button.
-export function buildPanelMessage(cfg, accent = 0x5865f2) {
+export function buildPanelMessage(cfg, accent = 0x9119f5) {
   const embed = (cfg.embed && buildEmbed(cfg.embed, undefined, accent)) || new EmbedBuilder().setColor(accent)
     .setTitle(cfg.title || 'Welcome')
     .setDescription(cfg.description || 'Click below to get started.');

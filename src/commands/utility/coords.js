@@ -13,7 +13,7 @@ export default {
     if (!ll) {
       return interaction.reply({ content: 'Couldn’t parse that — use `lat, lon` decimal, DMS, or an MGRS grid.', flags: MessageFlags.Ephemeral });
     }
-    const embed = new EmbedBuilder().setColor(0x5865f2).setTitle('Coordinate conversion').addFields(
+    const embed = new EmbedBuilder().setColor(0x9119f5).setTitle('Coordinate conversion').addFields(
       { name: 'Lat / Lon', value: `${ll.lat.toFixed(6)}, ${ll.lon.toFixed(6)}` },
       { name: 'DMS', value: toDMS(ll) },
       { name: 'MGRS', value: toMGRS(ll) || 'n/a' },

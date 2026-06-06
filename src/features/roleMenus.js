@@ -13,7 +13,7 @@ const STYLE_MAP = {
 };
 
 export function buildMenuMessage(menu) {
-  const accent = getPersonalization(menu.guild_id).embed_color ?? 0x5865f2;
+  const accent = getPersonalization(menu.guild_id).embed_color ?? 0x9119f5;
   let embed = menu.embed ? buildEmbed(menu.embed, undefined, accent) : null;
   if (!embed) {
     embed = new EmbedBuilder().setColor(accent);

@@ -11,7 +11,7 @@ export default {
     }
     const lines = board.slice(0, 20).map((r, i) =>
       `**${i + 1}.** ${r.pilot} — avg **${r.avg_m} m** · best ${r.best_m} m · ${r.drops} drop${r.drops === 1 ? '' : 's'}`);
-    const embed = new EmbedBuilder().setColor(0x5865f2).setTitle('💣 Bombing Accuracy (lower is better)').setDescription(lines.join('\n'));
+    const embed = new EmbedBuilder().setColor(0x9119f5).setTitle('💣 Bombing Accuracy (lower is better)').setDescription(lines.join('\n'));
     await interaction.reply({ embeds: [embed] });
   },
 };

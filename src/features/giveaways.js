@@ -5,7 +5,7 @@ import {
 } from '../db/index.js';
 
 export function buildGiveawayMessage(g, count = 0, ended = false, winners = []) {
-  const accent = getPersonalization(g.guild_id).embed_color ?? 0x5865f2;
+  const accent = getPersonalization(g.guild_id).embed_color ?? 0x9119f5;
   const embed = new EmbedBuilder()
     .setTitle(`🎉 Giveaway: ${g.prize}`)
     .setColor(ended ? 0x57606a : accent);

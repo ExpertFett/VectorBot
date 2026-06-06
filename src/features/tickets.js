@@ -23,7 +23,7 @@ function isStaff(interaction, cfg) {
   return !!(cfg.support_role_id && interaction.member?.roles.cache.has(cfg.support_role_id));
 }
 
-export function buildPanelMessage(cfg, accent = 0x5865f2) {
+export function buildPanelMessage(cfg, accent = 0x9119f5) {
   const embed = (cfg.embed && buildEmbed(cfg.embed, undefined, accent)) || new EmbedBuilder().setColor(accent)
     .setTitle(cfg.title || 'Support')
     .setDescription(cfg.description || 'Open a ticket.');
@@ -40,7 +40,7 @@ export async function postTicketPanel(client, guildId) {
     || (await client.channels.fetch(cfg.panel_channel_id).catch(() => null));
   if (!channel?.isTextBased()) throw new Error('invalid_channel');
 
-  const accent = getPersonalization(guildId).embed_color ?? 0x5865f2;
+  const accent = getPersonalization(guildId).embed_color ?? 0x9119f5;
   const payload = buildPanelMessage(cfg, accent);
   if (cfg.panel_message_id) {
     const existing = await channel.messages.fetch(cfg.panel_message_id).catch(() => null);
@@ -81,7 +81,7 @@ export async function handleOpenTicket(interaction) {
     createTicket(guild.id, channel.id, interaction.user.id);
 
     const mention = cfg.support_role_id ? `<@&${cfg.support_role_id}> ` : '';
-    const accent = getPersonalization(guild.id).embed_color ?? 0x5865f2;
+    const accent = getPersonalization(guild.id).embed_color ?? 0x9119f5;
     await channel.send({
       content: `${interaction.user} ${mention}`.trim(),
       embeds: [new EmbedBuilder().setColor(accent).setDescription(cfg.open_message)],

@@ -3,7 +3,7 @@ import { api } from '../api.js';
 import PageHeader from '../components/PageHeader.jsx';
 import Callout from '../components/Callout.jsx';
 
-const toHex = (n) => (typeof n === 'number' ? '#' + (n & 0xffffff).toString(16).padStart(6, '0') : '#5865f2');
+const toHex = (n) => (typeof n === 'number' ? '#' + (n & 0xffffff).toString(16).padStart(6, '0') : '#9119f5');
 
 export default function Personalizer() {
   const [cfg, setCfg] = useState(null);

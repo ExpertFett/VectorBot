@@ -23,7 +23,7 @@ function groupRoles(roles) {
 }
 
 export function buildEventMessage(event, signups = []) {
-  const accent = getPersonalization(event.guild_id).embed_color ?? 0x5865f2;
+  const accent = getPersonalization(event.guild_id).embed_color ?? 0x9119f5;
   const cancelled = event.status === 'cancelled';
   const completed = event.status === 'completed';
   const closed = cancelled || completed;

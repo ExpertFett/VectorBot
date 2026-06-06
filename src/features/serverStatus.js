@@ -6,7 +6,7 @@ const STALE_MS = 3 * 60 * 1000; // no update in 3 min => treat as offline/stale
 
 export function buildStatusEmbed(guildId) {
   const status = getServerStatus(guildId);
-  const accent = getPersonalization(guildId).embed_color ?? 0x5865f2;
+  const accent = getPersonalization(guildId).embed_color ?? 0x9119f5;
   const template = getConfig(guildId).status_embed;
 
   // A custom template controls the header (title/description/image/color);

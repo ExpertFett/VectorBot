@@ -11,7 +11,7 @@ export default {
     }
     const lines = board.slice(0, 20).map((r, i) =>
       `**${i + 1}.** ${r.pilot} — avg **${r.avg_points}** · ${r.traps} trap${r.traps === 1 ? '' : 's'} · best ${r.best}`);
-    const embed = new EmbedBuilder().setColor(0x5865f2).setTitle('🪝 Carrier Trap Leaderboard').setDescription(lines.join('\n'));
+    const embed = new EmbedBuilder().setColor(0x9119f5).setTitle('🪝 Carrier Trap Leaderboard').setDescription(lines.join('\n'));
     await interaction.reply({ embeds: [embed] });
   },
 };

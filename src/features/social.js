@@ -87,7 +87,7 @@ export async function pollSocial(mainClient) {
       const channel = await resolveChannel(client, sub.discord_channel_id);
       if (!channel?.isTextBased()) continue;
       const content = sub.mention_role_id ? `<@&${sub.mention_role_id}>` : undefined;
-      const accent = getPersonalization(sub.guild_id).embed_color ?? 0x5865f2;
+      const accent = getPersonalization(sub.guild_id).embed_color ?? 0x9119f5;
 
       if (NEW_ITEM_PLATFORMS.has(sub.platform)) {
         const item = await fetchNewItem(sub);

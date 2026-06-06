@@ -15,7 +15,7 @@ export default function EmbedBuilder({ value, onChange }) {
       ? '#' + (e.color & 0xffffff).toString(16).padStart(6, '0')
       : typeof e.color === 'string' && e.color.startsWith('#')
         ? e.color
-        : '#5865f2';
+        : '#9119f5';
 
   return (
     <div className="embed-builder">

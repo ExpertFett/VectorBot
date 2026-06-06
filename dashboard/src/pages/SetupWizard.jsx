@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import PageHeader from '../components/PageHeader.jsx';
 import Callout from '../components/Callout.jsx';
 
-const toHex = (n) => (typeof n === 'number' ? '#' + (n & 0xffffff).toString(16).padStart(6, '0') : '#5865f2');
+const toHex = (n) => (typeof n === 'number' ? '#' + (n & 0xffffff).toString(16).padStart(6, '0') : '#9119f5');
 
 // Same template the Welcome page exposes — keep them in sync.
 const WELCOME_CARD = {

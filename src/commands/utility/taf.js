@@ -18,7 +18,7 @@ export default {
       const data = await res.json();
       const t = Array.isArray(data) ? data[0] : null;
       if (!t || !t.rawTAF) return interaction.editReply(`No TAF found for **${icao}**.`);
-      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x5865f2).setTitle(`TAF — ${t.icaoId || icao}`).setDescription('```' + t.rawTAF + '```')] });
+      await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x9119f5).setTitle(`TAF — ${t.icaoId || icao}`).setDescription('```' + t.rawTAF + '```')] });
     } catch (err) {
       console.error('TAF fetch failed:', err.message);
       await interaction.editReply(`Couldn’t fetch TAF for **${icao}** right now.`);

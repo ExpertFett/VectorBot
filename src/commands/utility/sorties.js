@@ -16,7 +16,7 @@ export default {
     }
     const lines = board.slice(0, 20).map((r, i) =>
       `**${i + 1}.** ${r.pilot} — **${r.sorties}** sortie${r.sorties === 1 ? '' : 's'} · ${fmt(r.total_seconds)} airborne`);
-    const embed = new EmbedBuilder().setColor(0x5865f2).setTitle('🛫 Sortie Log').setDescription(lines.join('\n'));
+    const embed = new EmbedBuilder().setColor(0x9119f5).setTitle('🛫 Sortie Log').setDescription(lines.join('\n'));
     await interaction.reply({ embeds: [embed] });
   },
 };

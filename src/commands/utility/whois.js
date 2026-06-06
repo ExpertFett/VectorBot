@@ -14,7 +14,7 @@ export default {
       return interaction.reply({ content: `No roster entry for **${user.username}** yet.`, flags: MessageFlags.Ephemeral });
     }
     const embed = new EmbedBuilder()
-      .setColor(0x5865f2)
+      .setColor(0x9119f5)
       .setTitle(entry.callsign ? `${entry.callsign} — ${user.username}` : user.username)
       .setThumbnail(user.displayAvatarURL());
     if (entry.airframes) embed.addFields({ name: 'Airframes', value: entry.airframes });

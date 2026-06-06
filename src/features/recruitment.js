@@ -8,7 +8,7 @@ import {
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 
-export function buildPanel(cfg, accent = 0x5865f2) {
+export function buildPanel(cfg, accent = 0x9119f5) {
   const embed = (cfg.embed && buildEmbed(cfg.embed, undefined, accent)) || new EmbedBuilder().setColor(accent)
     .setTitle(cfg.title || 'Apply').setDescription(cfg.description || 'Click below to apply.');
   const row = new ActionRowBuilder().addComponents(
@@ -24,7 +24,7 @@ export async function postRecruitPanel(client, guildId) {
     || (await client.channels.fetch(cfg.panel_channel_id).catch(() => null));
   if (!channel?.isTextBased()) throw new Error('invalid_channel');
 
-  const accent = getPersonalization(guildId).embed_color ?? 0x5865f2;
+  const accent = getPersonalization(guildId).embed_color ?? 0x9119f5;
   const payload = buildPanel(cfg, accent);
   if (cfg.panel_message_id) {
     const ex = await channel.messages.fetch(cfg.panel_message_id).catch(() => null);

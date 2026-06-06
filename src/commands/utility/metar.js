@@ -23,7 +23,7 @@ export default {
       const m = data[0];
       const cat = m.fltCat || '—';
       const embed = new EmbedBuilder()
-        .setColor(CAT_COLORS[cat] || 0x5865f2)
+        .setColor(CAT_COLORS[cat] || 0x9119f5)
         .setTitle(`METAR — ${m.name || icao} (${m.icaoId || icao})`)
         .setDescription('```' + (m.rawOb || 'n/a') + '```')
         .addFields(
