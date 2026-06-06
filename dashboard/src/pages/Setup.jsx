@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import PageHeader from '../components/PageHeader.jsx';
 import Callout from '../components/Callout.jsx';
 
@@ -100,13 +100,16 @@ const STEPS = [
 ];
 
 export default function Setup() {
+  const nav = useNavigate();
   return (
     <div className="page">
       <PageHeader title="Getting Started"
-        sub="New to the bot? Here’s everything you’ll want set up on your Discord, in the order I’d do it." />
+        sub="New to the bot? Here’s everything you’ll want set up on your Discord, in the order I’d do it.">
+        <button className="btn" onClick={() => nav('/wizard')}>🧭 Run setup wizard</button>
+      </PageHeader>
 
       <Callout type="tip">
-        <b>Don’t feel you have to do everything at once.</b> Walk through the steps below in order — each links straight to the tab where you configure it. You can come back to this page from the sidebar any time.
+        <b>First time here?</b> Hit <b>Run setup wizard</b> above — it walks through the essentials (nickname / accent color, welcome message, auto-role, verification gate) in 3-5 minutes. You can always come back to this page for the full feature-by-feature reference.
       </Callout>
 
       <section className="card">

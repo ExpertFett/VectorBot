@@ -27,12 +27,14 @@ import Roster from './pages/Roster.jsx';
 import Recruitment from './pages/Recruitment.jsx';
 import Onboarding from './pages/Onboarding.jsx';
 import Setup from './pages/Setup.jsx';
+import SetupWizard from './pages/SetupWizard.jsx';
 import Brand from './components/Brand.jsx';
 import DiscordButton from './components/DiscordButton.jsx';
 
 // Sidebar navigation grouped into sections. [path, icon, label]
 const NAV = [
   { label: 'Start Here', links: [
+    ['/wizard', '🧭', 'Setup Wizard'],
     ['/setup', '🚀', 'Setup Guide'],
     ['/personalizer', '🎨', 'Customize'],
   ] },
@@ -137,6 +139,7 @@ export default function App() {
       <main className="content">
         <Routes>
           <Route path="/setup" element={<Setup />} />
+          <Route path="/wizard" element={<SetupWizard />} />
           <Route path="/events" element={<Events />} />
           <Route path="/roster" element={<Roster />} />
           <Route path="/recruitment" element={<Recruitment />} />
@@ -160,7 +163,7 @@ export default function App() {
           <Route path="/invites" element={<Invites />} />
           <Route path="/moderation" element={<Moderation />} />
           <Route path="/personalizer" element={<Personalizer />} />
-          <Route path="*" element={<Navigate to="/setup" replace />} />
+          <Route path="*" element={<Navigate to="/wizard" replace />} />
         </Routes>
       </main>
       <DiscordButton />
