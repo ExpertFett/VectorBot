@@ -1,5 +1,6 @@
 import express from 'express';
 import session from 'express-session';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
@@ -8,6 +9,34 @@ import { authRouter } from './auth.js';
 import { apiRouter } from './api.js';
 import { ingestRouter } from './ingest.js';
 import { integrationsRouter } from './integrations.js';
+import db from '../db/index.js';
+
+// Resolve a session secret that's STABLE across deploys, so the same cookies
+// keep validating after a Railway restart even if SESSION_SECRET isn't set.
+// Priority:
+//   1. SESSION_SECRET env var (explicit, best practice — wins always).
+//   2. A random 64-byte secret persisted into the DB on first boot. Survives
+//      every restart as long as the volume is attached.
+//   3. (impossible path) Hardcoded dev fallback — only hit if the DB itself
+//      can't be written to, which would already break everything else.
+function resolveSessionSecret() {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  try {
+    db.exec("CREATE TABLE IF NOT EXISTS app_kv (k TEXT PRIMARY KEY, v TEXT NOT NULL)");
+    const row = db.prepare("SELECT v FROM app_kv WHERE k = 'session_secret'").get();
+    if (row?.v) {
+      console.log('[session] reusing persisted session secret from DB (set SESSION_SECRET env var to override)');
+      return row.v;
+    }
+    const fresh = crypto.randomBytes(64).toString('hex');
+    db.prepare("INSERT OR REPLACE INTO app_kv (k, v) VALUES ('session_secret', ?)").run(fresh);
+    console.log('[session] generated + persisted new session secret to DB');
+    return fresh;
+  } catch (err) {
+    console.warn('[session] could not persist secret to DB, falling back to dev string:', err.message);
+    return 'dev-insecure-secret-change-me';
+  }
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DIST_DIR = join(__dirname, '..', '..', 'dashboard', 'dist');
@@ -20,16 +49,17 @@ export function startWebServer(client) {
   app.set('trust proxy', 1);
   app.use(express.json({ limit: '256kb' }));
 
+  const secret = resolveSessionSecret();
   if (!process.env.SESSION_SECRET) {
     console.warn(
-      '[session] SESSION_SECRET not set — using a hardcoded dev fallback. ' +
-      'This is fine for dev but means anyone who knows the fallback can forge cookies in prod. ' +
-      'Set SESSION_SECRET in Railway Variables to a long random string.'
+      '[session] SESSION_SECRET env var not set — using a secret persisted in the DB instead. ' +
+      'Sessions WILL survive restarts as long as the volume is attached. ' +
+      'Setting SESSION_SECRET in Railway Variables is still recommended for clarity.'
     );
   }
   app.use(session({
     name: 'vector.sid',
-    secret: process.env.SESSION_SECRET || 'dev-insecure-secret-change-me',
+    secret,
     store: new SqliteSessionStore(),
     resave: false,
     saveUninitialized: false,

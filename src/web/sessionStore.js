@@ -31,12 +31,31 @@ const expiryOf = (sess) => {
   return Date.now() + DEFAULT_TTL;
 };
 
+// Boot-time visibility — one log line at startup so the deploy log shows
+// whether sessions were inherited from the volume or started empty. If this
+// reads "0 active sessions" after every deploy, the DB file isn't on a volume
+// and login state can't survive a restart.
+try {
+  const total = db.prepare('SELECT COUNT(*) AS n FROM sessions').get().n;
+  const active = db.prepare('SELECT COUNT(*) AS n FROM sessions WHERE expire > ?').get(Date.now()).n;
+  console.log(`[session] sqlite session store ready · ${active} active / ${total} total rows survived this restart`);
+} catch (err) {
+  console.warn('[session] startup probe failed:', err.message);
+}
+
 export class SqliteSessionStore extends session.Store {
   get(sid, cb) {
     try {
       const row = getStmt.get(sid);
-      if (!row) return cb(null, null);
-      if (row.expire < Date.now()) { delStmt.run(sid); return cb(null, null); }
+      if (!row) {
+        if (process.env.SESSION_DEBUG) console.log(`[session] get(${sid.slice(0, 8)}) → MISS (no row)`);
+        return cb(null, null);
+      }
+      if (row.expire < Date.now()) {
+        if (process.env.SESSION_DEBUG) console.log(`[session] get(${sid.slice(0, 8)}) → MISS (expired ${Math.round((Date.now() - row.expire) / 1000)}s ago)`);
+        delStmt.run(sid); return cb(null, null);
+      }
+      if (process.env.SESSION_DEBUG) console.log(`[session] get(${sid.slice(0, 8)}) → HIT`);
       cb(null, JSON.parse(row.sess));
     } catch (err) { cb(err); }
   }
@@ -44,8 +63,9 @@ export class SqliteSessionStore extends session.Store {
   set(sid, sess, cb) {
     try {
       upsertStmt.run(sid, JSON.stringify(sess), expiryOf(sess));
+      if (process.env.SESSION_DEBUG) console.log(`[session] set(${sid.slice(0, 8)}) ← expire=${new Date(expiryOf(sess)).toISOString()}`);
       cb?.(null);
-    } catch (err) { cb?.(err); }
+    } catch (err) { console.error('[session] set failed:', err.message); cb?.(err); }
   }
 
   destroy(sid, cb) {
