@@ -326,9 +326,16 @@ export function apiRouter(client) {
       channel_id: cleanId(b.channel_id),
       role_id: cleanId(b.role_id),
       title: b.title ?? '', description: b.description ?? '', button_label: b.button_label ?? 'Verify',
+      embed: b.embed || null,
     }));
   });
   router.post('/verification/post', async (req, res) => {
+    const cfg = getVerification(req.guildId);
+    if (!cfg.channel_id) return res.status(400).json({ error: 'Pick a channel before posting.' });
+    if (!cfg.role_id) return res.status(400).json({ error: 'Pick a "Role granted" before posting — the verify button needs a role to grant.' });
+    // Posting the panel implies the maker wants the gate active. Auto-enable so
+    // clicking the button doesn't surface "verification isn't set up".
+    if (!cfg.enabled) setVerification(req.guildId, { enabled: true });
     try { res.json({ ok: true, message_id: await postVerifyPanel(getBotForGuild(req.guildId, client), req.guildId) }); }
     catch (err) { res.status(400).json({ error: err.message }); }
   });
@@ -344,9 +351,13 @@ export function apiRouter(client) {
       support_role_id: cleanId(b.support_role_id),
       title: b.title ?? '', description: b.description ?? '', button_label: b.button_label ?? 'Open Ticket',
       open_message: b.open_message ?? '',
+      embed: b.embed || null,
     }));
   });
   router.post('/tickets/post', async (req, res) => {
+    const cfg = getTicketsConfig(req.guildId);
+    if (!cfg.panel_channel_id) return res.status(400).json({ error: 'Pick a panel channel before posting.' });
+    if (!cfg.enabled) setTicketsConfig(req.guildId, { enabled: true });
     try { res.json({ ok: true, message_id: await postTicketPanel(getBotForGuild(req.guildId, client), req.guildId) }); }
     catch (err) { res.status(400).json({ error: err.message }); }
   });
@@ -737,6 +748,9 @@ export function apiRouter(client) {
     }));
   });
   router.post('/recruitment/post', async (req, res) => {
+    const cfg = getRecruitment(req.guildId);
+    if (!cfg.panel_channel_id) return res.status(400).json({ error: 'Pick a panel channel before posting.' });
+    if (!cfg.enabled) setRecruitment(req.guildId, { enabled: true });
     try { res.json({ ok: true, message_id: await postRecruitPanel(getBotForGuild(req.guildId, client), req.guildId) }); }
     catch (err) { res.status(400).json({ error: err.message }); }
   });
@@ -765,6 +779,9 @@ export function apiRouter(client) {
     }));
   });
   router.post('/onboarding/post', async (req, res) => {
+    const cfg = getOnboarding(req.guildId);
+    if (!cfg.panel_channel_id) return res.status(400).json({ error: 'Pick a panel channel before posting.' });
+    if (!cfg.enabled) setOnboarding(req.guildId, { enabled: true });
     try { res.json({ ok: true, message_id: await postOnboardPanel(getBotForGuild(req.guildId, client), req.guildId) }); }
     catch (err) { res.status(400).json({ error: err.message }); }
   });
