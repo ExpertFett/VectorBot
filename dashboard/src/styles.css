@@ -248,6 +248,17 @@ textarea { resize: vertical; }
 .group-chip { padding: 4px 10px; border: 1px solid var(--border); border-radius: 14px; background: var(--bg-2); font-size: 0.8rem; cursor: pointer; transition: border-color 0.1s, background 0.1s; }
 .group-chip:hover { background: var(--bg-3, #1f1f29); }
 .group-chip.selected { border-width: 2px; padding: 3px 9px; font-weight: 600; }
+
+/* Analytics page */
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.metric-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; position: relative; min-height: 96px; }
+.metric-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); font-weight: 600; }
+.metric-value { font-size: 1.8rem; font-weight: 700; margin: 4px 0 2px; line-height: 1; }
+.metric-sub { font-size: 0.8rem; color: var(--muted); }
+.metric-spark { position: absolute; right: 10px; bottom: 10px; opacity: 0.85; }
+.top-list { list-style: none; padding: 0; margin: 8px 0; }
+.top-list li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+.top-list li:last-child { border-bottom: none; }
 .field-row input[type="text"], .field-row .f-name, .field-row .f-val { margin-top: 0; }
 
 /* Discord-like preview */

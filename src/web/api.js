@@ -48,6 +48,7 @@ import { postEvent } from '../features/events.js';
 import { postRecruitPanel } from '../features/recruitment.js';
 import { postOnboardPanel } from '../features/onboarding.js';
 import { publishWelcomePage, clearWelcomePage } from '../features/welcomePage.js';
+import { computeAnalytics } from '../features/analytics.js';
 import { parseMizSlots } from '../features/mizParser.js';
 import { STAT_TYPES, computeStat } from '../features/stats.js';
 import { requireAuth } from './auth.js';
@@ -1040,6 +1041,11 @@ export function apiRouter(client) {
       res.status(400).json({ error: err.message });
     }
   });
+  router.get('/analytics', requireAdmin, (req, res) => {
+    try { res.json(computeAnalytics(req.guildId)); }
+    catch (err) { console.error('analytics error:', err); res.status(500).json({ error: 'analytics_failed' }); }
+  });
+
   router.post('/welcome-page/clear', requireAction('welcomepage.manage'), async (req, res) => {
     try { await clearWelcomePage(getBotForGuild(req.guildId, client), req.guildId); res.json({ ok: true }); }
     catch (err) { res.status(400).json({ error: err.message }); }

@@ -128,6 +128,9 @@ export const api = {
   publishWelcomePage: () => req('POST', '/api/welcome-page/publish'),
   clearWelcomePage: () => req('POST', '/api/welcome-page/clear'),
 
+  // Analytics dashboard data (single roll-up endpoint).
+  getAnalytics: () => req('GET', '/api/analytics'),
+
   // Access Groups + permission overrides.
   getActions: () => req('GET', '/api/access/actions'),
   getAccessGroups: () => req('GET', '/api/access/groups'),

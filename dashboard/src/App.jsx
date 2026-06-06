@@ -28,6 +28,7 @@ import Recruitment from './pages/Recruitment.jsx';
 import Onboarding from './pages/Onboarding.jsx';
 import WelcomeChannelPage from './pages/WelcomeChannelPage.jsx';
 import AccessGroups from './pages/AccessGroups.jsx';
+import Analytics from './pages/Analytics.jsx';
 import Setup from './pages/Setup.jsx';
 import SetupWizard from './pages/SetupWizard.jsx';
 import Brand from './components/Brand.jsx';
@@ -76,6 +77,7 @@ const NAV = [
     ['/moderation', '🔨', 'Moderation', 'admin'],
   ] },
   { label: 'Server', links: [
+    ['/analytics', '📈', 'Analytics', 'admin'],
     ['/access', '🛂', 'Access Groups', 'admin'],
     ['/stats', '📊', 'Stats Channels', 'admin'],
     ['/invites', '🎟️', 'Invite Tracker'],
@@ -185,6 +187,7 @@ export default function App() {
           <Route path="/stats" element={<Stats />} />
           <Route path="/invites" element={<Invites />} />
           <Route path="/access" element={<AccessGroups />} />
+          <Route path="/analytics" element={<Analytics />} />
           <Route path="/moderation" element={<Moderation />} />
           <Route path="/personalizer" element={<Personalizer />} />
           <Route path="*" element={<Navigate to="/wizard" replace />} />
