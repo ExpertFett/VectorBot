@@ -131,6 +131,13 @@ export const api = {
   // Analytics dashboard data (single roll-up endpoint).
   getAnalytics: () => req('GET', '/api/analytics'),
 
+  // Automations.
+  getAutomationsRegistry: () => req('GET', '/api/automations/registry'),
+  getAutomations: () => req('GET', '/api/automations'),
+  createAutomation: (data) => req('POST', '/api/automations', data),
+  updateAutomation: (id, data) => req('PUT', `/api/automations/${id}`, data),
+  deleteAutomation: (id) => req('DELETE', `/api/automations/${id}`),
+
   // Access Groups + permission overrides.
   getActions: () => req('GET', '/api/access/actions'),
   getAccessGroups: () => req('GET', '/api/access/groups'),

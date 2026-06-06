@@ -48,6 +48,13 @@ export async function handleVerify(interaction) {
   try {
     await interaction.member.roles.add(role.id, 'Verification');
     await interaction.reply({ content: 'You’re verified — welcome! ✅', flags: MessageFlags.Ephemeral });
+    // Fire any 'verification.passed' automations.
+    const { fireTrigger } = await import('../automations/engine.js');
+    fireTrigger('verification.passed', {
+      guild: interaction.guild,
+      member: interaction.member,
+      user: interaction.user,
+    }, interaction.client).catch(() => {});
   } catch {
     await interaction.reply({ content: 'Failed to verify you. Let an admin know.', flags: MessageFlags.Ephemeral });
   }

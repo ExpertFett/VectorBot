@@ -29,6 +29,7 @@ import Onboarding from './pages/Onboarding.jsx';
 import WelcomeChannelPage from './pages/WelcomeChannelPage.jsx';
 import AccessGroups from './pages/AccessGroups.jsx';
 import Analytics from './pages/Analytics.jsx';
+import AutomationsPage from './pages/Automations.jsx';
 import Setup from './pages/Setup.jsx';
 import SetupWizard from './pages/SetupWizard.jsx';
 import Brand from './components/Brand.jsx';
@@ -78,6 +79,7 @@ const NAV = [
   ] },
   { label: 'Server', links: [
     ['/analytics', '📈', 'Analytics', 'admin'],
+    ['/automations', '⚡', 'Automations', 'admin'],
     ['/access', '🛂', 'Access Groups', 'admin'],
     ['/stats', '📊', 'Stats Channels', 'admin'],
     ['/invites', '🎟️', 'Invite Tracker'],
@@ -188,6 +190,7 @@ export default function App() {
           <Route path="/invites" element={<Invites />} />
           <Route path="/access" element={<AccessGroups />} />
           <Route path="/analytics" element={<Analytics />} />
+          <Route path="/automations" element={<AutomationsPage />} />
           <Route path="/moderation" element={<Moderation />} />
           <Route path="/personalizer" element={<Personalizer />} />
           <Route path="*" element={<Navigate to="/wizard" replace />} />

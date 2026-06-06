@@ -3,12 +3,16 @@ import { getConfig, getPersonalization, logWelcome } from '../db/index.js';
 import { applyPlaceholders } from '../util/format.js';
 import { buildEmbed } from '../util/embed.js';
 import { detectInviteUsed } from '../features/invites.js';
+import { fireTrigger } from '../automations/engine.js';
 
 export default {
   name: Events.GuildMemberAdd,
-  async execute(member) {
+  async execute(member, mainClient) {
     // Attribute the join to an invite before anything else (invite tracker).
     await detectInviteUsed(member).catch(() => {});
+
+    // Run any 'member.join' automations (fire-and-forget, can't fail upstream).
+    fireTrigger('member.join', { guild: member.guild, member, user: member.user }, mainClient).catch(() => {});
 
     const config = getConfig(member.guild.id);
 

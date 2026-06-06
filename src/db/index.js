@@ -305,6 +305,22 @@ db.exec(`
     created_at INTEGER NOT NULL
   );
 
+  -- Automations: trigger-action rules. One row per rule, with the trigger
+  -- type/params and an ordered JSON array of actions to run when it fires.
+  CREATE TABLE IF NOT EXISTS automations (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id       TEXT NOT NULL,
+    name           TEXT NOT NULL,
+    enabled        INTEGER NOT NULL DEFAULT 1,
+    trigger_type   TEXT NOT NULL,
+    trigger_params TEXT NOT NULL DEFAULT '{}',
+    actions        TEXT NOT NULL DEFAULT '[]',
+    last_fired_at  INTEGER,
+    fire_count     INTEGER NOT NULL DEFAULT 0,
+    created_at     INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_automations_guild ON automations (guild_id, trigger_type);
+
   -- Access Groups: named groups of Discord roles (e.g. "JTAC", "GM", "ATC") that
   -- can be granted permission to perform specific gated bot actions. Per-action
   -- overrides live in guild_config.permission_overrides (JSON).
@@ -1117,6 +1133,60 @@ export function setPermissionOverrides(guildId, map) {
   }
   setConfigValue(guildId, 'permission_overrides', JSON.stringify(clean));
   return clean;
+}
+
+// --- Automations (trigger-action rules) ---
+const insertAutomation = db.prepare('INSERT INTO automations (guild_id, name, enabled, trigger_type, trigger_params, actions, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+const updateAutomationStmt = db.prepare('UPDATE automations SET name = ?, enabled = ?, trigger_type = ?, trigger_params = ?, actions = ? WHERE id = ? AND guild_id = ?');
+const deleteAutomationStmt = db.prepare('DELETE FROM automations WHERE id = ? AND guild_id = ?');
+const selectAutomation = db.prepare('SELECT * FROM automations WHERE id = ? AND guild_id = ?');
+const selectAutomations = db.prepare('SELECT * FROM automations WHERE guild_id = ? ORDER BY created_at');
+const selectAutomationsByTrigger = db.prepare('SELECT * FROM automations WHERE guild_id = ? AND trigger_type = ? AND enabled = 1');
+const bumpAutomationFire = db.prepare('UPDATE automations SET last_fired_at = ?, fire_count = fire_count + 1 WHERE id = ?');
+const parseAutomation = (r) => (r ? {
+  ...r,
+  enabled: !!r.enabled,
+  trigger_params: safeParse(r.trigger_params, {}),
+  actions: safeParse(r.actions, []),
+} : null);
+
+export function getAutomations(guildId) {
+  return selectAutomations.all(guildId).map(parseAutomation);
+}
+export function getAutomation(guildId, id) {
+  return parseAutomation(selectAutomation.get(id, guildId));
+}
+export function getEnabledAutomationsForTrigger(guildId, triggerType) {
+  return selectAutomationsByTrigger.all(guildId, triggerType).map(parseAutomation);
+}
+export function createAutomation(guildId, { name, enabled, trigger_type, trigger_params, actions }) {
+  const id = Number(insertAutomation.run(
+    guildId,
+    String(name || 'New automation').slice(0, 120),
+    enabled === false ? 0 : 1,
+    String(trigger_type || ''),
+    JSON.stringify(trigger_params || {}),
+    JSON.stringify(Array.isArray(actions) ? actions : []),
+    Date.now(),
+  ).lastInsertRowid);
+  return getAutomation(guildId, id);
+}
+export function updateAutomation(guildId, id, { name, enabled, trigger_type, trigger_params, actions }) {
+  updateAutomationStmt.run(
+    String(name || 'Automation').slice(0, 120),
+    enabled === false ? 0 : 1,
+    String(trigger_type || ''),
+    JSON.stringify(trigger_params || {}),
+    JSON.stringify(Array.isArray(actions) ? actions : []),
+    id, guildId,
+  );
+  return getAutomation(guildId, id);
+}
+export function deleteAutomation(guildId, id) {
+  return deleteAutomationStmt.run(id, guildId).changes;
+}
+export function recordAutomationFire(id) {
+  bumpAutomationFire.run(Date.now(), id);
 }
 
 // --- welcome-channel landing page (Mee6-style multi-element welcome page) ---

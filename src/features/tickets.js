@@ -80,6 +80,12 @@ export async function handleOpenTicket(interaction) {
     });
     createTicket(guild.id, channel.id, interaction.user.id);
 
+    // Fire any 'ticket.opened' automations.
+    const { fireTrigger } = await import('../automations/engine.js');
+    fireTrigger('ticket.opened', {
+      guild, member: interaction.member, user: interaction.user, channel,
+    }, interaction.client).catch(() => {});
+
     const mention = cfg.support_role_id ? `<@&${cfg.support_role_id}> ` : '';
     const accent = getPersonalization(guild.id).embed_color ?? 0x9119f5;
     await channel.send({
@@ -115,6 +121,12 @@ export async function handleCloseTicket(interaction) {
   await interaction.channel.permissionOverwrites.edit(ticket.opener_id, { SendMessages: false }).catch(() => {});
   await interaction.update({ components: [ticketControls({ claimed: !!ticket.claimed_by, closed: true })] }).catch(() => {});
   await interaction.followUp({ content: `🔒 Ticket closed by ${interaction.user}. Staff can **Delete** it when done.` }).catch(() => {});
+
+  // Fire any 'ticket.closed' automations.
+  const { fireTrigger } = await import('../automations/engine.js');
+  fireTrigger('ticket.closed', {
+    guild: interaction.guild, member: interaction.member, user: interaction.user, channel: interaction.channel,
+  }, interaction.client).catch(() => {});
 }
 
 export async function handleDeleteTicket(interaction) {

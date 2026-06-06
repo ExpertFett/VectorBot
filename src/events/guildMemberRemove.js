@@ -2,10 +2,15 @@ import { Events } from 'discord.js';
 import { getConfig, getPersonalization, logWelcome } from '../db/index.js';
 import { applyPlaceholders } from '../util/format.js';
 import { buildEmbed } from '../util/embed.js';
+import { fireTrigger } from '../automations/engine.js';
 
 export default {
   name: Events.GuildMemberRemove,
-  async execute(member) {
+  async execute(member, mainClient) {
+    // Run any 'member.leave' automations (DM actions will no-op because the
+    // member is already gone, but send-message-to-channel etc. still work).
+    fireTrigger('member.leave', { guild: member.guild, member, user: member.user }, mainClient).catch(() => {});
+
     const config = getConfig(member.guild.id);
     if (!config.goodbye_channel_id) return;
 

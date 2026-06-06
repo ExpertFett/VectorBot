@@ -26,8 +26,10 @@ import {
   getWelcomePage, setWelcomePage,
   getAccessGroups, getAccessGroup, createAccessGroup, updateAccessGroupRow, deleteAccessGroup,
   getPermissionOverrides, setPermissionOverrides,
+  getAutomations, getAutomation, createAutomation, updateAutomation, deleteAutomation,
 } from '../db/index.js';
 import { ACTIONS } from '../access/registry.js';
+import { TRIGGERS, ACTIONS as AUTO_ACTIONS, TRIGGER_BY_KEY, ACTION_BY_KEY } from '../automations/registry.js';
 import { getBaseUrl } from './oauth.js';
 import {
   getCustomBotToken, setCustomBotToken,
@@ -1041,6 +1043,57 @@ export function apiRouter(client) {
       res.status(400).json({ error: err.message });
     }
   });
+  // --- Automations ---
+  // Validate that an automation payload only uses known trigger/action keys
+  // and that each carries its required params. Keeps junk out of the engine.
+  const sanitizeAutomation = (b) => {
+    const triggerType = String(b?.trigger_type || '');
+    const trig = TRIGGER_BY_KEY[triggerType];
+    if (!trig) throw new Error('unknown_trigger');
+    const triggerParams = {};
+    for (const p of trig.params) {
+      const v = b?.trigger_params?.[p.key];
+      if (p.required && (v === undefined || v === null || v === '')) throw new Error(`missing_trigger_param:${p.key}`);
+      if (v !== undefined && v !== null) triggerParams[p.key] = (p.type === 'role' || p.type === 'channel') ? cleanId(v) : String(v).slice(0, 4000);
+    }
+    const actions = (Array.isArray(b?.actions) ? b.actions : []).slice(0, 10).map((a) => {
+      const def = ACTION_BY_KEY[a?.type];
+      if (!def) throw new Error('unknown_action');
+      if (def.appliesTo && !def.appliesTo.includes(triggerType)) throw new Error(`action_incompatible:${a.type}`);
+      const params = {};
+      for (const p of def.params) {
+        const v = a?.params?.[p.key];
+        if (p.required && (v === undefined || v === null || v === '')) throw new Error(`missing_action_param:${a.type}/${p.key}`);
+        if (v !== undefined && v !== null) params[p.key] = (p.type === 'role' || p.type === 'channel') ? cleanId(v) : String(v).slice(0, 4000);
+      }
+      return { type: a.type, params };
+    });
+    if (!actions.length) throw new Error('no_actions');
+    return {
+      name: String(b?.name || 'Automation').slice(0, 120),
+      enabled: b?.enabled !== false,
+      trigger_type: triggerType,
+      trigger_params: triggerParams,
+      actions,
+    };
+  };
+
+  router.get('/automations/registry', (_req, res) => res.json({ triggers: TRIGGERS, actions: AUTO_ACTIONS }));
+  router.get('/automations', requireAdmin, (req, res) => res.json(getAutomations(req.guildId)));
+  router.post('/automations', requireAdmin, (req, res) => {
+    try { res.json(createAutomation(req.guildId, sanitizeAutomation(req.body || {}))); }
+    catch (err) { res.status(400).json({ error: err.message }); }
+  });
+  router.put('/automations/:id', requireAdmin, (req, res) => {
+    const id = Number(req.params.id);
+    if (!getAutomation(req.guildId, id)) return res.status(404).json({ error: 'not_found' });
+    try { res.json(updateAutomation(req.guildId, id, sanitizeAutomation(req.body || {}))); }
+    catch (err) { res.status(400).json({ error: err.message }); }
+  });
+  router.delete('/automations/:id', requireAdmin, (req, res) => {
+    res.json({ ok: deleteAutomation(req.guildId, Number(req.params.id)) > 0 });
+  });
+
   router.get('/analytics', requireAdmin, (req, res) => {
     try { res.json(computeAnalytics(req.guildId)); }
     catch (err) { console.error('analytics error:', err); res.status(500).json({ error: 'analytics_failed' }); }

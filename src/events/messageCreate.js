@@ -3,12 +3,13 @@ import { getCustomCommand, getPersonalization } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 import { checkMessage } from '../automod/index.js';
 import { maybeRepostSticky } from '../features/sticky.js';
+import { fireTrigger } from '../automations/engine.js';
 
 const PREFIX = process.env.COMMAND_PREFIX || '!';
 
 export default {
   name: Events.MessageCreate,
-  async execute(message) {
+  async execute(message, mainClient) {
     if (message.author.bot || !message.guild) return;
 
     // Auto-moderation runs first; if it acted on the message, stop.
@@ -16,6 +17,16 @@ export default {
 
     // Re-post any sticky message for this channel (throttled internally).
     maybeRepostSticky(message).catch(() => {});
+
+    // Run any 'message.keyword' automations — engine filters by keyword /
+    // channel itself, so we can fire indiscriminately.
+    fireTrigger('message.keyword', {
+      guild: message.guild,
+      member: message.member,
+      user: message.author,
+      message,
+      channel: message.channel,
+    }, mainClient).catch(() => {});
 
     if (!message.content.startsWith(PREFIX)) return;
 

@@ -259,6 +259,14 @@ textarea { resize: vertical; }
 .top-list { list-style: none; padding: 0; margin: 8px 0; }
 .top-list li { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
 .top-list li:last-child { border-bottom: none; }
+
+/* Automations */
+.automation-row { display: flex; align-items: center; gap: 12px; }
+.automation-edit h3 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); margin: 12px 0 6px; }
+.automation-action { background: var(--bg-2); margin: 10px 0; border-left: 3px solid var(--accent); }
+.action-picker { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.action-picker .link { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; }
+.action-picker .link:hover { border-color: var(--accent); }
 .field-row input[type="text"], .field-row .f-name, .field-row .f-val { margin-top: 0; }
 
 /* Discord-like preview */
