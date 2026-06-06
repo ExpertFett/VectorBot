@@ -238,8 +238,11 @@ export async function handleEventButton(interaction) {
   if (action === 'withdraw') {
     let removed = 0;
     await withPromotion(interaction.client, event, () => { removed = removeAllUserSignups(event.id, interaction.user.id); });
-    await rerender(interaction, event.id);
-    return interaction.reply({ content: removed ? 'You’ve withdrawn.' : 'You weren’t signed up.', flags: MessageFlags.Ephemeral });
+    // Reply first so Discord's 3-second deadline is met even if the message
+    // edit is slow (cold cache right after a deploy); re-render in background.
+    await interaction.reply({ content: removed ? 'You’ve withdrawn.' : 'You weren’t signed up.', flags: MessageFlags.Ephemeral });
+    if (removed) rerender(interaction, event.id).catch(() => {});
+    return;
   }
 
   // Group button -> ephemeral slot picker for that flight.
@@ -253,8 +256,9 @@ export async function handleEventButton(interaction) {
       const role = grp.items[0].role;
       let result;
       await withPromotion(interaction.client, event, () => { result = claim(event, interaction.user.id, role); });
-      if (result.changed) await rerender(interaction, event.id);
-      return interaction.reply({ content: result.msg, flags: MessageFlags.Ephemeral });
+      await interaction.reply({ content: result.msg, flags: MessageFlags.Ephemeral });
+      if (result.changed) rerender(interaction, event.id).catch(() => {});
+      return;
     }
 
     // One button per slot — green ✓ if the member already holds it, disabled
@@ -294,16 +298,19 @@ export async function handleEventButton(interaction) {
     if (!role) return interaction.update({ content: 'That slot no longer exists.', components: [] }).catch(() => {});
     let result;
     await withPromotion(interaction.client, event, () => { result = claim(event, interaction.user.id, role); });
-    if (result.changed) await rerenderStored(interaction.client, event.id);
-    return interaction.update({ content: result.msg, components: [] }).catch(() => {});
+    await interaction.update({ content: result.msg, components: [] }).catch(() => {});
+    if (result.changed) rerenderStored(interaction.client, event.id).catch(() => {});
+    return;
   }
 
+  // Direct slot button (action='r' — the legacy path for events posted with the
+  // flat-button layout).
   const role = event.roles[Number(idxStr)];
   if (!role) return interaction.reply({ content: 'That slot no longer exists.', flags: MessageFlags.Ephemeral });
   let result;
   await withPromotion(interaction.client, event, () => { result = claim(event, interaction.user.id, role); });
-  if (result.changed) await rerender(interaction, event.id);
-  return interaction.reply({ content: result.msg, flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: result.msg, flags: MessageFlags.Ephemeral });
+  if (result.changed) rerender(interaction, event.id).catch(() => {});
 }
 
 // The slot-picker select lives in an ephemeral message, so we update that
@@ -321,6 +328,8 @@ export async function handleEventSelect(interaction) {
   if (!role) return interaction.update({ content: 'That slot no longer exists.', components: [] });
   let result;
   await withPromotion(interaction.client, event, () => { result = claim(event, interaction.user.id, role); });
-  if (result.changed) await rerenderStored(interaction.client, event.id);
+  await interaction.update({ content: result.msg, components: [] });
+  if (result.changed) rerenderStored(interaction.client, event.id).catch(() => {});
+  return;
   return interaction.update({ content: result.msg, components: [] });
 }
