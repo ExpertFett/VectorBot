@@ -215,6 +215,20 @@ textarea { resize: vertical; }
 .fields-editor { margin-top: 6px; }
 .fields-head { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 8px; align-items: center; margin-bottom: 6px; }
+
+/* Welcome-channel landing-page editor */
+.welcome-element { border-left: 3px solid var(--accent); }
+.welcome-element-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.welcome-element-picker { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: 10px; }
+@media (max-width: 800px) { .welcome-element-picker { grid-template-columns: 1fr; } }
+.element-type-card { text-align: left; padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-2); cursor: pointer; display: flex; flex-direction: column; gap: 6px; transition: border-color 0.15s, transform 0.05s; }
+.element-type-card:hover { border-color: var(--accent); }
+.element-type-card:active { transform: translateY(1px); }
+.element-type-card b { font-size: 1rem; }
+.element-type-card .muted { font-size: 0.85rem; line-height: 1.4; }
+.welcome-columns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 8px; }
+@media (max-width: 900px) { .welcome-columns { grid-template-columns: 1fr; } }
+.welcome-column-card { border: 1px solid var(--border); border-radius: 6px; padding: 10px; background: var(--bg-2); }
 .field-row input[type="text"], .field-row .f-name, .field-row .f-val { margin-top: 0; }
 
 /* Discord-like preview */

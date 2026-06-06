@@ -26,6 +26,7 @@ import Sorties from './pages/Sorties.jsx';
 import Roster from './pages/Roster.jsx';
 import Recruitment from './pages/Recruitment.jsx';
 import Onboarding from './pages/Onboarding.jsx';
+import WelcomeChannelPage from './pages/WelcomeChannelPage.jsx';
 import Setup from './pages/Setup.jsx';
 import SetupWizard from './pages/SetupWizard.jsx';
 import Brand from './components/Brand.jsx';
@@ -51,6 +52,7 @@ const NAV = [
   ] },
   { label: 'Members & Roles', links: [
     ['/welcome', '👋', 'Welcome & Roles'],
+    ['/welcome-channel', '📜', 'Welcome Channel'],
     ['/onboarding', '🚪', 'Onboarding'],
     ['/verification', '✅', 'Verification'],
     ['/rolemenus', '🎭', 'Reaction Roles'],
@@ -148,6 +150,7 @@ export default function App() {
           <Route path="/bombs" element={<Bombs />} />
           <Route path="/sorties" element={<Sorties />} />
           <Route path="/welcome" element={<Welcome />} />
+          <Route path="/welcome-channel" element={<WelcomeChannelPage />} />
           <Route path="/onboarding" element={<Onboarding />} />
           <Route path="/verification" element={<Verification />} />
           <Route path="/commands" element={<Commands />} />

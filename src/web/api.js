@@ -23,6 +23,7 @@ import {
   getRoster, setRosterEntry, deleteRoster,
   getRecruitment, setRecruitment, getApplications,
   getOnboarding, setOnboarding,
+  getWelcomePage, setWelcomePage,
 } from '../db/index.js';
 import { getBaseUrl } from './oauth.js';
 import {
@@ -42,6 +43,7 @@ import { postGiveaway, endGiveawayAndAnnounce, rerollGiveaway } from '../feature
 import { postEvent } from '../features/events.js';
 import { postRecruitPanel } from '../features/recruitment.js';
 import { postOnboardPanel } from '../features/onboarding.js';
+import { publishWelcomePage, clearWelcomePage } from '../features/welcomePage.js';
 import { parseMizSlots } from '../features/mizParser.js';
 import { STAT_TYPES, computeStat } from '../features/stats.js';
 import { requireAuth } from './auth.js';
@@ -906,6 +908,51 @@ export function apiRouter(client) {
     if (!cfg.panel_channel_id) return res.status(400).json({ error: 'Pick a panel channel before posting.' });
     if (!cfg.enabled) setOnboarding(req.guildId, { enabled: true });
     try { res.json({ ok: true, message_id: await postOnboardPanel(getBotForGuild(req.guildId, client), req.guildId) }); }
+    catch (err) { res.status(400).json({ error: err.message }); }
+  });
+
+  // --- welcome-channel landing page (Mee6-style) ---
+  router.get('/welcome-page', (req, res) => res.json(getWelcomePage(req.guildId)));
+  router.put('/welcome-page', (req, res) => {
+    const b = req.body || {};
+    const elements = (Array.isArray(b.elements) ? b.elements : []).slice(0, 25).map((el) => {
+      const type = ['banner', 'section', 'columns'].includes(el?.type) ? el.type : 'section';
+      const out = { type };
+      if (type === 'banner') {
+        out.title = String(el.title || '').slice(0, 256);
+        out.image_url = (typeof el.image_url === 'string' && /^https?:\/\//i.test(el.image_url)) ? el.image_url : '';
+      } else if (type === 'section') {
+        out.title = String(el.title || '').slice(0, 256);
+        out.description = String(el.description || '').slice(0, 4000);
+        out.image_url = (typeof el.image_url === 'string' && /^https?:\/\//i.test(el.image_url)) ? el.image_url : '';
+      } else if (type === 'columns') {
+        out.title = String(el.title || '').slice(0, 256);
+        const cols = Array.isArray(el.columns) ? el.columns : [];
+        out.columns = cols.slice(0, 3).map((c) => ({
+          heading: String(c?.heading || '').slice(0, 256),
+          content: String(c?.content || '').slice(0, 1024),
+        }));
+      }
+      return out;
+    });
+    res.json(setWelcomePage(req.guildId, {
+      channel_id: cleanId(b.channel_id),
+      elements,
+    }));
+  });
+  router.post('/welcome-page/publish', async (req, res) => {
+    const cfg = getWelcomePage(req.guildId);
+    if (!cfg.channel_id) return res.status(400).json({ error: 'Pick a channel before publishing.' });
+    if (!cfg.elements?.length) return res.status(400).json({ error: 'Add at least one element before publishing.' });
+    try {
+      const out = await publishWelcomePage(getBotForGuild(req.guildId, client), req.guildId);
+      res.json({ ok: true, ...out });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  });
+  router.post('/welcome-page/clear', async (req, res) => {
+    try { await clearWelcomePage(getBotForGuild(req.guildId, client), req.guildId); res.json({ ok: true }); }
     catch (err) { res.status(400).json({ error: err.message }); }
   });
 

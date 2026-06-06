@@ -324,6 +324,7 @@ ensureColumn('guild_config', 'bullseye_lon', 'REAL');
 ensureColumn('guild_config', 'recruitment', 'TEXT');            // recruitment config JSON
 ensureColumn('guild_config', 'onboarding', 'TEXT');             // onboarding wizard config JSON
 ensureColumn('guild_config', 'custom_bot_token', 'TEXT');       // optional per-guild bot token (Mee6-style "personalized bot")
+ensureColumn('guild_config', 'welcome_page', 'TEXT');           // welcome-channel landing-page layout (Mee6-style)
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS sent_embeds (
@@ -1047,6 +1048,28 @@ export function getOnboarding(guildId) {
 export function setOnboarding(guildId, obj) {
   const merged = mergeOnboarding({ ...getOnboarding(guildId), ...obj });
   setConfigValue(guildId, 'onboarding', JSON.stringify(merged));
+  return merged;
+}
+
+// --- welcome-channel landing page (Mee6-style multi-element welcome page) ---
+const DEFAULT_WELCOME_PAGE = {
+  channel_id: null,
+  elements: [],     // array of { type:'banner'|'section'|'columns', ... }
+  message_ids: [],  // parallel to elements; the discord message id for each element after publish
+};
+function mergeWelcomePage(saved) {
+  return {
+    channel_id: saved?.channel_id ?? null,
+    elements: Array.isArray(saved?.elements) ? saved.elements : [],
+    message_ids: Array.isArray(saved?.message_ids) ? saved.message_ids : [],
+  };
+}
+export function getWelcomePage(guildId) {
+  return mergeWelcomePage(safeParse(getConfig(guildId).welcome_page, {}));
+}
+export function setWelcomePage(guildId, obj) {
+  const merged = mergeWelcomePage({ ...getWelcomePage(guildId), ...obj });
+  setConfigValue(guildId, 'welcome_page', JSON.stringify(merged));
   return merged;
 }
 

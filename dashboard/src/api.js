@@ -122,6 +122,12 @@ export const api = {
   saveOnboarding: (data) => req('PUT', '/api/onboarding', data),
   postOnboarding: () => req('POST', '/api/onboarding/post'),
 
+  // Welcome Channel landing page (Mee6-style multi-element welcome page).
+  getWelcomePage: () => req('GET', '/api/welcome-page'),
+  saveWelcomePage: (data) => req('PUT', '/api/welcome-page', data),
+  publishWelcomePage: () => req('POST', '/api/welcome-page/publish'),
+  clearWelcomePage: () => req('POST', '/api/welcome-page/clear'),
+
   getEvents: () => req('GET', '/api/events'),
   parseMiz: async (file) => {
     const res = await fetch('/api/events/parse-miz', {
