@@ -39,6 +39,7 @@ import {
   startCustomBot, stopCustomBot, getBotForGuild, isGuildReachable, getCustomBotStatus,
 } from '../customBots/index.js';
 import { buildEmbed } from '../util/embed.js';
+import { canPerform } from '../access/check.js';
 import { postRoleMenu } from '../features/roleMenus.js';
 import { postVerifyPanel } from '../features/verification.js';
 import { postTicketPanel } from '../features/tickets.js';
@@ -90,15 +91,81 @@ export function apiRouter(client) {
 
   router.get('/me', (req, res) => {
     if (!req.session?.user) return res.status(401).json({ error: 'unauthorized' });
-    res.json({ ...req.session.user, selectedGuildId: req.session.guildId || null });
+    const access = req.session.guildAccess;
+    const out = { ...req.session.user, selectedGuildId: req.session.guildId || null };
+    // Only attach the permissions map once a guild is selected. Lets the
+    // frontend hide tabs the current user can't access in this guild.
+    if (req.session.guildId && access) {
+      const member = {
+        id: req.session.user.id,
+        guildId: req.session.guildId,
+        isOwner: !!access.isOwner,
+        isAdmin: !!access.isAdmin,
+        roleIds: Array.isArray(access.roleIds) ? access.roleIds : [],
+      };
+      out.access = { mode: access.mode, isAdmin: !!access.isAdmin, isOwner: !!access.isOwner };
+      out.permissions = Object.fromEntries(ACTIONS.map((a) => [a.key, canPerform(member, a.key)]));
+    }
+    res.json(out);
   });
 
   // Logged-in routes below (no specific server required yet).
   router.use(requireAuth);
 
-  // Servers the user manages, flagged by whether the bot is present.
-  router.get('/guilds', (req, res) => {
-    const servers = (req.session.manageable || []).map((g) => ({ ...g, present: client.guilds.cache.has(g.id) }));
+  // Helper: figure out whether the session user can reach `guildId` — either
+  // they're an admin (in `manageable`), or they're an OAuth-member of the
+  // guild AND they hold a role in at least one Access Group that has any
+  // permission granted. Returns the access shape we cache on the session.
+  const resolveGuildAccess = async (req, guildId) => {
+    const sess = req.session || {};
+    const isAdmin = (sess.manageable || []).some((g) => g.id === guildId);
+    if (isAdmin) return { mode: 'admin', isAdmin: true, isOwner: false, roleIds: [] };
+
+    // Non-admin path. User must at least be in this guild on Discord.
+    if (!(sess.userGuildIds || []).includes(guildId)) return null;
+
+    // Fetch their member (best-effort) to learn roles. Use whatever bot
+    // services this guild (custom or main).
+    const bot = getBotForGuild(guildId, client);
+    const guild = bot.guilds.cache.get(guildId);
+    if (!guild) return null;
+    const member = await guild.members.fetch(sess.user.id).catch(() => null);
+    if (!member) return null;
+    const roleIds = [...member.roles.cache.keys()];
+    const isOwner = guild.ownerId === member.id;
+    if (isOwner) return { mode: 'owner', isAdmin: false, isOwner: true, roleIds };
+
+    // Cross-check against the registry: do they get ANY permission via any
+    // access group? If not, they have no business here.
+    const memberLight = { id: member.id, guildId, isOwner, isAdmin: false, roleIds };
+    const anyPermitted = ACTIONS.some((a) => canPerform(memberLight, a.key));
+    if (!anyPermitted) return null;
+    return { mode: 'groups', isAdmin: false, isOwner: false, roleIds };
+  };
+
+  // Servers the user can reach — admin (Manage Server) OR access-group grant.
+  router.get('/guilds', async (req, res) => {
+    const manageable = (req.session.manageable || []).map((g) => ({ ...g, access: 'admin' }));
+    const adminIds = new Set(manageable.map((g) => g.id));
+    const candidate = (req.session.userGuildIds || []).filter((id) => !adminIds.has(id));
+    // Resolve each candidate; only include guilds where the user has any grant.
+    const permitted = [];
+    for (const gid of candidate) {
+      const access = await resolveGuildAccess(req, gid).catch(() => null);
+      if (access && (access.mode === 'groups' || access.mode === 'owner')) {
+        const bot = getBotForGuild(gid, client);
+        const guild = bot.guilds.cache.get(gid);
+        if (guild) {
+          permitted.push({
+            id: gid,
+            name: guild.name,
+            icon: guild.iconURL({ size: 64 }),
+            access: access.mode,
+          });
+        }
+      }
+    }
+    const servers = [...manageable, ...permitted].map((g) => ({ ...g, present: isGuildReachable(g.id, client) }));
     res.json({
       servers,
       inviteBase: process.env.DISCORD_CLIENT_ID
@@ -108,34 +175,53 @@ export function apiRouter(client) {
   });
 
   // Choose the active server for this session.
-  router.post('/select-guild', (req, res) => {
+  router.post('/select-guild', async (req, res) => {
     const guildId = cleanId(req.body?.guild_id);
-    const manages = (req.session.manageable || []).some((g) => g.id === guildId);
-    if (!guildId || !manages) return res.status(403).json({ error: 'no_access' });
-    if (!client.guilds.cache.has(guildId)) return res.status(400).json({ error: 'bot_not_in_guild' });
+    if (!guildId) return res.status(400).json({ error: 'no_guild_id' });
+    const access = await resolveGuildAccess(req, guildId);
+    if (!access) return res.status(403).json({ error: 'no_access' });
+    if (!isGuildReachable(guildId, client)) return res.status(400).json({ error: 'bot_not_in_guild' });
     req.session.guildId = guildId;
-    res.json({ ok: true, guildId });
+    req.session.guildAccess = access; // {mode, isAdmin, isOwner, roleIds}
+    res.json({ ok: true, guildId, access: access.mode });
   });
 
-  // Everything below requires an active server the user manages and the bot is in.
+  // Everything below requires an active server the user can reach.
   const requireGuild = (req, res, next) => {
     const gid = req.session.guildId;
-    if (!gid || !(req.session.manageable || []).some((g) => g.id === gid)) {
-      return res.status(409).json({ error: 'no_guild_selected' });
-    }
-    // Only enforce "bot must be in this guild" once the bot has finished its
-    // gateway IDENTIFY and synced the guild cache. Otherwise every API call
-    // 409s for the first 5–15s after a deploy and the frontend Promise.all
-    // shows an empty events list — events look "gone" though they're in the DB.
-    // Once the main bot is ready, require SOME bot of ours to be in this guild
-    // — could be the main bot OR a custom bot the guild has wired up.
+    const access = req.session.guildAccess;
+    if (!gid || !access) return res.status(409).json({ error: 'no_guild_selected' });
     if (client.isReady() && !isGuildReachable(gid, client)) {
       return res.status(400).json({ error: 'bot_not_in_guild' });
     }
     req.guildId = gid;
+    // Light member shape for canPerform() — sourced from cached session info,
+    // refreshed only when the user re-selects the guild. Trade: a role change
+    // on Discord takes a re-select to reflect in dashboard perms.
+    req.member = {
+      id: req.session.user.id,
+      guildId: gid,
+      isOwner: !!access.isOwner,
+      isAdmin: !!access.isAdmin,
+      roleIds: Array.isArray(access.roleIds) ? access.roleIds : [],
+    };
     next();
   };
   router.use(requireGuild);
+
+  // Per-action gate. Drop this BEFORE the route handler to enforce that the
+  // session user has permission for `actionKey`. Admins/owner short-circuit.
+  const requireAction = (actionKey) => (req, res, next) => {
+    if (canPerform(req.member, actionKey)) return next();
+    res.status(403).json({ error: 'forbidden', action: actionKey });
+  };
+  // Admin-only gate. Use for routes that should NEVER be opened up through
+  // Access Groups — Access Groups management itself, custom-bot tokens,
+  // anything that could let a member escalate their own permissions.
+  const requireAdmin = (req, res, next) => {
+    if (req.member?.isAdmin || req.member?.isOwner) return next();
+    res.status(403).json({ error: 'admin_only' });
+  };
 
   // Guild metadata for pickers (channels, roles)
   router.get('/guild', async (req, res) => {
@@ -200,7 +286,7 @@ export function apiRouter(client) {
     });
   });
 
-  router.put('/config', (req, res) => {
+  router.put('/config', requireAction('welcome.manage'), (req, res) => {
     const b = req.body || {};
     const textCols = ['welcome_message', 'goodbye_message', 'readyroom_ingest_url'];
     const idCols = ['welcome_channel_id', 'goodbye_channel_id', 'autorole_id', 'log_channel_id', 'invite_log_channel', 'status_channel_id', 'dcs_feed_channel_id', 'readyroom_events_channel_id'];
@@ -224,7 +310,7 @@ export function apiRouter(client) {
   // Posts the configured welcome OR goodbye message to its channel right now,
   // using the requesting admin as the "joining/leaving member" so they can
   // verify it looks right without needing a real member event.
-  router.post('/welcome/test', async (req, res) => {
+  router.post('/welcome/test', requireAction('welcome.manage'), async (req, res) => {
     const kind = req.body?.kind === 'goodbye' ? 'goodbye' : 'welcome';
     const cfg = getConfig(req.guildId);
     const channelKey = kind === 'goodbye' ? 'goodbye_channel_id' : 'welcome_channel_id';
@@ -305,7 +391,7 @@ export function apiRouter(client) {
   });
 
   // --- send an embed/message to a channel right now ---
-  router.post('/announce', async (req, res) => {
+  router.post('/announce', requireAction('announcements.send'), async (req, res) => {
     const { channel_id, content, embed } = req.body || {};
     const cleanCh = cleanId(channel_id);
     const channel = getBotForGuild(req.guildId, client).channels.cache.get(cleanCh);
@@ -335,7 +421,7 @@ export function apiRouter(client) {
   // --- sent embed history (edit / delete after the fact) ---
   router.get('/embeds', (req, res) => res.json(getSentEmbeds(req.guildId)));
 
-  router.put('/embeds/:id', async (req, res) => {
+  router.put('/embeds/:id', requireAction('announcements.send'), async (req, res) => {
     const id = Number(req.params.id);
     const existing = getSentEmbed(id, req.guildId);
     if (!existing) return res.status(404).json({ error: 'not_found' });
@@ -363,7 +449,7 @@ export function apiRouter(client) {
     }
   });
 
-  router.delete('/embeds/:id', async (req, res) => {
+  router.delete('/embeds/:id', requireAction('announcements.send'), async (req, res) => {
     const id = Number(req.params.id);
     const existing = getSentEmbed(id, req.guildId);
     if (!existing) return res.status(404).json({ error: 'not_found' });
@@ -382,18 +468,18 @@ export function apiRouter(client) {
 
   // --- auto-moderation ---
   router.get('/automod', (req, res) => res.json(getAutomod(req.guildId)));
-  router.put('/automod', (req, res) => res.json(setAutomod(req.guildId, req.body || {})));
+  router.put('/automod', requireAction('automod.manage'), (req, res) => res.json(setAutomod(req.guildId, req.body || {})));
 
   // --- role menus ---
   router.get('/role-menus', (req, res) => res.json(getAllRoleMenus(req.guildId)));
 
-  router.post('/role-menus', (req, res) => {
+  router.post('/role-menus', requireAction('rolemenus.manage'), (req, res) => {
     const { title = '', description = '', channel_id = null, buttons = [], type = 'buttons', max_values = 1, embed = null } = req.body || {};
     const id = createRoleMenu(req.guildId, { title, description, channel_id: cleanId(channel_id), buttons, type, max_values, embed });
     res.json(getRoleMenu(id));
   });
 
-  router.put('/role-menus/:id', (req, res) => {
+  router.put('/role-menus/:id', requireAction('rolemenus.manage'), (req, res) => {
     const id = Number(req.params.id);
     const existing = getRoleMenu(id);
     if (!existing || existing.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
@@ -401,11 +487,11 @@ export function apiRouter(client) {
     res.json(updateRoleMenu(id, req.guildId, { title, description, channel_id: cleanId(channel_id), buttons, type, max_values, embed }));
   });
 
-  router.delete('/role-menus/:id', (req, res) => {
+  router.delete('/role-menus/:id', requireAction('rolemenus.manage'), (req, res) => {
     res.json({ ok: deleteRoleMenu(Number(req.params.id), req.guildId) > 0 });
   });
 
-  router.post('/role-menus/:id/post', async (req, res) => {
+  router.post('/role-menus/:id/post', requireAction('rolemenus.manage'), async (req, res) => {
     const id = Number(req.params.id);
     const menu = getRoleMenu(id);
     if (!menu || menu.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
@@ -447,7 +533,7 @@ export function apiRouter(client) {
 
   // --- verification ---
   router.get('/verification', (req, res) => res.json(getVerification(req.guildId)));
-  router.put('/verification', (req, res) => {
+  router.put('/verification', requireAction('verification.manage'), (req, res) => {
     const b = req.body || {};
     res.json(setVerification(req.guildId, {
       enabled: !!b.enabled,
@@ -457,7 +543,7 @@ export function apiRouter(client) {
       embed: b.embed || null,
     }));
   });
-  router.post('/verification/post', async (req, res) => {
+  router.post('/verification/post', requireAction('verification.manage'), async (req, res) => {
     const cfg = getVerification(req.guildId);
     if (!cfg.channel_id) return res.status(400).json({ error: 'Pick a channel before posting.' });
     if (!cfg.role_id) return res.status(400).json({ error: 'Pick a "Role granted" before posting — the verify button needs a role to grant.' });
@@ -470,7 +556,7 @@ export function apiRouter(client) {
 
   // --- tickets ---
   router.get('/tickets', (req, res) => res.json(getTicketsConfig(req.guildId)));
-  router.put('/tickets', (req, res) => {
+  router.put('/tickets', requireAction('tickets.manage'), (req, res) => {
     const b = req.body || {};
     res.json(setTicketsConfig(req.guildId, {
       enabled: !!b.enabled,
@@ -482,7 +568,7 @@ export function apiRouter(client) {
       embed: b.embed || null,
     }));
   });
-  router.post('/tickets/post', async (req, res) => {
+  router.post('/tickets/post', requireAction('tickets.manage'), async (req, res) => {
     const cfg = getTicketsConfig(req.guildId);
     if (!cfg.panel_channel_id) return res.status(400).json({ error: 'Pick a panel channel before posting.' });
     if (!cfg.enabled) setTicketsConfig(req.guildId, { enabled: true });
@@ -499,7 +585,7 @@ export function apiRouter(client) {
     return Number.isFinite(t) ? t : Date.now();
   };
 
-  router.post('/scheduled', (req, res) => {
+  router.post('/scheduled', requireAction('scheduled.create'), (req, res) => {
     const b = req.body || {};
     if (!cleanId(b.channel_id)) return res.status(400).json({ error: 'missing_channel' });
     if (!b.content && !b.embed) return res.status(400).json({ error: 'empty_message' });
@@ -512,7 +598,7 @@ export function apiRouter(client) {
     res.json({ ok: true, id });
   });
 
-  router.put('/scheduled/:id', (req, res) => {
+  router.put('/scheduled/:id', requireAction('scheduled.create'), (req, res) => {
     const b = req.body || {};
     updateScheduled(Number(req.params.id), req.guildId, {
       channel_id: cleanId(b.channel_id), content: b.content || null, embed: b.embed || null,
@@ -523,24 +609,24 @@ export function apiRouter(client) {
     res.json({ ok: true });
   });
 
-  router.delete('/scheduled/:id', (req, res) => res.json({ ok: deleteScheduled(Number(req.params.id), req.guildId) > 0 }));
+  router.delete('/scheduled/:id', requireAction('scheduled.create'), (req, res) => res.json({ ok: deleteScheduled(Number(req.params.id), req.guildId) > 0 }));
 
   // --- sticky messages ---
   router.get('/stickies', (req, res) => res.json(getStickies(req.guildId)));
-  router.put('/stickies', (req, res) => {
+  router.put('/stickies', requireAction('sticky.set'), (req, res) => {
     const b = req.body || {};
     const channelId = cleanId(b.channel_id);
     if (!channelId) return res.status(400).json({ error: 'missing_channel' });
     res.json(setSticky(req.guildId, channelId, { content: b.content || null, embed: b.embed || null, enabled: b.enabled !== false }));
   });
-  router.delete('/stickies/:channelId', (req, res) =>
+  router.delete('/stickies/:channelId', requireAction('sticky.set'), (req, res) =>
     res.json({ ok: deleteSticky(cleanId(req.params.channelId), req.guildId) > 0 }));
 
   // --- giveaways ---
   router.get('/giveaways', (req, res) =>
     res.json(getGiveaways(req.guildId).map((g) => ({ ...g, entries: getGiveawayEntryCount(g.id) }))));
 
-  router.post('/giveaways', async (req, res) => {
+  router.post('/giveaways', requireAction('giveaways.create'), async (req, res) => {
     const b = req.body || {};
     const channelId = cleanId(b.channel_id);
     if (!channelId || !b.prize || !b.duration_seconds) return res.status(400).json({ error: 'missing_fields' });
@@ -558,20 +644,20 @@ export function apiRouter(client) {
     }
   });
 
-  router.post('/giveaways/:id/end', async (req, res) => {
+  router.post('/giveaways/:id/end', requireAction('giveaways.create'), async (req, res) => {
     const g = getGiveaway(Number(req.params.id));
     if (!g || g.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
     if (g.ended) return res.status(400).json({ error: 'already_ended' });
     res.json({ winners: await endGiveawayAndAnnounce(getBotForGuild(req.guildId, client), g) });
   });
 
-  router.post('/giveaways/:id/reroll', async (req, res) => {
+  router.post('/giveaways/:id/reroll', requireAction('giveaways.create'), async (req, res) => {
     const g = getGiveaway(Number(req.params.id));
     if (!g || g.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
     res.json({ winners: await rerollGiveaway(getBotForGuild(req.guildId, client), g) });
   });
 
-  router.delete('/giveaways/:id', (req, res) => res.json({ ok: deleteGiveaway(Number(req.params.id), req.guildId) > 0 }));
+  router.delete('/giveaways/:id', requireAction('giveaways.create'), (req, res) => res.json({ ok: deleteGiveaway(Number(req.params.id), req.guildId) > 0 }));
 
   // --- youtube notifications ---
   router.get('/youtube', (req, res) => res.json(getYoutubeSubs(req.guildId)));
@@ -645,7 +731,7 @@ export function apiRouter(client) {
 
   // --- personalizer ---
   router.get('/personalizer', (req, res) => res.json(getPersonalization(req.guildId)));
-  router.put('/personalizer', async (req, res) => {
+  router.put('/personalizer', requireAction('personalizer.manage'), async (req, res) => {
     const b = req.body || {};
     const saved = setPersonalization(req.guildId, {
       bot_nickname: b.bot_nickname ? String(b.bot_nickname).slice(0, 32) : null,
@@ -672,7 +758,7 @@ export function apiRouter(client) {
   // Save a new token + boot the custom client. Validates the token by actually
   // logging in — if Discord rejects it we tell the user instead of silently
   // storing junk.
-  router.put('/custom-bot', async (req, res) => {
+  router.put('/custom-bot', requireAdmin, async (req, res) => {
     const token = String(req.body?.token || '').trim();
     if (token.length < 50) return res.status(400).json({ error: 'invalid_token' });
     try {
@@ -688,7 +774,7 @@ export function apiRouter(client) {
     }
   });
 
-  router.delete('/custom-bot', async (req, res) => {
+  router.delete('/custom-bot', requireAdmin, async (req, res) => {
     try { await stopCustomBot(req.guildId); } catch { /* ignore */ }
     setCustomBotToken(req.guildId, null);
     res.json({ ok: true });
@@ -733,7 +819,7 @@ export function apiRouter(client) {
   router.get('/events', (req, res) =>
     res.json(getEvents(req.guildId).map((e) => ({ ...e, signups: getSignups(e.id) }))));
 
-  router.post('/events', (req, res) => {
+  router.post('/events', requireAction('events.manage'), (req, res) => {
     const b = req.body || {};
     if (!b.title || !b.start_at) return res.status(400).json({ error: 'missing_fields' });
     const start = new Date(b.start_at).getTime();
@@ -752,7 +838,7 @@ export function apiRouter(client) {
     res.json({ ok: true, id });
   });
 
-  router.put('/events/:id', async (req, res) => {
+  router.put('/events/:id', requireAction('events.manage'), async (req, res) => {
     const id = Number(req.params.id);
     const existing = getEvent(id);
     if (!existing || existing.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
@@ -781,7 +867,7 @@ export function apiRouter(client) {
     res.json({ ok: true, reposted });
   });
 
-  router.post('/events/:id/post', async (req, res) => {
+  router.post('/events/:id/post', requireAction('events.post'), async (req, res) => {
     const event = getEvent(Number(req.params.id));
     if (!event || event.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
     if (!event.channel_id) return res.status(400).json({ error: 'no_channel' });
@@ -789,7 +875,7 @@ export function apiRouter(client) {
     catch (err) { res.status(400).json({ error: err.message === 'invalid_channel' ? 'invalid_channel' : 'post_failed' }); }
   });
 
-  router.post('/events/:id/cancel', async (req, res) => {
+  router.post('/events/:id/cancel', requireAction('events.manage'), async (req, res) => {
     const event = getEvent(Number(req.params.id));
     if (!event || event.guild_id !== req.guildId) return res.status(404).json({ error: 'not_found' });
     setEventStatus(event.id, req.guildId, 'cancelled');
@@ -797,7 +883,7 @@ export function apiRouter(client) {
     res.json({ ok: true });
   });
 
-  router.delete('/events/:id', (req, res) => res.json({ ok: deleteEvent(Number(req.params.id), req.guildId) > 0 }));
+  router.delete('/events/:id', requireAction('events.manage'), (req, res) => res.json({ ok: deleteEvent(Number(req.params.id), req.guildId) > 0 }));
 
   // --- DCS server ingest config ---
   router.get('/dcs', (req, res) => {
@@ -848,7 +934,7 @@ export function apiRouter(client) {
     } catch { res.status(500).json({ error: 'fetch_failed' }); }
   });
 
-  router.put('/roster/:userId', (req, res) => {
+  router.put('/roster/:userId', requireAction('roster.manage'), (req, res) => {
     const userId = cleanId(req.params.userId);
     if (!userId) return res.status(400).json({ error: 'bad_user' });
     const b = req.body || {};
@@ -856,11 +942,11 @@ export function apiRouter(client) {
     res.json({ ok: true });
   });
 
-  router.delete('/roster/:userId', (req, res) => res.json({ ok: deleteRoster(req.guildId, cleanId(req.params.userId)) > 0 }));
+  router.delete('/roster/:userId', requireAction('roster.manage'), (req, res) => res.json({ ok: deleteRoster(req.guildId, cleanId(req.params.userId)) > 0 }));
 
   // --- recruitment ---
   router.get('/recruitment', (req, res) => res.json(getRecruitment(req.guildId)));
-  router.put('/recruitment', (req, res) => {
+  router.put('/recruitment', requireAction('recruitment.manage'), (req, res) => {
     const b = req.body || {};
     const questions = (Array.isArray(b.questions) ? b.questions : [])
       .filter((q) => q && q.label).slice(0, 5)
@@ -875,7 +961,7 @@ export function apiRouter(client) {
       questions,
     }));
   });
-  router.post('/recruitment/post', async (req, res) => {
+  router.post('/recruitment/post', requireAction('recruitment.manage'), async (req, res) => {
     const cfg = getRecruitment(req.guildId);
     if (!cfg.panel_channel_id) return res.status(400).json({ error: 'Pick a panel channel before posting.' });
     if (!cfg.enabled) setRecruitment(req.guildId, { enabled: true });
@@ -886,7 +972,7 @@ export function apiRouter(client) {
 
   // --- onboarding wizard ---
   router.get('/onboarding', (req, res) => res.json(getOnboarding(req.guildId)));
-  router.put('/onboarding', (req, res) => {
+  router.put('/onboarding', requireAction('onboarding.manage'), (req, res) => {
     const b = req.body || {};
     const steps = (Array.isArray(b.steps) ? b.steps : []).slice(0, 10).map((s) => ({
       title: String(s?.title || '').slice(0, 256),
@@ -906,7 +992,7 @@ export function apiRouter(client) {
       steps,
     }));
   });
-  router.post('/onboarding/post', async (req, res) => {
+  router.post('/onboarding/post', requireAction('onboarding.manage'), async (req, res) => {
     const cfg = getOnboarding(req.guildId);
     if (!cfg.panel_channel_id) return res.status(400).json({ error: 'Pick a panel channel before posting.' });
     if (!cfg.enabled) setOnboarding(req.guildId, { enabled: true });
@@ -916,7 +1002,7 @@ export function apiRouter(client) {
 
   // --- welcome-channel landing page (Mee6-style) ---
   router.get('/welcome-page', (req, res) => res.json(getWelcomePage(req.guildId)));
-  router.put('/welcome-page', (req, res) => {
+  router.put('/welcome-page', requireAction('welcomepage.manage'), (req, res) => {
     const b = req.body || {};
     const elements = (Array.isArray(b.elements) ? b.elements : []).slice(0, 25).map((el) => {
       const type = ['banner', 'section', 'columns'].includes(el?.type) ? el.type : 'section';
@@ -943,7 +1029,7 @@ export function apiRouter(client) {
       elements,
     }));
   });
-  router.post('/welcome-page/publish', async (req, res) => {
+  router.post('/welcome-page/publish', requireAction('welcomepage.manage'), async (req, res) => {
     const cfg = getWelcomePage(req.guildId);
     if (!cfg.channel_id) return res.status(400).json({ error: 'Pick a channel before publishing.' });
     if (!cfg.elements?.length) return res.status(400).json({ error: 'Add at least one element before publishing.' });
@@ -954,15 +1040,17 @@ export function apiRouter(client) {
       res.status(400).json({ error: err.message });
     }
   });
-  router.post('/welcome-page/clear', async (req, res) => {
+  router.post('/welcome-page/clear', requireAction('welcomepage.manage'), async (req, res) => {
     try { await clearWelcomePage(getBotForGuild(req.guildId, client), req.guildId); res.json({ ok: true }); }
     catch (err) { res.status(400).json({ error: err.message }); }
   });
 
   // --- Access Groups + permission overrides ---
+  // CRITICAL: every mutation route here MUST be admin-only. Otherwise a
+  // member who's been granted one permission could grant themselves the rest.
   router.get('/access/actions', (_req, res) => res.json(ACTIONS));
   router.get('/access/groups', (req, res) => res.json(getAccessGroups(req.guildId)));
-  router.post('/access/groups', (req, res) => {
+  router.post('/access/groups', requireAdmin, (req, res) => {
     const b = req.body || {};
     const role_ids = (Array.isArray(b.role_ids) ? b.role_ids : []).map(cleanId).filter(Boolean).slice(0, 50);
     const group = createAccessGroup(req.guildId, {
@@ -972,7 +1060,7 @@ export function apiRouter(client) {
     });
     res.json(group);
   });
-  router.put('/access/groups/:id', (req, res) => {
+  router.put('/access/groups/:id', requireAdmin, (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) return res.status(400).json({ error: 'bad_id' });
     const existing = getAccessGroup(req.guildId, id);
@@ -986,7 +1074,7 @@ export function apiRouter(client) {
     });
     res.json(group);
   });
-  router.delete('/access/groups/:id', (req, res) => {
+  router.delete('/access/groups/:id', requireAdmin, (req, res) => {
     const id = Number(req.params.id);
     const changes = deleteAccessGroup(req.guildId, id);
     // Also strip the deleted group from every permission override that referenced it.
@@ -1004,7 +1092,7 @@ export function apiRouter(client) {
   });
 
   router.get('/access/permissions', (req, res) => res.json(getPermissionOverrides(req.guildId)));
-  router.put('/access/permissions', (req, res) => {
+  router.put('/access/permissions', requireAdmin, (req, res) => {
     const validKeys = new Set(ACTIONS.map((a) => a.key));
     const filtered = {};
     for (const [k, v] of Object.entries(req.body || {})) {
@@ -1013,7 +1101,7 @@ export function apiRouter(client) {
     res.json(setPermissionOverrides(req.guildId, filtered));
   });
 
-  router.post('/roster/import', async (req, res) => {
+  router.post('/roster/import', requireAction('roster.manage'), async (req, res) => {
     const rows = parseCsv(req.body?.csv || '');
     if (!rows.length) return res.status(400).json({ error: 'empty_csv' });
     let members = null;

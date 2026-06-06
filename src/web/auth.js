@@ -52,7 +52,13 @@ authRouter.get('/callback', async (req, res) => {
         : null,
     };
     req.session.manageable = manageable;
+    // All Discord guilds the user is in. Used to gate non-admin access to
+    // guilds where they have an Access Group permission but no Manage Server.
+    req.session.userGuildIds = guilds.map((g) => g.id);
     req.session.guildId = null;
+    // Cache of {guildId: [roleId, ...]} populated lazily on select-guild —
+    // saves a member fetch on every API call for non-admins.
+    req.session.memberRoles = {};
     // Same race: if the redirect fires before the upsert commits, the cookie
     // points at an sid that the next request will fail to look up, and the user
     // bounces straight back to /login. Force a sync save before redirecting.

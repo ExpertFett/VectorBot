@@ -33,50 +33,64 @@ import SetupWizard from './pages/SetupWizard.jsx';
 import Brand from './components/Brand.jsx';
 import DiscordButton from './components/DiscordButton.jsx';
 
-// Sidebar navigation grouped into sections. [path, icon, label]
+// Sidebar navigation grouped into sections. Each link:
+//   [path, icon, label, requiredAction?]
+// If requiredAction is set, the tab only appears when the current user has
+// that permission. 'admin' means admins-only (Manage Server). Tabs without a
+// flag are always visible.
 const NAV = [
   { label: 'Start Here', links: [
     ['/wizard', '🧭', 'Setup Wizard'],
     ['/setup', '🚀', 'Setup Guide'],
-    ['/personalizer', '🎨', 'Customize'],
+    ['/personalizer', '🎨', 'Customize', 'personalizer.manage'],
   ] },
   { label: 'DCS Operations', links: [
-    ['/events', '🗓️', 'Mission Events'],
+    ['/events', '🗓️', 'Mission Events', 'events.manage'],
     ['/dcs', '📡', 'DCS Server'],
     ['/traps', '⚓', 'Carrier Traps'],
     ['/bombs', '🎯', 'Bomb Range'],
     ['/sorties', '✈️', 'Sortie Log'],
   ] },
   { label: 'Squadron', links: [
-    ['/roster', '🎖️', 'Roster'],
-    ['/recruitment', '📋', 'Recruitment'],
+    ['/roster', '🎖️', 'Roster', 'roster.manage'],
+    ['/recruitment', '📋', 'Recruitment', 'recruitment.manage'],
   ] },
   { label: 'Members & Roles', links: [
-    ['/welcome', '👋', 'Welcome & Roles'],
-    ['/welcome-channel', '📜', 'Welcome Channel'],
-    ['/onboarding', '🚪', 'Onboarding'],
-    ['/verification', '✅', 'Verification'],
-    ['/rolemenus', '🎭', 'Reaction Roles'],
+    ['/welcome', '👋', 'Welcome & Roles', 'welcome.manage'],
+    ['/welcome-channel', '📜', 'Welcome Channel', 'welcomepage.manage'],
+    ['/onboarding', '🚪', 'Onboarding', 'onboarding.manage'],
+    ['/verification', '✅', 'Verification', 'verification.manage'],
+    ['/rolemenus', '🎭', 'Reaction Roles', 'rolemenus.manage'],
   ] },
   { label: 'Engagement', links: [
-    ['/commands', '⌨️', 'Custom Commands'],
-    ['/scheduled', '⏰', 'Scheduled Messages'],
-    ['/sticky', '📌', 'Sticky Messages'],
-    ['/embed', '📤', 'Send Embed'],
-    ['/tickets', '🎫', 'Tickets'],
-    ['/giveaways', '🎉', 'Giveaways'],
-    ['/social', '🔔', 'Social Alerts'],
+    ['/commands', '⌨️', 'Custom Commands', 'admin'],
+    ['/scheduled', '⏰', 'Scheduled Messages', 'scheduled.create'],
+    ['/sticky', '📌', 'Sticky Messages', 'sticky.set'],
+    ['/embed', '📤', 'Send Embed', 'announcements.send'],
+    ['/tickets', '🎫', 'Tickets', 'tickets.manage'],
+    ['/giveaways', '🎉', 'Giveaways', 'giveaways.create'],
+    ['/social', '🔔', 'Social Alerts', 'admin'],
   ] },
   { label: 'Moderation', links: [
-    ['/automod', '🛡️', 'Auto-moderation'],
-    ['/moderation', '🔨', 'Moderation'],
+    ['/automod', '🛡️', 'Auto-moderation', 'automod.manage'],
+    ['/moderation', '🔨', 'Moderation', 'admin'],
   ] },
   { label: 'Server', links: [
-    ['/access', '🛂', 'Access Groups'],
-    ['/stats', '📊', 'Stats Channels'],
+    ['/access', '🛂', 'Access Groups', 'admin'],
+    ['/stats', '📊', 'Stats Channels', 'admin'],
     ['/invites', '🎟️', 'Invite Tracker'],
   ] },
 ];
+
+// Decide whether a link is visible to the current user.
+function linkVisible(req, user) {
+  if (!req) return true; // public tab
+  if (req === 'admin') return !!(user?.access?.isAdmin || user?.access?.isOwner);
+  // Action gate. If we haven't received a permissions map yet (no guild
+  // selected), show all tabs — they'd be no-ops until guild-select anyway.
+  if (!user?.permissions) return true;
+  return !!user.permissions[req];
+}
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -122,17 +136,21 @@ export default function App() {
           <span className="switch-icon">⇄</span>
         </button>
         <nav>
-          {NAV.map((group) => (
-            <div className="nav-group" key={group.label}>
-              <div className="nav-group-label">{group.label}</div>
-              {group.links.map(([to, icon, label]) => (
-                <NavLink key={to} to={to}>
-                  <span className="nav-icon" aria-hidden="true">{icon}</span>
-                  <span className="nav-label">{label}</span>
-                </NavLink>
-              ))}
-            </div>
-          ))}
+          {NAV.map((group) => {
+            const links = group.links.filter(([, , , req]) => linkVisible(req, user));
+            if (!links.length) return null;
+            return (
+              <div className="nav-group" key={group.label}>
+                <div className="nav-group-label">{group.label}</div>
+                {links.map(([to, icon, label]) => (
+                  <NavLink key={to} to={to}>
+                    <span className="nav-icon" aria-hidden="true">{icon}</span>
+                    <span className="nav-label">{label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            );
+          })}
         </nav>
         <div className="user">
           {user.avatar && <img src={user.avatar} alt="" />}
