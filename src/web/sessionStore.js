@@ -18,9 +18,18 @@ const delStmt = db.prepare('DELETE FROM sessions WHERE sid = ?');
 const touchStmt = db.prepare('UPDATE sessions SET expire = ? WHERE sid = ?');
 const sweepStmt = db.prepare('DELETE FROM sessions WHERE expire < ?');
 
-const DEFAULT_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
-const expiryOf = (sess) =>
-  sess.cookie?.expires ? new Date(sess.cookie.expires).getTime() : Date.now() + DEFAULT_TTL;
+const DEFAULT_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
+const expiryOf = (sess) => {
+  // sess.cookie.expires can be a Date, a Date string, undefined, or — under
+  // some express-session paths — null. new Date(null) parses to epoch 0, which
+  // would make the session look already-expired and silently drop the user.
+  const raw = sess?.cookie?.expires;
+  if (raw) {
+    const ms = new Date(raw).getTime();
+    if (Number.isFinite(ms) && ms > Date.now()) return ms;
+  }
+  return Date.now() + DEFAULT_TTL;
+};
 
 export class SqliteSessionStore extends session.Store {
   get(sid, cb) {

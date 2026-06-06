@@ -21,7 +21,11 @@ export function startWebServer(client) {
   app.use(express.json({ limit: '256kb' }));
 
   if (!process.env.SESSION_SECRET) {
-    console.warn('SESSION_SECRET not set — using an insecure dev fallback. Set it in production.');
+    console.warn(
+      '[session] SESSION_SECRET not set — using a hardcoded dev fallback. ' +
+      'This is fine for dev but means anyone who knows the fallback can forge cookies in prod. ' +
+      'Set SESSION_SECRET in Railway Variables to a long random string.'
+    );
   }
   app.use(session({
     name: 'vector.sid',
@@ -29,11 +33,16 @@ export function startWebServer(client) {
     store: new SqliteSessionStore(),
     resave: false,
     saveUninitialized: false,
+    // Rolling: refresh the cookie's expire on every response, so admins who
+    // actually use the dashboard stay logged in indefinitely. Without this the
+    // cookie expires 30 days after LOGIN regardless of activity, which is what
+    // made it feel like "every redeploy logs me out."
+    rolling: true,
     cookie: {
       httpOnly: true,
       sameSite: 'lax',
       secure: isProd,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     },
   }));
 
