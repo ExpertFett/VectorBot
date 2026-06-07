@@ -1,6 +1,6 @@
 {
   "name": "dcs-community-bot",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Mee6-style Discord bot for a DCS community: moderation, welcome/auto-role, custom commands, utilities.",
   "type": "module",
   "main": "src/index.js",
