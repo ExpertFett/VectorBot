@@ -6,7 +6,7 @@ export default {
   once: true,
   async execute(client) {
     console.log(`Logged in as ${client.user.tag} — serving ${client.guilds.cache.size} guild(s).`);
-    client.user.setActivity('the skies | /help', { type: ActivityType.Watching });
+    client.user.setActivity('the skies | /play · /help', { type: ActivityType.Watching });
 
     // Multi-server: register commands globally so they work in every server the
     // bot joins. Also sync to the home guild (if set) for instant availability there
