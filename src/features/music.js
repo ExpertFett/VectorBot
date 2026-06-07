@@ -12,7 +12,7 @@
 // designed to make that obvious in the response embed.
 
 import { DisTube } from 'distube';
-import { YouTubePlugin } from '@distube/youtube';
+import { YtDlpPlugin } from '@distube/yt-dlp';
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { getPersonalization } from '../db/index.js';
 import ffmpegPath from 'ffmpeg-static';
@@ -24,8 +24,12 @@ export function getMusic() { return distube; }
 
 export function initMusic(client) {
   if (distube) return distube;
+  // YtDlpPlugin uses the yt-dlp binary on PATH (installed by nixpacks on
+  // Railway; install locally with `winget install yt-dlp` for dev). When
+  // YouTube updates their player API, yt-dlp gets fixes within hours — much
+  // more resilient than the ytdl-core libraries that ship as npm packages.
   distube = new DisTube(client, {
-    plugins: [new YouTubePlugin()],
+    plugins: [new YtDlpPlugin({ update: true })],   // auto-update yt-dlp binary on boot when possible
     ffmpeg: { path: ffmpegPath },
     emitAddSongWhenCreatingQueue: false,  // we send our own "added to queue" message via /play directly
     emitAddListWhenCreatingQueue: false,
