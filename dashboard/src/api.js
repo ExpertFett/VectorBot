@@ -146,6 +146,8 @@ export const api = {
   deleteAccessGroup: (id) => req('DELETE', `/api/access/groups/${id}`),
   getPermissions: () => req('GET', '/api/access/permissions'),
   savePermissions: (data) => req('PUT', '/api/access/permissions', data),
+  getDashboardAccess: () => req('GET', '/api/access/dashboard'),
+  saveDashboardAccess: (data) => req('PUT', '/api/access/dashboard', data),
 
   getEvents: () => req('GET', '/api/events'),
   parseMiz: async (file) => {

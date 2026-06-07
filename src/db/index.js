@@ -355,6 +355,8 @@ ensureColumn('guild_config', 'onboarding', 'TEXT');             // onboarding wi
 ensureColumn('guild_config', 'custom_bot_token', 'TEXT');       // optional per-guild bot token (Mee6-style "personalized bot")
 ensureColumn('guild_config', 'welcome_page', 'TEXT');           // welcome-channel landing-page layout (Mee6-style)
 ensureColumn('guild_config', 'permission_overrides', 'TEXT');   // {actionKey: {mode, group_ids[]}} for Access Groups
+ensureColumn('guild_config', 'dashboard_admin_role_ids', 'TEXT');     // JSON array of role IDs that grant full dashboard access
+ensureColumn('guild_config', 'discord_admin_grants_dashboard', 'INTEGER NOT NULL DEFAULT 1');  // 0/1: Discord Manage Server perm also grants dashboard admin
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS sent_embeds (
@@ -1115,6 +1117,26 @@ export function updateAccessGroupRow(guildId, id, { name, color, role_ids }) {
 }
 export function deleteAccessGroup(guildId, id) {
   return deleteAccessGroupStmt.run(id, guildId).changes;
+}
+
+// Dashboard-access settings — which Discord roles grant full dashboard admin
+// access (independent of Discord's Manage Server permission), and whether
+// Manage Server itself still counts. Default behaviour: Manage Server grants
+// admin, no extra roles configured (= pre-feature parity).
+export function getDashboardAccess(guildId) {
+  const c = getConfig(guildId);
+  return {
+    admin_role_ids: safeParse(c.dashboard_admin_role_ids, []) || [],
+    discord_admin_grants: c.discord_admin_grants_dashboard !== 0,  // default 1
+  };
+}
+export function setDashboardAccess(guildId, { admin_role_ids, discord_admin_grants }) {
+  const roles = Array.isArray(admin_role_ids) ? admin_role_ids.map(String).filter(Boolean).slice(0, 30) : [];
+  setConfigValue(guildId, 'dashboard_admin_role_ids', JSON.stringify(roles));
+  if (discord_admin_grants !== undefined) {
+    setConfigValue(guildId, 'discord_admin_grants_dashboard', discord_admin_grants ? 1 : 0);
+  }
+  return getDashboardAccess(guildId);
 }
 
 // Permission overrides: a JSON map of {actionKey: {mode, group_ids[]}}.

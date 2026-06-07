@@ -27,6 +27,7 @@ import {
   getAccessGroups, getAccessGroup, createAccessGroup, updateAccessGroupRow, deleteAccessGroup,
   getPermissionOverrides, setPermissionOverrides,
   getAutomations, getAutomation, createAutomation, updateAutomation, deleteAutomation,
+  getDashboardAccess, setDashboardAccess,
 } from '../db/index.js';
 import { ACTIONS } from '../access/registry.js';
 import { TRIGGERS, ACTIONS as AUTO_ACTIONS, TRIGGER_BY_KEY, ACTION_BY_KEY } from '../automations/registry.js';
@@ -115,20 +116,30 @@ export function apiRouter(client) {
   // Logged-in routes below (no specific server required yet).
   router.use(requireAuth);
 
-  // Helper: figure out whether the session user can reach `guildId` — either
-  // they're an admin (in `manageable`), or they're an OAuth-member of the
-  // guild AND they hold a role in at least one Access Group that has any
-  // permission granted. Returns the access shape we cache on the session.
+  // Helper: figure out whether the session user can reach `guildId`. Multiple
+  // paths grant access, in order:
+  //   1. They're the server owner → always
+  //   2. The guild's dashboard-admin role list includes one of their roles → admin
+  //   3. Discord Manage Server (in OAuth `manageable`) AND the guild has the
+  //      "Manage Server grants dashboard admin" toggle on (default) → admin
+  //   4. They hold a role in at least one Access Group with any granted
+  //      permission → limited groups access
+  // Returns the access shape we cache on the session, or null if no path matches.
   const resolveGuildAccess = async (req, guildId) => {
     const sess = req.session || {};
-    const isAdmin = (sess.manageable || []).some((g) => g.id === guildId);
-    if (isAdmin) return { mode: 'admin', isAdmin: true, isOwner: false, roleIds: [] };
+    const discordAdmin = (sess.manageable || []).some((g) => g.id === guildId);
+    const dashCfg = getDashboardAccess(guildId);
 
-    // Non-admin path. User must at least be in this guild on Discord.
+    // Fast path for a pure-Discord-admin who isn't also expected to hold the
+    // bot-admin role: if Manage Server still grants admin, accept immediately.
+    // The bot.members.fetch we'd otherwise do is non-trivial latency on every
+    // guild-switch — keep it lazy.
+    if (discordAdmin && dashCfg.discord_admin_grants && !dashCfg.admin_role_ids.length) {
+      return { mode: 'admin', isAdmin: true, isOwner: false, roleIds: [] };
+    }
+
+    // For every other path we need the member's actual role IDs.
     if (!(sess.userGuildIds || []).includes(guildId)) return null;
-
-    // Fetch their member (best-effort) to learn roles. Use whatever bot
-    // services this guild (custom or main).
     const bot = getBotForGuild(guildId, client);
     const guild = bot.guilds.cache.get(guildId);
     if (!guild) return null;
@@ -138,37 +149,50 @@ export function apiRouter(client) {
     const isOwner = guild.ownerId === member.id;
     if (isOwner) return { mode: 'owner', isAdmin: false, isOwner: true, roleIds };
 
-    // Cross-check against the registry: do they get ANY permission via any
-    // access group? If not, they have no business here.
+    // (2) Bot-admin role list → full dashboard admin.
+    if (dashCfg.admin_role_ids.length && roleIds.some((rid) => dashCfg.admin_role_ids.includes(rid))) {
+      return { mode: 'admin', isAdmin: true, isOwner: false, roleIds };
+    }
+    // (3) Manage Server still grants admin (when configured admin role list is
+    // present, we already passed it without matching, so Discord-admin alone
+    // counts only when the toggle is on).
+    if (discordAdmin && dashCfg.discord_admin_grants) {
+      return { mode: 'admin', isAdmin: true, isOwner: false, roleIds };
+    }
+
+    // (4) Limited Access Groups path.
     const memberLight = { id: member.id, guildId, isOwner, isAdmin: false, roleIds };
     const anyPermitted = ACTIONS.some((a) => canPerform(memberLight, a.key));
     if (!anyPermitted) return null;
     return { mode: 'groups', isAdmin: false, isOwner: false, roleIds };
   };
 
-  // Servers the user can reach — admin (Manage Server) OR access-group grant.
+  // Servers the user can reach — full resolve per guild, so the dashboard
+  // honours bot-admin role lists / "Discord Manage Server grants admin" toggle
+  // / Access Groups uniformly. Doing it via resolveGuildAccess for every
+  // candidate guild is slightly more API calls than the old fast-path, but
+  // it's the source-of-truth check and prevents Discord-admins from showing
+  // up in pickers for guilds where that no longer grants access.
   router.get('/guilds', async (req, res) => {
-    const manageable = (req.session.manageable || []).map((g) => ({ ...g, access: 'admin' }));
-    const adminIds = new Set(manageable.map((g) => g.id));
-    const candidate = (req.session.userGuildIds || []).filter((id) => !adminIds.has(id));
+    const candidate = req.session.userGuildIds || [];
     // Resolve each candidate; only include guilds where the user has any grant.
-    const permitted = [];
+    const servers = [];
     for (const gid of candidate) {
       const access = await resolveGuildAccess(req, gid).catch(() => null);
-      if (access && (access.mode === 'groups' || access.mode === 'owner')) {
+      if (access && (access.mode === 'admin' || access.mode === 'groups' || access.mode === 'owner')) {
         const bot = getBotForGuild(gid, client);
         const guild = bot.guilds.cache.get(gid);
         if (guild) {
-          permitted.push({
+          servers.push({
             id: gid,
             name: guild.name,
             icon: guild.iconURL({ size: 64 }),
             access: access.mode,
+            present: isGuildReachable(gid, client),
           });
         }
       }
     }
-    const servers = [...manageable, ...permitted].map((g) => ({ ...g, present: isGuildReachable(g.id, client) }));
     res.json({
       servers,
       inviteBase: process.env.DISCORD_CLIENT_ID
@@ -1158,6 +1182,17 @@ export function apiRouter(client) {
       if (validKeys.has(k)) filtered[k] = v;
     }
     res.json(setPermissionOverrides(req.guildId, filtered));
+  });
+
+  // Dashboard access settings — which roles grant full dashboard admin and
+  // whether Discord's Manage Server permission still grants admin too.
+  router.get('/access/dashboard', requireAdmin, (req, res) => res.json(getDashboardAccess(req.guildId)));
+  router.put('/access/dashboard', requireAdmin, (req, res) => {
+    const b = req.body || {};
+    res.json(setDashboardAccess(req.guildId, {
+      admin_role_ids: Array.isArray(b.admin_role_ids) ? b.admin_role_ids.map(cleanId).filter(Boolean) : [],
+      discord_admin_grants: b.discord_admin_grants !== false,
+    }));
   });
 
   router.post('/roster/import', requireAction('roster.manage'), async (req, res) => {

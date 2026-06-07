@@ -124,15 +124,16 @@ export default function AccessGroups() {
   const [groups, setGroups] = useState(null);
   const [actions, setActions] = useState(null);
   const [perms, setPerms] = useState(null);
+  const [dashCfg, setDashCfg] = useState(null);
   const [status, setStatus] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    Promise.all([api.guild(), api.getAccessGroups(), api.getActions(), api.getPermissions()])
-      .then(([g, gr, ac, pr]) => { setGuild(g); setGroups(gr); setActions(ac); setPerms(pr); })
+    Promise.all([api.guild(), api.getAccessGroups(), api.getActions(), api.getPermissions(), api.getDashboardAccess()])
+      .then(([g, gr, ac, pr, da]) => { setGuild(g); setGroups(gr); setActions(ac); setPerms(pr); setDashCfg(da); })
       .catch((e) => setStatus(e.message));
   }, []);
-  if (!guild || !groups || !actions || !perms) return <div className="muted page">{status || 'Loading…'}</div>;
+  if (!guild || !groups || !actions || !perms || !dashCfg) return <div className="muted page">{status || 'Loading…'}</div>;
 
   const groupsByCategory = actions.reduce((acc, a) => {
     if (!acc[a.category]) acc[a.category] = [];
@@ -190,12 +191,75 @@ export default function AccessGroups() {
 
   const missingPresets = PRESETS.filter((p) => !groups.some((g) => g.name.toLowerCase() === p.name.toLowerCase()));
 
+  const toggleAdminRole = (id) => {
+    const has = dashCfg.admin_role_ids.includes(id);
+    setDashCfg({ ...dashCfg, admin_role_ids: has ? dashCfg.admin_role_ids.filter((r) => r !== id) : [...dashCfg.admin_role_ids, id] });
+  };
+  const saveDashCfg = async () => {
+    setBusy(true); setStatus('Saving dashboard-access settings…');
+    try {
+      const saved = await api.saveDashboardAccess({
+        admin_role_ids: dashCfg.admin_role_ids,
+        discord_admin_grants: dashCfg.discord_admin_grants,
+      });
+      setDashCfg(saved);
+      setStatus('Saved ✓');
+    } catch (e) { setStatus('Save failed: ' + (e.body?.error || e.message)); }
+    finally { setBusy(false); }
+  };
+
+  const sortedRoles = guild.roles.slice().sort((a, b) => b.position - a.position);
+
   return (
     <div className="page">
-      <PageHeader title="Access Groups" sub="Named role bundles (JTAC, GM, ATC) that can be granted permission to perform specific bot actions. Admins (Manage Server) always pass every check — overrides only grant access to non-admins.">
+      <PageHeader title="Access Groups" sub="Who can log into the dashboard for this server — and what they can do once in. Server owner is always admin; everything below customises the rest.">
         <span className="status">{status}</span>
         <button className="btn" onClick={savePermissions} disabled={busy}>Save permissions</button>
       </PageHeader>
+
+      <section className="card">
+        <h2 style={{ marginTop: 0 }}>Who can use the dashboard</h2>
+        <p className="muted">By default anyone with Discord's <b>Manage Server</b> permission can log in here. If your Discord admin role is shared with people you don't want managing the bot (mentors, channel mods, etc.), you can grant dashboard admin to a <b>specific role</b> instead.</p>
+
+        <label className="checkbox" style={{ marginTop: 12 }}>
+          <input type="checkbox" checked={dashCfg.discord_admin_grants}
+            onChange={(e) => setDashCfg({ ...dashCfg, discord_admin_grants: e.target.checked })} />
+          <span>Discord <b>Manage Server</b> permission grants full dashboard admin (default: on)</span>
+        </label>
+        {!dashCfg.discord_admin_grants && dashCfg.admin_role_ids.length === 0 && (
+          <Callout type="warn">
+            <b>Heads up:</b> with this off and no admin roles configured below, <b>only the server owner</b> will be able to log into the dashboard. Add at least one admin role below before saving — or you'll lock yourself out (you'd have to recover via the server-owner account).
+          </Callout>
+        )}
+
+        <h3 style={{ marginTop: 16, fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--muted)' }}>Bot-admin roles</h3>
+        <p className="muted" style={{ fontSize: '0.85rem', margin: '4px 0 8px' }}>
+          Anyone with <b>any</b> of these roles gets full dashboard access — independent of their Discord permissions.
+        </p>
+        <div className="access-role-grid">
+          {sortedRoles.map((r) => {
+            const selected = dashCfg.admin_role_ids.includes(r.id);
+            return (
+              <button key={r.id}
+                className={`access-role-chip${selected ? ' selected' : ''}`}
+                onClick={() => toggleAdminRole(r.id)}
+                style={selected ? { borderColor: '#22c55e' } : undefined}
+                title={r.name}>
+                <span className="role-dot" style={{ background: '#' + (r.color || 0).toString(16).padStart(6, '0') }} />
+                {r.name}
+              </button>
+            );
+          })}
+        </div>
+        <div className="actions">
+          <button className="btn" onClick={saveDashCfg} disabled={busy}>Save dashboard access</button>
+        </div>
+      </section>
+
+      <section className="card">
+        <h2 style={{ marginTop: 0 }}>Limited-access groups</h2>
+        <p className="muted">Below this is the original Access Groups system — named role bundles that get permission to do <b>specific things</b> (post events, send announcements, etc.) without getting full dashboard access. Use this for trusted staff who shouldn't be full admins.</p>
+      </section>
 
       <section className="card">
         <h2 style={{ marginTop: 0 }}>Groups</h2>
