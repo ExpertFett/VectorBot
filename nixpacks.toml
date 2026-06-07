@@ -1,13 +1,19 @@
 # Railway/Nixpacks build config.
-# Adds the yt-dlp binary to the deploy container so DisTube's yt-dlp plugin
-# (used by /play) can extract YouTube audio. yt-dlp is the actively-maintained
-# replacement for ytdl-core; it gets updates within hours when YouTube
-# changes their player API, which is the whole reason we're using it.
-# python3 is required because yt-dlp is a Python script — Nix's yt-dlp
-# package doesn't pull a Python runtime into PATH on its own under nixpacks,
-# so we declare it explicitly here.
-# ffmpeg is also pinned here even though ffmpeg-static ships its own binary,
-# as a backstop in case the static binary's GLIBC doesn't match the container.
+# Earlier attempts using Nix's yt-dlp + python3 packages failed at runtime
+# with "/usr/bin/env: 'python3': No such file or directory" — Nix's Python
+# isn't ending up on PATH in the final container even when declared in
+# nixPkgs. So we sidestep Python entirely: download yt-dlp's standalone
+# Linux binary (PyInstaller build with Python embedded) into /usr/local/bin
+# during the install phase. No Python plumbing required at runtime.
+# ffmpeg is still pinned via Nix as a backstop for ffmpeg-static.
 
 [phases.setup]
-nixPkgs = ["nodejs_24", "python3", "yt-dlp", "ffmpeg"]
+nixPkgs = ["nodejs_24", "ffmpeg", "curl"]
+
+[phases.install]
+cmds = [
+  "curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux -o /usr/local/bin/yt-dlp",
+  "chmod +x /usr/local/bin/yt-dlp",
+  "/usr/local/bin/yt-dlp --version",
+  "npm ci || npm install"
+]
