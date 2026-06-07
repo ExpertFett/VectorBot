@@ -16,14 +16,44 @@ import { YtDlpPlugin } from '@distube/yt-dlp';
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { getPersonalization } from '../db/index.js';
 import ffmpegPath from 'ffmpeg-static';
+import { execFileSync } from 'node:child_process';
+import { existsSync, statSync } from 'node:fs';
 
 let distube = null;
 
 // Static across the process so commands import a stable handle.
 export function getMusic() { return distube; }
 
+// Boot-time diagnostic. Tells us in the deploy log exactly which yt-dlp the
+// system will resolve, so we can tell "binary missing" from "binary present
+// but wrong one is first on PATH" from "binary present and working."
+function probeYtDlp() {
+  const localPath = '/app/yt-dlp';
+  const hasLocal = existsSync(localPath);
+  if (hasLocal) {
+    const s = statSync(localPath);
+    console.log(`[music] /app/yt-dlp present: ${(s.size / 1_000_000).toFixed(1)} MB · mode=${(s.mode & 0o777).toString(8)}`);
+    // If PATH wasn't prepended for some reason, do it now from the running process.
+    if (!process.env.PATH?.split(':').includes('/app')) {
+      process.env.PATH = `/app:${process.env.PATH || ''}`;
+      console.log('[music] prepended /app to PATH at runtime');
+    }
+  } else {
+    console.warn('[music] /app/yt-dlp NOT FOUND — postinstall script likely did not run.');
+  }
+  try {
+    const which = execFileSync('which', ['yt-dlp'], { encoding: 'utf8' }).trim();
+    console.log(`[music] which yt-dlp → ${which}`);
+    const version = execFileSync(which, ['--version'], { encoding: 'utf8' }).trim();
+    console.log(`[music] yt-dlp --version → ${version}`);
+  } catch (err) {
+    console.warn('[music] yt-dlp probe failed:', err.message);
+  }
+}
+
 export function initMusic(client) {
   if (distube) return distube;
+  probeYtDlp();
   // YtDlpPlugin uses the yt-dlp binary on PATH (installed by nixpacks on
   // Railway; install locally with `winget install yt-dlp` for dev). When
   // YouTube updates their player API, yt-dlp gets fixes within hours — much
