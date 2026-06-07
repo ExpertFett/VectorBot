@@ -6,6 +6,7 @@ import { handleGiveawayButton } from '../features/giveaways.js';
 import { handleEventButton, handleEventSelect } from '../features/events.js';
 import { handleApply, handleApplyModal, handleReview } from '../features/recruitment.js';
 import { handleStart, handleNav, handleRoleToggle, handleFinish } from '../features/onboarding.js';
+import { getMusic } from '../features/music.js';
 import { reportError } from '../util/report.js';
 
 // Best-effort acknowledgement when a component handler throws — Discord will
@@ -18,6 +19,44 @@ async function softFail(interaction, msg = 'Something went wrong handling that c
     if (interaction.replied || interaction.deferred) await interaction.followUp(payload);
     else await interaction.reply(payload);
   } catch { /* nothing else to do */ }
+}
+
+// Handlers for the "Now Playing" embed control buttons. Each one is a thin
+// wrapper around the DisTube call the equivalent slash command makes — same
+// safety guards (queue exists, etc.), just an ephemeral reply since the
+// invoker probably doesn't need a public ack for hitting Pause.
+async function handleMusicButton(interaction) {
+  const distube = getMusic();
+  const queue = distube?.getQueue(interaction.guild.id);
+  if (!queue) {
+    return interaction.reply({ content: 'Nothing is playing anymore.', flags: MessageFlags.Ephemeral });
+  }
+  const id = interaction.customId.split(':')[1];
+  try {
+    if (id === 'pause') {
+      if (queue.paused) distube.resume(interaction.guild.id);
+      else distube.pause(interaction.guild.id);
+      return interaction.reply({ content: queue.paused ? `▶️ Resumed by ${interaction.user}.` : `⏸️ Paused by ${interaction.user}.` });
+    }
+    if (id === 'skip') {
+      if (queue.songs.length <= 1) { await distube.stop(interaction.guild.id); return interaction.reply({ content: `⏭️ Skipped (last song) by ${interaction.user}.` }); }
+      await distube.skip(interaction.guild.id);
+      return interaction.reply({ content: `⏭️ Skipped by ${interaction.user}.` });
+    }
+    if (id === 'stop') {
+      await distube.stop(interaction.guild.id);
+      return interaction.reply({ content: `⏹️ Stopped by ${interaction.user}.` });
+    }
+    if (id === 'queue') {
+      // Defer to the /queue command's logic — easier to just inline a compact view.
+      const [current, ...upcoming] = queue.songs;
+      const lines = upcoming.slice(0, 10).map((s, i) => `**${i + 1}.** ${(s.name || 'Untitled').slice(0, 70)}`);
+      const body = `**Now:** ${(current.name || 'Untitled').slice(0, 100)}\n` + (lines.length ? lines.join('\n') : '_No upcoming songs._');
+      return interaction.reply({ content: body, flags: MessageFlags.Ephemeral });
+    }
+  } catch (err) {
+    return interaction.reply({ content: `Couldn't do that: ${err.message}`, flags: MessageFlags.Ephemeral });
+  }
 }
 
 export default {
@@ -43,6 +82,7 @@ export default {
           if (id.startsWith('onboard:nav:')) return await handleNav(interaction);
           if (id.startsWith('onboard:role:')) return await handleRoleToggle(interaction);
           if (id === 'onboard:finish') return await handleFinish(interaction);
+          if (id.startsWith('music:')) return await handleMusicButton(interaction);
           // Unrecognised customId — tell the user instead of leaving silent.
           await softFail(interaction, 'I don’t recognise this button. The bot may have been updated since this message was posted.');
           return;

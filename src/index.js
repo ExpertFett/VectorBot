@@ -8,6 +8,7 @@ import { startWebServer } from './web/server.js';
 import { startScheduler } from './scheduler/index.js';
 import { reportError } from './util/report.js';
 import { initCustomBotRuntime, loadAllCustomBots } from './customBots/index.js';
+import { initMusic } from './features/music.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -24,6 +25,7 @@ const client = new Client({
     GatewayIntentBits.MessageContent,    // privileged: "!" custom-command triggers
     GatewayIntentBits.GuildModeration,
     GatewayIntentBits.GuildInvites,      // invite tracker
+    GatewayIntentBits.GuildVoiceStates,  // music: needed to join voice + know who's in channel
   ],
 });
 
@@ -84,6 +86,10 @@ startWebServer(client);
 
 // Background scheduler for scheduled messages, reminders, giveaways, YouTube polling.
 startScheduler(client);
+
+// Music engine — must be wired up before login so DisTube can register its
+// voiceStateUpdate handler with the client.
+initMusic(client);
 
 process.on('unhandledRejection', (err) => reportError(client, 'unhandledRejection', err));
 
