@@ -167,28 +167,52 @@ export function apiRouter(client) {
     return { mode: 'groups', isAdmin: false, isOwner: false, roleIds };
   };
 
-  // Servers the user can reach — full resolve per guild, so the dashboard
-  // honours bot-admin role lists / "Discord Manage Server grants admin" toggle
-  // / Access Groups uniformly. Doing it via resolveGuildAccess for every
-  // candidate guild is slightly more API calls than the old fast-path, but
-  // it's the source-of-truth check and prevents Discord-admins from showing
-  // up in pickers for guilds where that no longer grants access.
+  // Servers the user can reach. Two categories:
+  //   1. Discord-admin (Manage Server) guilds where the bot ISN'T present —
+  //      shown so the user can invite the bot from the picker. We don't
+  //      verify "bot would actually grant them admin" here — there's no
+  //      dashboard config yet for a guild without the bot. The Discord-admin
+  //      flag is enough to surface the guild for the invite flow.
+  //   2. Guilds where the bot IS present — full resolveGuildAccess so the
+  //      bot-admin role list / Manage-Server toggle / Access Groups are
+  //      honoured. A Discord-admin who's been locked out via those settings
+  //      won't appear via this path.
   router.get('/guilds', async (req, res) => {
-    const candidate = req.session.userGuildIds || [];
-    // Resolve each candidate; only include guilds where the user has any grant.
+    const manageable = req.session.manageable || [];
+    const userGuildIds = req.session.userGuildIds || [];
+    const seen = new Set();
     const servers = [];
-    for (const gid of candidate) {
+
+    // (1) Invite-candidates: Discord-admin guilds the bot isn't in yet.
+    for (const g of manageable) {
+      if (!isGuildReachable(g.id, client)) {
+        seen.add(g.id);
+        servers.push({
+          id: g.id,
+          name: g.name,
+          icon: g.icon,
+          access: 'admin',
+          present: false,
+        });
+      }
+    }
+
+    // (2) Bot-present guilds with any access path under the configured rules.
+    for (const gid of userGuildIds) {
+      if (seen.has(gid)) continue;
+      if (!isGuildReachable(gid, client)) continue;
       const access = await resolveGuildAccess(req, gid).catch(() => null);
       if (access && (access.mode === 'admin' || access.mode === 'groups' || access.mode === 'owner')) {
         const bot = getBotForGuild(gid, client);
         const guild = bot.guilds.cache.get(gid);
         if (guild) {
+          seen.add(gid);
           servers.push({
             id: gid,
             name: guild.name,
             icon: guild.iconURL({ size: 64 }),
             access: access.mode,
-            present: isGuildReachable(gid, client),
+            present: true,
           });
         }
       }
