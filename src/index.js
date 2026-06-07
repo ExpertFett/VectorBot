@@ -9,6 +9,7 @@ import { startScheduler } from './scheduler/index.js';
 import { reportError } from './util/report.js';
 import { initCustomBotRuntime, loadAllCustomBots } from './customBots/index.js';
 import { initMusic } from './features/music.js';
+import { ensureYtDlp } from '../scripts/install-yt-dlp.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -88,7 +89,12 @@ startWebServer(client);
 startScheduler(client);
 
 // Music engine — must be wired up before login so DisTube can register its
-// voiceStateUpdate handler with the client.
+// voiceStateUpdate handler with the client. We ensure the yt-dlp standalone
+// binary is in place FIRST so the @distube/yt-dlp plugin's spawned binary is
+// Python-free. This is the source-of-truth install — runs every boot rather
+// than relying on build-system postinstall hooks (Railway's Railpack runs
+// npm ci with --ignore-scripts, so postinstall is silently skipped there).
+await ensureYtDlp().catch((e) => console.warn('[music] ensureYtDlp failed:', e.message));
 initMusic(client);
 
 process.on('unhandledRejection', (err) => reportError(client, 'unhandledRejection', err));
