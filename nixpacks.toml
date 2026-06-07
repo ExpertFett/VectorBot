@@ -3,8 +3,11 @@
 # (used by /play) can extract YouTube audio. yt-dlp is the actively-maintained
 # replacement for ytdl-core; it gets updates within hours when YouTube
 # changes their player API, which is the whole reason we're using it.
+# python3 is required because yt-dlp is a Python script — Nix's yt-dlp
+# package doesn't pull a Python runtime into PATH on its own under nixpacks,
+# so we declare it explicitly here.
 # ffmpeg is also pinned here even though ffmpeg-static ships its own binary,
 # as a backstop in case the static binary's GLIBC doesn't match the container.
 
 [phases.setup]
-nixPkgs = ["nodejs_24", "yt-dlp", "ffmpeg"]
+nixPkgs = ["nodejs_24", "python3", "yt-dlp", "ffmpeg"]
