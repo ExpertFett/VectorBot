@@ -54,12 +54,14 @@ function probeYtDlp() {
 export function initMusic(client) {
   if (distube) return distube;
   probeYtDlp();
-  // YtDlpPlugin uses the yt-dlp binary on PATH (installed by nixpacks on
-  // Railway; install locally with `winget install yt-dlp` for dev). When
-  // YouTube updates their player API, yt-dlp gets fixes within hours — much
-  // more resilient than the ytdl-core libraries that ship as npm packages.
+  // YtDlpPlugin spawns its OWN bundled binary at
+  // node_modules/@distube/yt-dlp/bin/yt-dlp (NOT whatever's on PATH). Our
+  // postinstall script overwrites that with yt-dlp's self-contained Linux
+  // binary so the plugin's spawn() call works without Python.
+  // `update: false` is critical here — `true` would make the plugin re-
+  // download the broken Python zipapp on startup and clobber our binary.
   distube = new DisTube(client, {
-    plugins: [new YtDlpPlugin({ update: true })],   // auto-update yt-dlp binary on boot when possible
+    plugins: [new YtDlpPlugin({ update: false })],
     ffmpeg: { path: ffmpegPath },
     emitAddSongWhenCreatingQueue: false,  // we send our own "added to queue" message via /play directly
     emitAddListWhenCreatingQueue: false,
