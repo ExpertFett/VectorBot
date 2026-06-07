@@ -8,7 +8,8 @@
     "start": "node --disable-warning=ExperimentalWarning src/index.js",
     "deploy": "node --disable-warning=ExperimentalWarning src/deploy-commands.js",
     "build": "npm --prefix dashboard install && npm --prefix dashboard run build",
-    "dashboard": "npm --prefix dashboard run dev"
+    "dashboard": "npm --prefix dashboard run dev",
+    "postinstall": "node scripts/install-yt-dlp.mjs"
   },
   "engines": {
     "node": ">=23.4"
