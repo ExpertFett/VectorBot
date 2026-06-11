@@ -79,6 +79,19 @@ async function resolveChannel(req, res, mainClient) {
 export function integrationsRouter(client) {
   const router = Router();
 
+  // CORS for the integrations router only — these endpoints are designed to be
+  // called cross-origin from ReadyRoom (or any other tool wired in later) via
+  // browser fetch(). The bearer-token auth on each route means we can safely
+  // allow any origin: the token is the gate, not the origin.
+  router.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.setHeader('Access-Control-Max-Age', '86400');     // cache preflight 24h
+    if (req.method === 'OPTIONS') return res.status(204).end();
+    next();
+  });
+
   // HEALTH — used by ReadyRoom's "Test connection" button to confirm the
   // configured base URL + outbound token reach this guild AND the events
   // channel is set + valid. Returns guild name + channel name on success.
