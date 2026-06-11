@@ -196,6 +196,13 @@ export default function AccessGroups() {
     setDashCfg({ ...dashCfg, admin_role_ids: has ? dashCfg.admin_role_ids.filter((r) => r !== id) : [...dashCfg.admin_role_ids, id] });
   };
   const saveDashCfg = async () => {
+    // Hard guard against locking everyone except the owner out — confirm first.
+    if (!dashCfg.discord_admin_grants && dashCfg.admin_role_ids.length === 0) {
+      const ok = window.confirm(
+        'Heads up: with "Discord Manage Server grants admin" turned off AND no bot-admin roles selected, only the server owner will be able to log into this dashboard. Save anyway?'
+      );
+      if (!ok) { setStatus('Save cancelled — no settings changed.'); return; }
+    }
     setBusy(true); setStatus('Saving dashboard-access settings…');
     try {
       const saved = await api.saveDashboardAccess({
@@ -208,6 +215,10 @@ export default function AccessGroups() {
     finally { setBusy(false); }
   };
 
+  // Strip role IDs that no longer exist on Discord — they were deleted out
+  // from under us and shouldn't grant access anymore.
+  const liveRoleIds = new Set(guild.roles.map((r) => r.id));
+  const staleAdminRoles = dashCfg.admin_role_ids.filter((id) => !liveRoleIds.has(id));
   const sortedRoles = guild.roles.slice().sort((a, b) => b.position - a.position);
 
   return (
@@ -236,6 +247,12 @@ export default function AccessGroups() {
         <p className="muted" style={{ fontSize: '0.85rem', margin: '4px 0 8px' }}>
           Anyone with <b>any</b> of these roles gets full dashboard access — independent of their Discord permissions.
         </p>
+        {staleAdminRoles.length > 0 && (
+          <Callout type="warn">
+            <b>{staleAdminRoles.length} configured admin role{staleAdminRoles.length === 1 ? '' : 's'} no longer exist{staleAdminRoles.length === 1 ? 's' : ''} on Discord.</b> They're being ignored at runtime. Save this section to drop them from the saved list:
+            <button className="link" onClick={() => setDashCfg({ ...dashCfg, admin_role_ids: dashCfg.admin_role_ids.filter((id) => liveRoleIds.has(id)) })} style={{ marginLeft: 8 }}>Drop stale roles</button>
+          </Callout>
+        )}
         <div className="access-role-grid">
           {sortedRoles.map((r) => {
             const selected = dashCfg.admin_role_ids.includes(r.id);

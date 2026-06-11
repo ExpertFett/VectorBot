@@ -33,7 +33,17 @@ function resolveSessionSecret() {
     console.log('[session] generated + persisted new session secret to DB');
     return fresh;
   } catch (err) {
-    console.warn('[session] could not persist secret to DB, falling back to dev string:', err.message);
+    // Falling back to a publicly-known dev string in prod would silently make
+    // every existing session invalid (and every cookie forgeable). Make the
+    // failure loud — operators should set SESSION_SECRET in env vars OR fix
+    // the DB so the secret can persist.
+    console.error('[session] CRITICAL: could not read/write session secret in DB:', err.message);
+    console.error('[session] Set the SESSION_SECRET env var to a long random string, then redeploy.');
+    if (process.env.NODE_ENV === 'production' || (process.env.BASE_URL || '').startsWith('https')) {
+      throw new Error('Cannot start: session secret unavailable. Set SESSION_SECRET env var.');
+    }
+    // Dev-only fallback — still loud, but doesn't crash local dev.
+    console.warn('[session] using insecure dev fallback (not safe for production)');
     return 'dev-insecure-secret-change-me';
   }
 }

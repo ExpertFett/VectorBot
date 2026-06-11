@@ -59,9 +59,16 @@ const fmtDelta = (n) => {
 export default function Analytics() {
   const [data, setData] = useState(null);
   const [status, setStatus] = useState('');
+  // A monotonic tick so the "Updated Ns ago" string refreshes on its own —
+  // without this, the label says "0s ago" until the user clicks something.
+  const [, forceTick] = useState(0);
 
   useEffect(() => {
     api.getAnalytics().then(setData).catch((e) => setStatus(e.body?.error || e.message));
+  }, []);
+  useEffect(() => {
+    const id = setInterval(() => forceTick((n) => n + 1), 10_000);
+    return () => clearInterval(id);
   }, []);
 
   if (!data) {

@@ -81,7 +81,10 @@ export function computeAnalytics(guildId) {
     for (const role of roles) {
       const lim = Number(role.limit) || 0;
       if (!lim) continue;
-      totalFilled += Math.min(counts.get(role.label) || 0, lim);
+      // Sign-up rows use the role's label as the join key. Guard against
+      // missing/renamed labels — count those as unfilled rather than crashing.
+      const key = role.label || role.name || '';
+      totalFilled += Math.min(counts.get(key) || 0, lim);
     }
   }
   const fillRate = totalCap ? totalFilled / totalCap : null;

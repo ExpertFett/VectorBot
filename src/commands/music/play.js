@@ -21,10 +21,17 @@ export default {
     await interaction.deferReply();
 
     try {
-      await distube.play(voice, query, {
+      // 30-second timeout. yt-dlp normally resolves in <5s; anything beyond that
+      // is almost always YouTube blocking (silently). Without this guard, /play
+      // would hang for up to 15 minutes (Discord's defer ceiling) before failing.
+      const playPromise = distube.play(voice, query, {
         member: interaction.member,
         textChannel: interaction.channel,
       });
+      const timeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('playback_timeout')), 30_000));
+      await Promise.race([playPromise, timeout]);
+
       // DisTube emits 'playSong' which posts the now-playing embed itself. We
       // only need to ack the slash command — keep it short so it doesn't
       // duplicate the now-playing card the event handler will post.
@@ -40,13 +47,16 @@ export default {
       });
     } catch (err) {
       const msg = String(err?.message || err);
-      const isYtBlocked = /sign in|extract|410|403|status code 4|forbidden/i.test(msg);
+      const isTimeout = msg === 'playback_timeout';
+      const isYtBlocked = isTimeout || /sign in|extract|410|403|status code 4|forbidden|cannot find any song/i.test(msg);
       await interaction.editReply({
         embeds: [new EmbedBuilder().setColor(0xe11d48)
           .setTitle(isYtBlocked ? 'YouTube blocked the request' : 'Couldn\'t play that')
-          .setDescription(isYtBlocked
-            ? 'YouTube has updated its bot-detection. Try again shortly, or ping a bot admin to update the extractor.'
-            : msg.slice(0, 1500)),
+          .setDescription(isTimeout
+            ? 'The request timed out — usually means YouTube is blocking the bot\'s IP. Try again shortly, or ping an admin.'
+            : isYtBlocked
+              ? 'YouTube has updated its bot-detection. Try again shortly, or ping a bot admin to update the extractor.'
+              : msg.slice(0, 1500)),
         ],
       }).catch(() => {});
     }

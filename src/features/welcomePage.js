@@ -13,6 +13,21 @@ import { getWelcomePage, setWelcomePage, getPersonalization } from '../db/index.
 
 const isHttpUrl = (v) => typeof v === 'string' && /^https?:\/\//i.test(v);
 
+// Returns true if the element has at least one piece of meaningful content.
+// Used to skip empty elements at publish time so users don't accidentally
+// post a row of blank embeds.
+export function isElementEmpty(el) {
+  if (!el?.type) return true;
+  if (el.type === 'banner')  return !el.title && !isHttpUrl(el.image_url);
+  if (el.type === 'section') return !el.title && !el.description && !isHttpUrl(el.image_url);
+  if (el.type === 'columns') {
+    if (el.title) return false;
+    const cols = Array.isArray(el.columns) ? el.columns : [];
+    return !cols.some((c) => c && (c.heading || c.content));
+  }
+  return true;
+}
+
 export function buildElementEmbed(el, accent = 0x9119f5) {
   const embed = new EmbedBuilder().setColor(accent);
   if (el.type === 'banner') {
@@ -59,7 +74,14 @@ export async function publishWelcomePage(client, guildId) {
   if (!channel?.isTextBased()) throw new Error('invalid_channel');
 
   const accent = getPersonalization(guildId).embed_color ?? 0x9119f5;
-  const elements = Array.isArray(page.elements) ? page.elements : [];
+  // Filter empty elements at publish time — they'd just render as blank
+  // embeds in Discord, which looks broken. The user keeps the empty draft
+  // in the dashboard; we just don't post it.
+  const allElements = Array.isArray(page.elements) ? page.elements : [];
+  const elements = allElements.filter((el) => !isElementEmpty(el));
+  if (!elements.length) {
+    throw new Error('no_publishable_elements');
+  }
   const oldIds = Array.isArray(page.message_ids) ? page.message_ids.slice() : [];
   const newIds = [];
 

@@ -1019,7 +1019,7 @@ export function apiRouter(client) {
     try { res.json({ ok: true, message_id: await postRecruitPanel(getBotForGuild(req.guildId, client), req.guildId) }); }
     catch (err) { res.status(400).json({ error: err.message }); }
   });
-  router.get('/applications', (req, res) => res.json(getApplications(req.guildId)));
+  router.get('/applications', requireAction('recruitment.review'), (req, res) => res.json(getApplications(req.guildId)));
 
   // --- onboarding wizard ---
   router.get('/onboarding', (req, res) => res.json(getOnboarding(req.guildId)));

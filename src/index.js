@@ -88,14 +88,17 @@ startWebServer(client);
 // Background scheduler for scheduled messages, reminders, giveaways, YouTube polling.
 startScheduler(client);
 
-// Music engine — must be wired up before login so DisTube can register its
-// voiceStateUpdate handler with the client. We ensure the yt-dlp standalone
-// binary is in place FIRST so the @distube/yt-dlp plugin's spawned binary is
-// Python-free. This is the source-of-truth install — runs every boot rather
-// than relying on build-system postinstall hooks (Railway's Railpack runs
-// npm ci with --ignore-scripts, so postinstall is silently skipped there).
-await ensureYtDlp().catch((e) => console.warn('[music] ensureYtDlp failed:', e.message));
-initMusic(client);
+// Music engine — opt-out via DISABLE_MUSIC=1 (e.g. when YouTube extraction is
+// blocked on the deploy host and the operator doesn't want the broken /play
+// command surfaced to users). When opted out we skip both the yt-dlp install
+// step and DisTube initialization, so the slash commands are still registered
+// but error cleanly via getMusic() returning null.
+if (process.env.DISABLE_MUSIC === '1') {
+  console.log('[music] DISABLE_MUSIC=1 set — skipping yt-dlp install and DisTube init.');
+} else {
+  await ensureYtDlp().catch((e) => console.warn('[music] ensureYtDlp failed:', e.message));
+  initMusic(client);
+}
 
 process.on('unhandledRejection', (err) => reportError(client, 'unhandledRejection', err));
 
