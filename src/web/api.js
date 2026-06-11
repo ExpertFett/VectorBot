@@ -52,6 +52,7 @@ import { postRecruitPanel } from '../features/recruitment.js';
 import { postOnboardPanel } from '../features/onboarding.js';
 import { publishWelcomePage, clearWelcomePage } from '../features/welcomePage.js';
 import { computeAnalytics } from '../features/analytics.js';
+import { buildInstallerZip } from '../features/dcsInstaller.js';
 import { parseMizSlots } from '../features/mizParser.js';
 import { STAT_TYPES, computeStat } from '../features/stats.js';
 import { requireAuth } from './auth.js';
@@ -956,6 +957,25 @@ export function apiRouter(client) {
   });
   router.post('/dcs/regen-readyroom-token', requireAdmin, (req, res) => {
     res.json({ readyroom_outbound_token: regenerateReadyroomOutboundToken(req.guildId) });
+  });
+
+  // Downloadable pre-configured installer zip for the DCS Lua hook. The zip
+  // contains the .lua + .vbs + README with the ingest URL already baked in,
+  // so the user just drops the three files into Saved Games\<DCS>\Scripts\Hooks
+  // and restarts — no editing, no copy-pasting URLs.
+  router.get('/dcs/installer.zip', (req, res) => {
+    try {
+      const token = getIngestToken(req.guildId);
+      const ingestUrl = `${getBaseUrl()}/ingest/${token}`;
+      const zip = buildInstallerZip(ingestUrl);
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', 'attachment; filename="dcsopt-installer.zip"');
+      res.setHeader('Cache-Control', 'no-store');     // URLs are sensitive — never cache
+      res.send(zip);
+    } catch (err) {
+      console.error('installer build failed:', err);
+      res.status(500).json({ error: 'installer_failed', detail: err.message });
+    }
   });
 
   router.get('/traps', (req, res) => res.json({

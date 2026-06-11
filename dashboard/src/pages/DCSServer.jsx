@@ -191,21 +191,48 @@ export default function DCSServer() {
 
       <section className="card">
         <h2>Hook setup</h2>
-        <p className="muted">Your server’s private ingest URL — keep it secret (anyone with it can post status to your server’s embed):</p>
-        <label>Ingest URL
-          <input readOnly value={dcs.ingest_url} onFocus={(e) => e.target.select()} />
-        </label>
-        <div className="actions">
-          <button className="btn" onClick={copy}>Copy URL</button>
-          <button className="link danger" onClick={regen}>Regenerate token</button>
+        <p className="muted">Three files go into your DCS Saved Games <code>Scripts\Hooks</code> folder. We pre-bake your ingest URL into them — you don't have to edit anything.</p>
+
+        <div className="actions" style={{ marginTop: 12 }}>
+          <a className="btn" href="/api/dcs/installer.zip" download>📦 Download installer (.zip)</a>
         </div>
-        <ol className="muted" style={{ lineHeight: 1.7 }}>
-          <li>Download <code>dcs-hook/vectorbot.lua</code> from the VectorBot repo.</li>
-          <li>Open it and paste your Ingest URL into the <code>url</code> field at the top.</li>
-          <li>Drop it into <code>Saved Games\DCS\Scripts\Hooks\</code> on the server PC (use your variant’s folder, e.g. <code>DCS.openbeta</code>).</li>
-          <li>Restart the DCS server. Status appears here and in your status channel within a minute.</li>
+
+        <h3 style={{ marginTop: 18 }}>What to do with the zip:</h3>
+        <ol style={{ lineHeight: 1.8 }}>
+          <li>Unzip the file you just downloaded.</li>
+          <li>Open File Explorer, paste this into the address bar, hit Enter:<br />
+            <code style={{ background: 'var(--bg-2)', padding: '4px 8px', borderRadius: 4, fontSize: '0.9rem' }}>%USERPROFILE%\Saved Games</code></li>
+          <li>Open your DCS variant's folder (<code>DCS</code>, <code>DCS.openbeta</code>, or <code>DCS.server</code>).</li>
+          <li>Go into <code>Scripts\Hooks</code> (create those subfolders if they don't exist).</li>
+          <li>Drop the three files from the zip in. Restart the DCS server.</li>
         </ol>
-        <p className="muted">Requires <code>desanitize</code> of <code>os</code>/<code>io</code>/<code>lfs</code> in <code>MissionScripting.lua</code> — the same setup your BombScore hook uses.</p>
+
+        <p className="muted" style={{ marginTop: 12 }}>
+          Within ~60 seconds of restart, the "Current status" card at the top of this page should flip to your live data.
+          If nothing happens after 2 minutes, check <code>Saved Games\&lt;variant&gt;\Logs\dcs.log</code> for lines starting with <code>DCSOPT:</code>.
+        </p>
+
+        <details style={{ marginTop: 12 }}>
+          <summary style={{ cursor: 'pointer', color: 'var(--muted)', fontSize: '0.9rem' }}>Advanced: your raw ingest URL + token regen</summary>
+          <div style={{ marginTop: 10 }}>
+            <p className="muted" style={{ fontSize: '0.85rem' }}>Anyone with this URL can post status to your server's embed — treat it like a password.</p>
+            <label>Ingest URL
+              <input readOnly value={dcs.ingest_url} onFocus={(e) => e.target.select()} />
+            </label>
+            <div className="actions">
+              <button className="btn" onClick={copy}>Copy URL</button>
+              <button className="link danger" onClick={regen}>Regenerate token</button>
+            </div>
+            <p className="muted" style={{ fontSize: '0.85rem' }}>
+              Regenerating invalidates the old URL — you'd have to re-download the installer and re-drop the files.
+            </p>
+          </div>
+        </details>
+
+        <p className="muted" style={{ marginTop: 14, fontSize: '0.85rem' }}>
+          Requires <code>desanitize</code> of <code>os</code> / <code>io</code> / <code>lfs</code> in <code>MissionScripting.lua</code>.
+          If you've already run other hooks (BombScore, SRS, etc.), this is already done.
+        </p>
       </section>
     </div>
   );
