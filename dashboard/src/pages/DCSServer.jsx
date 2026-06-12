@@ -27,6 +27,22 @@ export default function DCSServer() {
     })
     .catch((e) => setStatus(e.message));
   useEffect(() => { load(); }, []);
+
+  // Live-refresh the DCS status (not guild/config) so the health badge stays
+  // current and first-contact feels instant. Poll fast (4s) while we've never
+  // heard from the server — that's when the user is staring at the page after
+  // installing — and slow (15s) once connected to keep it fresh without churn.
+  useEffect(() => {
+    let stop = false;
+    const tick = async () => {
+      try { const d = await api.getDcs(); if (!stop) setDcs((prev) => ({ ...prev, ...d })); }
+      catch { /* transient — try again next tick */ }
+    };
+    const interval = dcs?.health === 'never' ? 4000 : 15000;
+    const id = setInterval(tick, interval);
+    return () => { stop = true; clearInterval(id); };
+  }, [dcs?.health]);
+
   if (!dcs || !guild) return <div className="muted page">{status || 'Loading…'}</div>;
 
   const saveChannels = async () => {
@@ -89,21 +105,58 @@ export default function DCSServer() {
   const copy = () => { navigator.clipboard?.writeText(dcs.ingest_url); setStatus('Ingest URL copied'); };
 
   const s = dcs.status;
+  const HEALTH = {
+    connected: { dot: '#22c55e', label: 'Connected', text: 'Your DCS server is reporting in.' },
+    stale:     { dot: '#f0b429', label: 'Stale',     text: 'Heard from your server before, but it\'s gone quiet — DCS is probably closed, or the hook stopped.' },
+    never:     { dot: '#6b7280', label: 'Not connected yet', text: 'No telemetry received. Install the hook below, then start your server.' },
+  };
+  const h = HEALTH[dcs.health] || HEALTH.never;
+  const relTime = (ms) => {
+    if (!ms) return 'never';
+    const s2 = Math.round((Date.now() - ms) / 1000);
+    if (s2 < 60) return `${s2}s ago`;
+    if (s2 < 3600) return `${Math.round(s2 / 60)}m ago`;
+    if (s2 < 86400) return `${Math.round(s2 / 3600)}h ago`;
+    return `${Math.round(s2 / 86400)}d ago`;
+  };
+
   return (
     <div className="page">
       <PageHeader title="DCS Server" sub="Connect your DCS server for live status, a kill feed, and scoreboards via a small in-game hook.">
         <span className="status">{status}</span>
       </PageHeader>
 
-      <Callout>Everything on this page (and the Carrier Traps / Bomb Range / Sortie Log boards) is powered by a lightweight Lua hook running on your DCS server PC. No data yet? Follow <b>Hook setup</b> at the bottom.</Callout>
-
       <section className="card">
-        <h2>Current status</h2>
-        {!s ? <p className="muted">No data received yet. Install the hook below, then start your server.</p> : (
-          <ul className="cmd-list">
+        <div className="dcs-health">
+          <span className="dcs-health-dot" style={{ background: h.dot, boxShadow: dcs.health === 'connected' ? `0 0 8px ${h.dot}` : 'none' }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{h.label}</div>
+            <div className="muted" style={{ fontSize: '0.88rem' }}>{h.text}</div>
+          </div>
+          {dcs.last_seen && (
+            <div style={{ textAlign: 'right' }}>
+              <div className="muted" style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Last heard</div>
+              <div style={{ fontWeight: 600 }}>{relTime(dcs.last_seen)}</div>
+            </div>
+          )}
+        </div>
+
+        {dcs.health === 'never' && (
+          <Callout type="tip">Waiting for your first heartbeat… this page is watching live — it'll flip to <b>Connected</b> on its own the moment your server reports in (usually within a minute of starting DCS). Install the hook from <b>Hook setup</b> below.</Callout>
+        )}
+        {dcs.hook_outdated && (
+          <Callout type="warn">
+            Your server is running hook <b>v{dcs.hook_version}</b>, but the latest is <b>v{dcs.latest_hook_version}</b>. Re-download the installer below and replace the files to get the newest fixes.
+          </Callout>
+        )}
+
+        {s && (
+          <ul className="cmd-list" style={{ marginTop: 12 }}>
             <li><span style={{ flex: 1 }}>Players</span><span className="tag">{s.players ?? 0}</span></li>
+            {s.names?.length > 0 && <li><span style={{ flex: 1 }}>Online</span><span className="muted">{s.names.join(', ').slice(0, 200)}</span></li>}
             {s.mission && <li><span style={{ flex: 1 }}>Mission</span><span className="muted">{s.mission}</span></li>}
             {s.theatre && <li><span style={{ flex: 1 }}>Theatre</span><span className="muted">{s.theatre}</span></li>}
+            {dcs.hook_version && <li><span style={{ flex: 1 }}>Hook version</span><span className="muted">v{dcs.hook_version}</span></li>}
             <li><span style={{ flex: 1 }}>Last update</span><span className="muted">{s.updated_at ? new Date(s.updated_at).toLocaleString() : '—'}</span></li>
           </ul>
         )}

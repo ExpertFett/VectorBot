@@ -52,7 +52,7 @@ import { postRecruitPanel } from '../features/recruitment.js';
 import { postOnboardPanel } from '../features/onboarding.js';
 import { publishWelcomePage, clearWelcomePage } from '../features/welcomePage.js';
 import { computeAnalytics } from '../features/analytics.js';
-import { buildInstallerZip } from '../features/dcsInstaller.js';
+import { buildInstallerZip, CURRENT_HOOK_VERSION } from '../features/dcsInstaller.js';
 import { parseMizSlots } from '../features/mizParser.js';
 import { STAT_TYPES, computeStat } from '../features/stats.js';
 import { requireAuth } from './auth.js';
@@ -941,9 +941,26 @@ export function apiRouter(client) {
   router.get('/dcs', (req, res) => {
     const token = getIngestToken(req.guildId);
     const c = getConfig(req.guildId);
+    const status = getServerStatus(req.guildId);
+
+    // Compute a plain-English connection health from the last-seen timestamp.
+    //   connected : heard within 2 min
+    //   stale     : heard before, but quiet for 2+ min (DCS closed / broke)
+    //   never     : no heartbeat ever recorded
+    const lastSeen = status?.updated_at || null;
+    const age = lastSeen ? Date.now() - lastSeen : null;
+    let health = 'never';
+    if (lastSeen) health = age <= 120_000 ? 'connected' : 'stale';
+    const hookVersion = status?.hook_version || null;
+
     res.json({
       ingest_url: `${getBaseUrl()}/ingest/${token}`,
-      status: getServerStatus(req.guildId),
+      status,
+      health,                                  // 'connected' | 'stale' | 'never'
+      last_seen: lastSeen,                     // epoch ms or null
+      hook_version: hookVersion,               // version the server last reported
+      latest_hook_version: CURRENT_HOOK_VERSION,
+      hook_outdated: !!(hookVersion && hookVersion !== CURRENT_HOOK_VERSION),
       status_channel_id: c.status_channel_id || null,
       dcs_feed_channel_id: c.dcs_feed_channel_id || null,
       readyroom_ingest_url: c.readyroom_ingest_url || null,

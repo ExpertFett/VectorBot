@@ -18,6 +18,12 @@ const HOOK_TEMPLATE    = readFileSync(join(HOOK_DIR, 'dcsopt_hook.lua'), 'utf8')
 const MISSION_TEMPLATE = readFileSync(join(HOOK_DIR, 'dcsopt_mission.lua'), 'utf8');
 const DAEMON_TEMPLATE  = readFileSync(join(HOOK_DIR, 'dcsopt_daemon.vbs'), 'utf8');
 
+// Single source of truth for "the latest hook version" — parsed straight out
+// of the .lua so bumping DCSOPT.VERSION there is the only thing to update.
+// A server reporting a lower version gets an upgrade nudge on the dashboard.
+export const CURRENT_HOOK_VERSION =
+  (HOOK_TEMPLATE.match(/DCSOPT\.VERSION\s*=\s*"([^"]+)"/) || [])[1] || '0.0.0';
+
 function readme(ingestUrl) {
   return [
     '== DCS:OPT OPS Bot — DCS Server Installer ==',

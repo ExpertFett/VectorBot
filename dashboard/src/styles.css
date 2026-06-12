@@ -249,6 +249,10 @@ textarea { resize: vertical; }
 .group-chip:hover { background: var(--bg-3, #1f1f29); }
 .group-chip.selected { border-width: 2px; padding: 3px 9px; font-weight: 600; }
 
+/* DCS connection health badge */
+.dcs-health { display: flex; align-items: center; gap: 14px; padding: 4px 0; }
+.dcs-health-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; transition: background 0.3s, box-shadow 0.3s; }
+
 /* Analytics page */
 .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
 .metric-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; position: relative; min-height: 96px; }

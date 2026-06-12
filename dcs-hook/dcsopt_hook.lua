@@ -18,6 +18,10 @@
 
 local DCSOPT = {}
 
+-- Bump this whenever the hook's behaviour changes. The bot compares it to its
+-- own DCS_HOOK_VERSION and nudges the user to re-download if they're behind.
+DCSOPT.VERSION = "2.0.0"
+
 DCSOPT.config = {
   -- Paste your per-server Ingest URL from the dashboard's "DCS Server" page:
   url               = "https://CHANGE-ME.up.railway.app/ingest/CHANGE_ME_TOKEN",
@@ -94,17 +98,85 @@ local function postPayload(json)
   os.rename(base .. ".tmp", base .. ".json")
 end
 
+-- Embedded copy of the daemon, written to disk if the .vbs is missing.
+-- Self-heal: if the user dropped only the .lua files (the most common install
+-- mistake), the hook materializes the daemon itself instead of going dark.
+-- Keep this in sync with dcs-hook/dcsopt_daemon.vbs in the repo.
+local DAEMON_VBS = [==[
+Option Explicit
+Dim fso, queueDir, url, lock, startedAt
+Set fso = CreateObject("Scripting.FileSystemObject")
+If WScript.Arguments.Count < 2 Then WScript.Quit
+queueDir = WScript.Arguments(0)
+url = WScript.Arguments(1)
+If Right(queueDir, 1) <> "\" Then queueDir = queueDir & "\"
+If Not fso.FolderExists(queueDir) Then WScript.Quit
+On Error Resume Next
+Set lock = fso.OpenTextFile(queueDir & "daemon.lock", 2, True)
+If Err.Number <> 0 Then WScript.Quit
+On Error GoTo 0
+startedAt = Now
+Function ReadUtf8(path)
+  Dim s
+  Set s = CreateObject("ADODB.Stream")
+  s.Type = 2 : s.Charset = "utf-8" : s.Open
+  s.LoadFromFile path
+  ReadUtf8 = s.ReadText : s.Close
+End Function
+Sub PostJson(body)
+  Dim http
+  On Error Resume Next
+  Set http = CreateObject("WinHttp.WinHttpRequest.5.1")
+  http.Open "POST", url, False
+  http.SetRequestHeader "Content-Type", "application/json"
+  http.SetTimeouts 5000, 5000, 5000, 10000
+  http.Send body
+  On Error GoTo 0
+End Sub
+Dim hbPath, f, stale
+hbPath = queueDir & "heartbeat.txt"
+Do While True
+  stale = False
+  If fso.FileExists(hbPath) Then
+    If DateDiff("s", fso.GetFile(hbPath).DateLastModified, Now) > 90 Then stale = True
+  ElseIf DateDiff("s", startedAt, Now) > 120 Then
+    stale = True
+  End If
+  If stale Then Exit Do
+  On Error Resume Next
+  For Each f In fso.GetFolder(queueDir).Files
+    If LCase(fso.GetExtensionName(f.Name)) = "json" Then
+      PostJson ReadUtf8(f.Path)
+      f.Delete True
+    End If
+  Next
+  On Error GoTo 0
+  WScript.Sleep 2000
+Loop
+lock.Close
+On Error Resume Next
+fso.DeleteFile queueDir & "daemon.lock", True
+]==]
+
+local function ensureDaemonFile()
+  local vbs = HOOKS_DIR .. "dcsopt_daemon.vbs"
+  local fh = io.open(vbs, "r")
+  if fh then fh:close(); return vbs end
+  -- Missing — write our embedded copy so telemetry still works.
+  local out = io.open(vbs, "w")
+  if not out then logerr("cannot write daemon vbs to " .. vbs); return nil end
+  out:write(DAEMON_VBS)
+  out:close()
+  logmsg("daemon vbs was missing — wrote embedded copy (self-heal)")
+  return vbs
+end
+
 -- Launch the posting daemon. The ONLY os.execute in this file — one brief
 -- minimized console flash per mission load, then silence. The daemon holds
 -- an exclusive lock file, so double-launches exit immediately.
 local function launchDaemon()
-  local vbs = HOOKS_DIR .. "dcsopt_daemon.vbs"
-  local fh = io.open(vbs, "r")
-  if not fh then
-    logerr("dcsopt_daemon.vbs missing from Scripts\\Hooks — telemetry disabled. Re-run the installer zip.")
-    return
-  end
-  fh:close()
+  local vbs = ensureDaemonFile()
+  if not vbs then return end
   writeHeartbeat()
   os.execute(string.format(
     'start "" /min wscript.exe //B //Nologo "%s" "%s" "%s"',
@@ -133,8 +205,8 @@ local function sendStatus(online)
   local mission = (DCS.getMissionName and DCS.getMissionName()) or nil
   local theatre = (DCS.getMissionTheatre and DCS.getMissionTheatre()) or nil
   postPayload(string.format(
-    '{"type":"status","online":%s,"players":%d,"names":[%s],"mission":%s,"theatre":%s}',
-    tostring(online), players, table.concat(names, ","), jsonString(mission), jsonString(theatre)))
+    '{"type":"status","online":%s,"players":%d,"names":[%s],"mission":%s,"theatre":%s,"hook_version":%s}',
+    tostring(online), players, table.concat(names, ","), jsonString(mission), jsonString(theatre), jsonString(DCSOPT.VERSION)))
 end
 
 local function readMissionScript()

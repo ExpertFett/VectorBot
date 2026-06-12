@@ -40,6 +40,7 @@ export function ingestRouter(mainClient) {
       names: Array.isArray(b.names) ? b.names.slice(0, 64).map((n) => String(n).slice(0, 40)) : [],
       mission: b.mission ? String(b.mission).slice(0, 256) : null,
       theatre: b.theatre ? String(b.theatre).slice(0, 64) : null,
+      hook_version: b.hook_version ? String(b.hook_version).slice(0, 20) : null,
       updated_at: Date.now(),
     });
     renderServerStatus(client, guildId).catch(() => {});
