@@ -8,6 +8,16 @@
 
 import { Router } from 'express';
 import { getConfig, getGuildByReadyroomOutboundToken } from '../db/index.js';
+import { buildReadyroomPanel } from '../features/readyroomPanel.js';
+
+// Build the message payload for a publish/edit body. Events that carry flight
+// `roles` render as the full interactive sign-up panel (flights, tasking,
+// buttons); plain events fall back to the simple informational embed.
+function buildMessagePayload(b) {
+  if (!String(b.title || '').trim()) return null;
+  if (Array.isArray(b.roles) && b.roles.length) return buildReadyroomPanel(b);
+  return { embeds: [buildEmbed(b)] };
+}
 
 const READYROOM_BLUE = 0x4c8bf5;
 const EXTRA_CREDIT_GOLD = 0xf0b429;
@@ -105,14 +115,14 @@ export function integrationsRouter(client) {
     });
   });
 
-  // CREATE — drop a new embed in the configured events channel.
+  // CREATE — post a new message (full sign-up panel if it carries flights).
   router.post('/readyroom/publish-event', async (req, res) => {
     const channel = await resolveChannel(req, res, client);
     if (!channel) return;
-    const embed = buildEmbed(req.body || {});
-    if (!embed) return res.status(400).json({ error: 'missing_title' });
+    const payload = buildMessagePayload(req.body || {});
+    if (!payload) return res.status(400).json({ error: 'missing_title' });
     try {
-      const msg = await channel.send({ embeds: [embed] });
+      const msg = await channel.send(payload);
       res.json({ ok: true, message_id: msg.id, channel_id: channel.id });
     } catch (err) {
       console.error('[integrations] publish failed:', err.message);
@@ -120,16 +130,16 @@ export function integrationsRouter(client) {
     }
   });
 
-  // EDIT — update an existing embed.
+  // EDIT — re-render an existing message (e.g. roster changed on the site).
   router.patch('/readyroom/publish-event/:messageId', async (req, res) => {
     const channel = await resolveChannel(req, res, client);
     if (!channel) return;
-    const embed = buildEmbed(req.body || {});
-    if (!embed) return res.status(400).json({ error: 'missing_title' });
+    const payload = buildMessagePayload(req.body || {});
+    if (!payload) return res.status(400).json({ error: 'missing_title' });
     try {
       const msg = await channel.messages.fetch(String(req.params.messageId)).catch(() => null);
       if (!msg) return res.status(404).json({ error: 'message_not_found' });
-      await msg.edit({ embeds: [embed] });
+      await msg.edit(payload);
       res.json({ ok: true, message_id: msg.id, channel_id: channel.id });
     } catch (err) {
       console.error('[integrations] edit failed:', err.message);

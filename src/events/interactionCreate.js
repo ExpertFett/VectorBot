@@ -4,6 +4,7 @@ import { handleVerify } from '../features/verification.js';
 import { handleOpenTicket, handleCloseTicket, handleClaimTicket, handleDeleteTicket } from '../features/tickets.js';
 import { handleGiveawayButton } from '../features/giveaways.js';
 import { handleEventButton, handleEventSelect } from '../features/events.js';
+import { handleReadyroomEventButton } from '../features/readyroomPanel.js';
 import { handleApply, handleApplyModal, handleReview } from '../features/recruitment.js';
 import { handleStart, handleNav, handleRoleToggle, handleFinish } from '../features/onboarding.js';
 import { getMusic } from '../features/music.js';
@@ -76,6 +77,7 @@ export default {
           if (id === 'ticket:delete') return await handleDeleteTicket(interaction);
           if (id.startsWith('giveaway:')) return await handleGiveawayButton(interaction);
           if (id.startsWith('event:')) return await handleEventButton(interaction);
+          if (id.startsWith('rr:')) return await handleReadyroomEventButton(interaction);
           if (id === 'recruit:apply') return await handleApply(interaction);
           if (id.startsWith('recruit:approve:') || id.startsWith('recruit:deny:')) return await handleReview(interaction);
           if (id === 'onboard:start') return await handleStart(interaction);
