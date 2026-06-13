@@ -7,8 +7,22 @@
 //   DELETE /readyroom/publish-event/:messageId  delete embed
 
 import { Router } from 'express';
-import { getConfig, getGuildByReadyroomOutboundToken } from '../db/index.js';
+import { getConfig, setConfigValue, getGuildByReadyroomOutboundToken } from '../db/index.js';
 import { buildReadyroomPanel } from '../features/readyroomPanel.js';
+
+// ReadyRoom sends its wing ingest URL with each publish so two-way sign-up sync
+// works without a separate manual setup. Wire it in the first time (don't
+// clobber an admin-set value — that may point at a different wing on purpose).
+function autoWireIngest(guildId, body) {
+  if (!guildId || !body?.signup_callback_url) return;
+  try {
+    const cfg = getConfig(guildId);
+    if (!cfg?.readyroom_ingest_url) {
+      setConfigValue(guildId, 'readyroom_ingest_url', String(body.signup_callback_url));
+      console.log(`[integrations] auto-wired ReadyRoom ingest URL for guild ${guildId}`);
+    }
+  } catch (e) { console.warn('[integrations] autoWireIngest failed:', e.message); }
+}
 
 // Build the message payload for a publish/edit body. Events that carry flight
 // `roles` render as the full interactive sign-up panel (flights, tasking,
@@ -119,6 +133,7 @@ export function integrationsRouter(client) {
   router.post('/readyroom/publish-event', async (req, res) => {
     const channel = await resolveChannel(req, res, client);
     if (!channel) return;
+    autoWireIngest(channel.guild.id, req.body);
     const payload = buildMessagePayload(req.body || {});
     if (!payload) return res.status(400).json({ error: 'missing_title' });
     try {
@@ -134,6 +149,7 @@ export function integrationsRouter(client) {
   router.patch('/readyroom/publish-event/:messageId', async (req, res) => {
     const channel = await resolveChannel(req, res, client);
     if (!channel) return;
+    autoWireIngest(channel.guild.id, req.body);
     const payload = buildMessagePayload(req.body || {});
     if (!payload) return res.status(400).json({ error: 'missing_title' });
     try {

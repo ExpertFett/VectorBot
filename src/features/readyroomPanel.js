@@ -151,6 +151,17 @@ async function rerenderMain(client, panel) {
   if (msg) await msg.edit(buildReadyroomPanel(panel)).catch(() => {});
 }
 
+// Map a failed ReadyRoom call to an actionable message.
+function syncErrorMessage(resp) {
+  if (resp.error === 'no_readyroom_url') {
+    return '⚠️ This server isn’t linked back to ReadyRoom yet, so sign-ups can’t save. An admin can fix it in seconds: open the event in ReadyRoom and hit **Repost to Discord** (that auto-connects it) — or paste the wing’s ingest URL into the Ops Bot dashboard → **DCS Server → ReadyRoom integration**.';
+  }
+  if (resp.error === 'event_not_found') {
+    return '⚠️ This event belongs to a different wing than this server is linked to. An admin should **Repost** it from the correct wing in ReadyRoom.';
+  }
+  return 'Couldn’t reach ReadyRoom — try again in a moment, or sign up on the website.';
+}
+
 // ---- interaction handler ------------------------------------------------
 export async function handleReadyroomEventButton(interaction) {
   const m = interaction.customId.match(/^rr:(\d+):(f|s|wd)(?::(\d+))?$/);
@@ -165,7 +176,7 @@ export async function handleReadyroomEventButton(interaction) {
   if (kind === 'f') {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral }).catch(() => {});
     const resp = await callReadyroom(interaction.guildId, { ...base, action: 'fetch' });
-    if (!resp.ok || !resp.panel) return interaction.editReply({ content: 'Couldn’t load that flight from ReadyRoom.' }).catch(() => {});
+    if (!resp.ok || !resp.panel) return interaction.editReply({ content: syncErrorMessage(resp) }).catch(() => {});
     const picker = buildSlotPicker(resp.panel, Number(idx), interaction.user.id);
     if (!picker) return interaction.editReply({ content: 'That flight no longer exists.' }).catch(() => {});
     return interaction.editReply(picker).catch(() => {});
@@ -185,7 +196,7 @@ export async function handleReadyroomEventButton(interaction) {
     return interaction.followUp({ content: 'That slot is full.', flags: MessageFlags.Ephemeral }).catch(() => {});
   }
   if (!resp.ok || !resp.panel) {
-    return interaction.followUp({ content: 'Couldn’t reach ReadyRoom to record that — try the site.', flags: MessageFlags.Ephemeral }).catch(() => {});
+    return interaction.followUp({ content: syncErrorMessage(resp), flags: MessageFlags.Ephemeral }).catch(() => {});
   }
 
   if (kind === 'wd') {
