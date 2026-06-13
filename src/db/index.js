@@ -455,6 +455,39 @@ export function setConfigValue(guildId, column, value) {
   db.prepare(`UPDATE guild_config SET ${column} = ? WHERE guild_id = ?`).run(value, guildId);
 }
 
+// --- ReadyRoom per-event sign-up callbacks ---
+// A guild can host events from MULTIPLE ReadyRoom wings; each wing's events
+// must call back to THAT wing's ingest URL. The single guild_config ingest URL
+// can't represent that, so we store the callback per (guild, ReadyRoom event)
+// — sent by ReadyRoom in every publish — and use it when a sign-up button is
+// clicked. Falls back to the guild ingest URL if we have no per-event record.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS rr_event_callbacks (
+    guild_id           TEXT NOT NULL,
+    readyroom_event_id INTEGER NOT NULL,
+    callback_url       TEXT NOT NULL,
+    updated_at         INTEGER NOT NULL,
+    PRIMARY KEY (guild_id, readyroom_event_id)
+  )
+`);
+const upsertRrCallback = db.prepare(`
+  INSERT INTO rr_event_callbacks (guild_id, readyroom_event_id, callback_url, updated_at)
+  VALUES (?, ?, ?, ?)
+  ON CONFLICT (guild_id, readyroom_event_id)
+  DO UPDATE SET callback_url = excluded.callback_url, updated_at = excluded.updated_at
+`);
+const selectRrCallback = db.prepare(
+  'SELECT callback_url FROM rr_event_callbacks WHERE guild_id = ? AND readyroom_event_id = ?');
+export function setReadyroomEventCallback(guildId, eventId, url) {
+  if (!guildId || !eventId || !url) return;
+  upsertRrCallback.run(String(guildId), Number(eventId), String(url), Date.now());
+}
+export function getReadyroomEventCallback(guildId, eventId) {
+  if (!guildId || !eventId) return null;
+  const r = selectRrCallback.get(String(guildId), Number(eventId));
+  return r ? r.callback_url : null;
+}
+
 // --- warnings helpers ---
 const insertWarning = db.prepare(
   'INSERT INTO warnings (guild_id, user_id, moderator_id, reason, created_at) VALUES (?, ?, ?, ?, ?)'

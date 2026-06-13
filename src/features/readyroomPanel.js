@@ -12,7 +12,7 @@
 //   plus a Withdraw button on the main message (rr:<eid>:wd)
 
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags } from 'discord.js';
-import { getConfig } from '../db/index.js';
+import { getConfig, getReadyroomEventCallback } from '../db/index.js';
 
 const KIND_COLOR = { extra_credit: 0xf0b429, mission: 0x8a63ff };
 const DEFAULT_COLOR = 0x4c8bf5;
@@ -125,12 +125,18 @@ export function buildSlotPicker(p, groupIndex, userId) {
 
 // ---- bot -> ReadyRoom forwarding ----------------------------------------
 const ENV_URL = process.env.READYROOM_INGEST_URL || null;
-function readyroomUrl(guildId) {
+// Resolve which ReadyRoom ingest URL to call: the per-event callback (the
+// authoritative one for THIS event's wing) first, then the guild-wide ingest
+// URL, then the env fallback. Per-event is what lets one guild serve events
+// from multiple wings.
+function readyroomUrl(guildId, eventId) {
+  const perEvent = getReadyroomEventCallback(guildId, eventId);
+  if (perEvent) return perEvent;
   try { const c = getConfig(guildId); if (c?.readyroom_ingest_url) return c.readyroom_ingest_url; } catch { /* fall through */ }
   return ENV_URL;
 }
 async function callReadyroom(guildId, body) {
-  const url = readyroomUrl(guildId);
+  const url = readyroomUrl(guildId, body?.readyroom_event_id);
   if (!url) return { ok: false, error: 'no_readyroom_url' };
   try {
     const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });

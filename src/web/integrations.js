@@ -7,15 +7,20 @@
 //   DELETE /readyroom/publish-event/:messageId  delete embed
 
 import { Router } from 'express';
-import { getConfig, setConfigValue, getGuildByReadyroomOutboundToken } from '../db/index.js';
+import { getConfig, setConfigValue, setReadyroomEventCallback, getGuildByReadyroomOutboundToken } from '../db/index.js';
 import { buildReadyroomPanel } from '../features/readyroomPanel.js';
 
 // ReadyRoom sends its wing ingest URL with each publish so two-way sign-up sync
-// works without a separate manual setup. Wire it in the first time (don't
-// clobber an admin-set value — that may point at a different wing on purpose).
+// works without a separate manual setup. We (1) store it PER EVENT — the
+// authoritative callback for that event's wing, so one guild can host events
+// from multiple wings — and (2) seed the guild-wide ingest URL the first time
+// as a fallback (don't clobber an admin-set value that may point elsewhere).
 function autoWireIngest(guildId, body) {
   if (!guildId || !body?.signup_callback_url) return;
   try {
+    if (body.readyroom_event_id) {
+      setReadyroomEventCallback(guildId, body.readyroom_event_id, body.signup_callback_url);
+    }
     const cfg = getConfig(guildId);
     if (!cfg?.readyroom_ingest_url) {
       setConfigValue(guildId, 'readyroom_ingest_url', String(body.signup_callback_url));
