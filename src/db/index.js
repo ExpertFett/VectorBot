@@ -393,6 +393,8 @@ ensureColumn('events', 'waitlist', 'INTEGER NOT NULL DEFAULT 0');     // overflo
 ensureColumn('events', 'multi_signup', 'INTEGER NOT NULL DEFAULT 0'); // allow >1 slot per person
 ensureColumn('events', 'recur_days', 'INTEGER NOT NULL DEFAULT 0');   // recurring: repeat every N days (0 = one-off)
 ensureColumn('events', 'taskings', 'TEXT');                           // JSON map of flight → tasking (STRIKE/SEAD/…)
+ensureColumn('events', 'mentions', 'TEXT');                           // JSON array of role IDs / 'everyone' / 'here' to ping on post
+ensureColumn('scheduled_messages', 'mentions', 'TEXT');              // JSON array of ping tokens for scheduled posts
 
 // Migrate event_signups PK to (event_id, user_id, role_label) so a user can hold
 // multiple slots (needed for multi-crew + multi-signup). One-time, safe (recent table).
@@ -668,21 +670,22 @@ const claimTicketStmt = db.prepare('UPDATE tickets SET claimed_by = ? WHERE chan
 export function claimTicket(channelId, userId) { return claimTicketStmt.run(userId, channelId).changes; }
 
 // --- scheduled messages ---
-const insertSched = db.prepare('INSERT INTO scheduled_messages (guild_id, channel_id, content, embed, type, interval_seconds, next_run, enabled, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+const insertSched = db.prepare('INSERT INTO scheduled_messages (guild_id, channel_id, content, embed, type, interval_seconds, next_run, enabled, mentions, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
 const selectScheds = db.prepare('SELECT * FROM scheduled_messages WHERE guild_id = ? ORDER BY created_at DESC');
 const selectSchedDue = db.prepare('SELECT * FROM scheduled_messages WHERE enabled = 1 AND next_run <= ?');
-const updateSchedStmt = db.prepare('UPDATE scheduled_messages SET channel_id = ?, content = ?, embed = ?, type = ?, interval_seconds = ?, next_run = ?, enabled = ? WHERE id = ? AND guild_id = ?');
+const updateSchedStmt = db.prepare('UPDATE scheduled_messages SET channel_id = ?, content = ?, embed = ?, type = ?, interval_seconds = ?, next_run = ?, enabled = ?, mentions = ? WHERE id = ? AND guild_id = ?');
 const deleteSchedStmt = db.prepare('DELETE FROM scheduled_messages WHERE id = ? AND guild_id = ?');
 const advanceSchedStmt = db.prepare('UPDATE scheduled_messages SET next_run = ? WHERE id = ?');
 const disableSchedStmt = db.prepare('UPDATE scheduled_messages SET enabled = 0 WHERE id = ?');
-const parseSched = (r) => (r ? { ...r, embed: safeParse(r.embed, null), enabled: !!r.enabled } : null);
+const parseSched = (r) => (r ? { ...r, embed: safeParse(r.embed, null), mentions: safeParse(r.mentions, []), enabled: !!r.enabled } : null);
+const serializeSchedMentions = (m) => (Array.isArray(m) && m.length ? JSON.stringify(m) : null);
 export function createScheduled(guildId, d) {
-  return Number(insertSched.run(guildId, d.channel_id, d.content ?? null, d.embed ? JSON.stringify(d.embed) : null, d.type || 'once', d.interval_seconds ?? null, d.next_run, d.enabled ? 1 : 0, Date.now()).lastInsertRowid);
+  return Number(insertSched.run(guildId, d.channel_id, d.content ?? null, d.embed ? JSON.stringify(d.embed) : null, d.type || 'once', d.interval_seconds ?? null, d.next_run, d.enabled ? 1 : 0, serializeSchedMentions(d.mentions), Date.now()).lastInsertRowid);
 }
 export function getScheduledAll(guildId) { return selectScheds.all(guildId).map(parseSched); }
 export function getScheduledDue(now) { return selectSchedDue.all(now).map(parseSched); }
 export function updateScheduled(id, guildId, d) {
-  updateSchedStmt.run(d.channel_id, d.content ?? null, d.embed ? JSON.stringify(d.embed) : null, d.type || 'once', d.interval_seconds ?? null, d.next_run, d.enabled ? 1 : 0, id, guildId);
+  updateSchedStmt.run(d.channel_id, d.content ?? null, d.embed ? JSON.stringify(d.embed) : null, d.type || 'once', d.interval_seconds ?? null, d.next_run, d.enabled ? 1 : 0, serializeSchedMentions(d.mentions), id, guildId);
 }
 export function deleteScheduled(id, guildId) { return deleteSchedStmt.run(id, guildId).changes; }
 export function advanceScheduled(id, nextRun) { advanceSchedStmt.run(nextRun, id); }
@@ -850,13 +853,13 @@ export function setPersonalization(guildId, { bot_nickname, embed_color }) {
 
 // --- events (mission scheduler) ---
 const insertEvent = db.prepare(`
-  INSERT INTO events (guild_id, channel_id, title, description, mission, map, image, start_at, reminder_minutes, roles, embed, waitlist, multi_signup, recur_days, taskings, created_by, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO events (guild_id, channel_id, title, description, mission, map, image, start_at, reminder_minutes, roles, embed, waitlist, multi_signup, recur_days, taskings, mentions, created_by, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 const selectEvent = db.prepare('SELECT * FROM events WHERE id = ?');
 const selectEventsByGuild = db.prepare('SELECT * FROM events WHERE guild_id = ? ORDER BY start_at ASC');
 const updateEventStmt = db.prepare(`
-  UPDATE events SET channel_id = ?, title = ?, description = ?, mission = ?, map = ?, image = ?, start_at = ?, reminder_minutes = ?, roles = ?, embed = ?, waitlist = ?, multi_signup = ?, recur_days = ?, taskings = ?
+  UPDATE events SET channel_id = ?, title = ?, description = ?, mission = ?, map = ?, image = ?, start_at = ?, reminder_minutes = ?, roles = ?, embed = ?, waitlist = ?, multi_signup = ?, recur_days = ?, taskings = ?, mentions = ?
   WHERE id = ? AND guild_id = ?
 `);
 const setEventMsgStmt = db.prepare('UPDATE events SET channel_id = ?, message_id = ? WHERE id = ?');
@@ -868,7 +871,8 @@ const deleteEventStmt = db.prepare('DELETE FROM events WHERE id = ? AND guild_id
 const selectEventsToRemind = db.prepare(
   "SELECT * FROM events WHERE status = 'scheduled' AND reminded = 0 AND reminder_minutes > 0 AND ? >= (start_at - reminder_minutes * 60000) AND ? < start_at + 1800000"
 );
-const parseEvent = (r) => (r ? { ...r, roles: safeParse(r.roles, []), embed: safeParse(r.embed, null), taskings: safeParse(r.taskings, {}), waitlist: !!r.waitlist, multi_signup: !!r.multi_signup } : null);
+const parseEvent = (r) => (r ? { ...r, roles: safeParse(r.roles, []), embed: safeParse(r.embed, null), taskings: safeParse(r.taskings, {}), mentions: safeParse(r.mentions, []), waitlist: !!r.waitlist, multi_signup: !!r.multi_signup } : null);
+const serializeMentions = (m) => (Array.isArray(m) && m.length ? JSON.stringify(m) : null);
 
 export function createEvent(guildId, d) {
   return Number(insertEvent.run(
@@ -876,6 +880,7 @@ export function createEvent(guildId, d) {
     d.image ?? null, d.start_at, d.reminder_minutes ?? 0, JSON.stringify(d.roles || []),
     d.embed ? JSON.stringify(d.embed) : null, d.waitlist ? 1 : 0, d.multi_signup ? 1 : 0, d.recur_days ?? 0,
     d.taskings && Object.keys(d.taskings).length ? JSON.stringify(d.taskings) : null,
+    serializeMentions(d.mentions),
     d.created_by ?? null, Date.now()
   ).lastInsertRowid);
 }
@@ -887,6 +892,7 @@ export function updateEvent(id, guildId, d) {
     d.start_at, d.reminder_minutes ?? 0, JSON.stringify(d.roles || []),
     d.embed ? JSON.stringify(d.embed) : null, d.waitlist ? 1 : 0, d.multi_signup ? 1 : 0, d.recur_days ?? 0,
     d.taskings && Object.keys(d.taskings).length ? JSON.stringify(d.taskings) : null,
+    serializeMentions(d.mentions),
     id, guildId,
   );
   return getEvent(id);

@@ -253,6 +253,17 @@ textarea { resize: vertical; }
 .dcs-health { display: flex; align-items: center; gap: 14px; padding: 4px 0; }
 .dcs-health-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; transition: background 0.3s, box-shadow 0.3s; }
 
+/* Mention (role-ping) picker */
+.mention-picker { margin: 10px 0; }
+.mention-picker-label { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
+.mention-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.mention-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 16px; background: var(--bg-2); font-size: 0.85rem; cursor: pointer; transition: border-color 0.1s, background 0.1s; }
+.mention-chip:hover { background: var(--bg-3, #1f1f29); }
+.mention-chip.selected { background: rgba(145, 25, 245, 0.15); border-width: 2px; padding: 4px 9px; }
+.mention-chip.special { font-weight: 600; color: #f0b429; }
+.mention-chip.special.selected { background: rgba(240, 180, 41, 0.15); border-color: #f0b429; }
+.mention-divider { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+
 /* Analytics page */
 .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
 .metric-card { background: var(--bg-2); border: 1px solid var(--border); border-radius: 8px; padding: 14px; position: relative; min-height: 96px; }

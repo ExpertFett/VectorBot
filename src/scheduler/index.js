@@ -7,6 +7,7 @@ import {
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
 import { getPersonalization } from '../db/index.js';
+import { buildMentions, applyMentions } from '../util/mentions.js';
 import { endGiveawayAndAnnounce } from '../features/giveaways.js';
 import { postEvent } from '../features/events.js';
 import { pollSocial } from '../features/social.js';
@@ -44,6 +45,7 @@ async function tick(client) {
       if (s.content) payload.content = s.content;
       const embed = s.embed ? buildEmbed(s.embed, undefined, getPersonalization(s.guild_id).embed_color ?? undefined) : null;
       if (embed) payload.embeds = [embed];
+      applyMentions(payload, s.mentions);   // prepend role/@everyone pings + allowedMentions
       if (payload.content || payload.embeds) await channel.send(payload).catch(() => {});
     }
     // Advance to now + interval to avoid catch-up spam after downtime.
@@ -70,11 +72,21 @@ async function tick(client) {
   for (const event of getEventsToRemind(now)) {
     const channel = await resolveChannel(botFor(event.guild_id), event.channel_id);
     const signups = getSignups(event.id);
-    if (channel?.isTextBased() && signups.length) {
-      const pings = signups.map((s) => `<@${s.user_id}>`).join(' ');
+    // Ping the roles configured on the event PLUS everyone signed up. Send if
+    // either is non-empty (a role ping is useful even with zero sign-ups yet).
+    const rolePing = buildMentions(event.mentions);
+    if (channel?.isTextBased() && (signups.length || rolePing)) {
+      const userPings = signups.map((s) => `<@${s.user_id}>`).join(' ');
+      const prefix = rolePing ? `${rolePing.text} ` : '';
       const tsec = Math.floor(event.start_at / 1000);
       const phrase = now >= event.start_at ? 'just started' : `starts <t:${tsec}:R>`;
-      await channel.send(`⏰ **${event.title}** ${phrase} — ${pings}`).catch(() => {});
+      // Merge allowedMentions: the configured roles/everyone + the signed-up users.
+      const allowed = rolePing ? { ...rolePing.allowedMentions } : { parse: [] };
+      allowed.users = signups.map((s) => s.user_id).slice(0, 100);
+      await channel.send({
+        content: `${prefix}⏰ **${event.title}** ${phrase}${userPings ? ` — ${userPings}` : ''}`.slice(0, 2000),
+        allowedMentions: allowed,
+      }).catch(() => {});
     }
     markEventReminded(event.id);
   }

@@ -43,6 +43,7 @@ import {
 } from '../customBots/index.js';
 import { buildEmbed } from '../util/embed.js';
 import { canPerform } from '../access/check.js';
+import { normalizeMentions } from '../util/mentions.js';
 import { postRoleMenu } from '../features/roleMenus.js';
 import { postVerifyPanel } from '../features/verification.js';
 import { postTicketPanel } from '../features/tickets.js';
@@ -444,7 +445,7 @@ export function apiRouter(client) {
 
   // --- send an embed/message to a channel right now ---
   router.post('/announce', requireAction('announcements.send'), async (req, res) => {
-    const { channel_id, content, embed } = req.body || {};
+    const { channel_id, content, embed, mentions } = req.body || {};
     const cleanCh = cleanId(channel_id);
     const channel = getBotForGuild(req.guildId, client).channels.cache.get(cleanCh);
     if (!channel?.isTextBased() || channel.guildId !== req.guildId) return res.status(400).json({ error: 'invalid_channel' });
@@ -453,6 +454,7 @@ export function apiRouter(client) {
     if (content) payload.content = String(content);
     const built = embed ? buildEmbed(embed, undefined, getPersonalization(req.guildId).embed_color ?? undefined) : null;
     if (built) payload.embeds = [built];
+    applyMentions(payload, mentions);   // prepend role/@everyone pings + set allowedMentions
     if (!payload.content && !payload.embeds) return res.status(400).json({ error: 'empty_message' });
 
     try {
@@ -646,6 +648,7 @@ export function apiRouter(client) {
       type: b.type === 'interval' ? 'interval' : 'once',
       interval_seconds: b.type === 'interval' ? Math.max(60, Number(b.interval_seconds) || 3600) : null,
       next_run: computeNextRun(b), enabled: b.enabled !== false,
+      mentions: normalizeMentions(b.mentions),
     });
     res.json({ ok: true, id });
   });
@@ -657,6 +660,7 @@ export function apiRouter(client) {
       type: b.type === 'interval' ? 'interval' : 'once',
       interval_seconds: b.type === 'interval' ? Math.max(60, Number(b.interval_seconds) || 3600) : null,
       next_run: computeNextRun(b), enabled: b.enabled !== false,
+      mentions: normalizeMentions(b.mentions),
     });
     res.json({ ok: true });
   });
@@ -885,6 +889,7 @@ export function apiRouter(client) {
       waitlist: !!b.waitlist, multi_signup: !!b.multi_signup,
       recur_days: Math.max(0, Number(b.recur_days) || 0),
       taskings: sanitizeTaskings(b.taskings, roles),
+      mentions: normalizeMentions(b.mentions),
       created_by: req.session.user.id,
     });
     res.json({ ok: true, id });
@@ -906,6 +911,7 @@ export function apiRouter(client) {
       waitlist: !!b.waitlist, multi_signup: !!b.multi_signup,
       recur_days: Math.max(0, Number(b.recur_days) || 0),
       taskings: sanitizeTaskings(b.taskings, roles),
+      mentions: normalizeMentions(b.mentions),
     });
     // If this event was already posted, refresh the Discord embed automatically
     // so the maker doesn't have to also click "Post / Update in Discord". A

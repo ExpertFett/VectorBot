@@ -3,8 +3,9 @@ import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
 import PageHeader from '../components/PageHeader.jsx';
+import MentionPicker from '../components/MentionPicker.jsx';
 
-const BLANK = { id: null, channel_id: '', content: '', embed: null, type: 'once', run_at: '', interval_value: 1, interval_unit: 3600, enabled: true };
+const BLANK = { id: null, channel_id: '', content: '', embed: null, type: 'once', run_at: '', interval_value: 1, interval_unit: 3600, enabled: true, mentions: [] };
 
 export default function ScheduledMessages() {
   const [list, setList] = useState(null);
@@ -20,7 +21,7 @@ export default function ScheduledMessages() {
   const save = async () => {
     if (!editing.channel_id) return setStatus('Pick a channel.');
     if (!editing.content && !editing.embed) return setStatus('Add content or an embed.');
-    const payload = { channel_id: editing.channel_id, content: editing.content || null, embed: editing.embed || null, type: editing.type, enabled: editing.enabled };
+    const payload = { channel_id: editing.channel_id, content: editing.content || null, embed: editing.embed || null, type: editing.type, enabled: editing.enabled, mentions: editing.mentions };
     if (editing.type === 'interval') payload.interval_seconds = Math.max(60, (editing.interval_value || 1) * editing.interval_unit);
     else payload.run_at = editing.run_at ? new Date(editing.run_at).toISOString() : new Date().toISOString();
     try {
@@ -31,6 +32,7 @@ export default function ScheduledMessages() {
   const edit = (s) => setEditing({
     id: s.id, channel_id: s.channel_id, content: s.content || '', embed: s.embed || null,
     type: s.type, run_at: '', interval_value: s.interval_seconds ? Math.round(s.interval_seconds / 3600) : 1, interval_unit: 3600, enabled: !!s.enabled,
+    mentions: Array.isArray(s.mentions) ? s.mentions : [],
   });
   const del = async (id) => { if (!window.confirm('Delete this scheduled message?')) return; await api.deleteScheduled(id); if (editing.id === id) setEditing(BLANK); load(); };
 
@@ -64,6 +66,7 @@ export default function ScheduledMessages() {
           </select>
         </label>
         <label>Message text<textarea rows={2} value={editing.content} placeholder="Plain text (optional if using an embed)" onChange={(e) => setEditing({ ...editing, content: e.target.value })} /></label>
+        <MentionPicker value={editing.mentions} roles={guild.roles} onChange={(m) => setEditing({ ...editing, mentions: m })} label="Ping roles each time this posts" />
         <label className="checkbox"><input type="checkbox" checked={!!editing.embed} onChange={(e) => setEditing({ ...editing, embed: e.target.checked ? (editing.embed || {}) : null })} /> Include an embed</label>
         {editing.embed && (
           <div className="embed-area">

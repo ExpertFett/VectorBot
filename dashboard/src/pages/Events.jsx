@@ -3,6 +3,7 @@ import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
 import PageHeader from '../components/PageHeader.jsx';
+import MentionPicker from '../components/MentionPicker.jsx';
 
 const BLANK = {
   id: null, title: '', description: '', mission: '', map: '', channel_id: '',
@@ -10,6 +11,7 @@ const BLANK = {
   waitlist: false, multi_signup: false, recur_days: 0,
   roles: [{ label: 'Attending', emoji: '✅', limit: 0, group: '', qual: '' }],
   taskings: {},
+  mentions: [],
 };
 
 const RECUR_LABEL = (d) => (d === 1 ? 'daily' : d === 7 ? 'weekly' : d === 14 ? 'biweekly' : `every ${d}d`);
@@ -145,6 +147,7 @@ export default function Events() {
       waitlist: editing.waitlist, multi_signup: editing.multi_signup,
       recur_days: editing.recur_days || 0,
       taskings: editing.taskings || {},
+      mentions: editing.mentions || [],
     };
     try {
       let id = editing.id;
@@ -173,6 +176,7 @@ export default function Events() {
       recur_days: e.recur_days || 0,
       roles: e.roles?.length ? e.roles.map((r) => ({ ...r, qual: r.qual || '' })) : BLANK.roles,
       taskings: e.taskings || {},
+      mentions: Array.isArray(e.mentions) ? e.mentions : [],
     });
     scrollToForm();
   };
@@ -237,6 +241,7 @@ export default function Events() {
           </label>
           <div />
         </div>
+        <MentionPicker value={editing.mentions} roles={guild.roles} onChange={(m) => setEditing({ ...editing, mentions: m })} label="Ping roles when this event is posted (and on its reminder)" />
         <label className="checkbox"><input type="checkbox" checked={!!editing.embed} onChange={(e) => setEditing({ ...editing, embed: e.target.checked ? (editing.embed || {}) : null })} /> Use a custom embed header (the When + roster are always appended)</label>
         {editing.embed ? (
           <div className="embed-area">

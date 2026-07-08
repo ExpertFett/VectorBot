@@ -7,6 +7,7 @@ import {
   countRoleSignups, setEventMessage, getPersonalization, getRosterEntry,
 } from '../db/index.js';
 import { buildEmbed } from '../util/embed.js';
+import { buildMentions } from '../util/mentions.js';
 
 const BUTTON_LIMIT = 20;
 const isHttpUrl = (s) => typeof s === 'string' && /^https?:\/\//i.test(s);
@@ -101,7 +102,16 @@ export function buildEventMessage(event, signups = []) {
   const flags = [event.multi_signup ? 'multi-slot' : '1 slot/person', event.waitlist ? 'waitlist on' : null].filter(Boolean).join(' · ');
   embed.setFooter({ text: `Event #${event.id} · ${flags}` });
 
-  if (closed) return { embeds: [embed], components: [] };
+  // Ping prefix (roles / @everyone / @here). Included on every render for
+  // consistency; Discord only actually notifies on the first send, not edits.
+  const m = !closed ? buildMentions(event.mentions) : null;
+  const pingWrap = (payload) => {
+    if (m) { payload.content = m.text; payload.allowedMentions = m.allowedMentions; }
+    else { payload.allowedMentions = { parse: [] }; }
+    return payload;
+  };
+
+  if (closed) return pingWrap({ embeds: [embed], components: [] });
 
   const rows = [];
   if (useDirectButtons) {
@@ -136,7 +146,7 @@ export function buildEventMessage(event, signups = []) {
     rows.push(row);
   }
 
-  return { embeds: [embed], components: rows };
+  return pingWrap({ embeds: [embed], components: rows });
 }
 
 async function resolveChannel(client, id) {

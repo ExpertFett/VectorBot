@@ -3,8 +3,9 @@ import { api } from '../api.js';
 import EmbedBuilder from '../components/EmbedBuilder.jsx';
 import EmbedPreview from '../components/EmbedPreview.jsx';
 import PageHeader from '../components/PageHeader.jsx';
+import MentionPicker from '../components/MentionPicker.jsx';
 
-const BLANK = { id: null, channel_id: '', content: '', embed: {}, useEmbed: true };
+const BLANK = { id: null, channel_id: '', content: '', embed: {}, useEmbed: true, mentions: [] };
 
 export default function EmbedPanel() {
   const [guild, setGuild] = useState(null);
@@ -45,6 +46,7 @@ export default function EmbedPanel() {
           channel_id: editing.channel_id,
           content: editing.content || null,
           embed: editing.useEmbed ? editing.embed : null,
+          mentions: editing.mentions,
         });
         setStatus('Sent ✓');
         setEditing(BLANK);
@@ -110,6 +112,9 @@ export default function EmbedPanel() {
           </label>
         )}
         <label>Message text<textarea rows={2} value={editing.content} onChange={(e) => setEditing({ ...editing, content: e.target.value })} placeholder="Optional text above the embed" /></label>
+        {!editing.id && (
+          <MentionPicker value={editing.mentions} roles={guild.roles} onChange={(m) => setEditing({ ...editing, mentions: m })} label="Ping roles with this announcement" />
+        )}
         <label className="checkbox"><input type="checkbox" checked={editing.useEmbed} onChange={(e) => setEditing({ ...editing, useEmbed: e.target.checked })} /> Include an embed</label>
         {editing.useEmbed && (
           <div className="embed-area">
