@@ -82,6 +82,26 @@ function buildEmbed(b) {
   };
 }
 
+// Build a "upcoming events" digest embed from { title, events:[{title,start_at,
+// squadron_tag,kind,url}] }. One auto-refreshed message ReadyRoom keeps current.
+function buildDigestEmbed(b) {
+  const events = Array.isArray(b.events) ? b.events.slice(0, 25) : [];
+  const lines = events.map((e) => {
+    const secs = Math.floor(Number(e.start_at) / 1000);
+    const when = Number.isFinite(secs) ? `<t:${secs}:F> · <t:${secs}:R>` : '';
+    const tag = e.squadron_tag ? `\`${String(e.squadron_tag).slice(0, 20)}\` ` : '';
+    const star = e.kind === 'extra_credit' ? '⭐ ' : '';
+    return `${star}${tag}**${String(e.title || 'Event').slice(0, 120)}**\n${when}`;
+  });
+  return {
+    title: String(b.title || '📅 Upcoming Events').slice(0, 256),
+    description: (lines.length ? lines.join('\n\n') : '_No upcoming events scheduled._').slice(0, 4000),
+    color: 0x4c8bf5,
+    footer: { text: 'Auto-updated from ReadyRoom' },
+    timestamp: new Date().toISOString(),
+  };
+}
+
 // Resolves bearer → guildId → events channel; returns the channel object
 // (or sends an error response and returns null).
 async function resolveChannel(req, res, mainClient) {
@@ -164,6 +184,34 @@ export function integrationsRouter(client) {
       res.json({ ok: true, message_id: msg.id, channel_id: channel.id });
     } catch (err) {
       console.error('[integrations] edit failed:', err.message);
+      res.status(500).json({ error: 'discord_edit_failed' });
+    }
+  });
+
+  // DIGEST CREATE — post the auto-updating "upcoming events" digest message.
+  router.post('/readyroom/digest', async (req, res) => {
+    const channel = await resolveChannel(req, res, client);
+    if (!channel) return;
+    try {
+      const msg = await channel.send({ embeds: [buildDigestEmbed(req.body || {})] });
+      res.json({ ok: true, message_id: msg.id, channel_id: channel.id });
+    } catch (err) {
+      console.error('[integrations] digest post failed:', err.message);
+      res.status(500).json({ error: 'discord_send_failed' });
+    }
+  });
+
+  // DIGEST EDIT — refresh the existing digest message in place.
+  router.patch('/readyroom/digest/:messageId', async (req, res) => {
+    const channel = await resolveChannel(req, res, client);
+    if (!channel) return;
+    try {
+      const msg = await channel.messages.fetch(String(req.params.messageId)).catch(() => null);
+      if (!msg) return res.status(404).json({ error: 'message_not_found' });
+      await msg.edit({ embeds: [buildDigestEmbed(req.body || {})] });
+      res.json({ ok: true, message_id: msg.id, channel_id: channel.id });
+    } catch (err) {
+      console.error('[integrations] digest edit failed:', err.message);
       res.status(500).json({ error: 'discord_edit_failed' });
     }
   });
