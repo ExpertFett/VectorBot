@@ -244,24 +244,35 @@ export default function DCSServer() {
 
       <section className="card">
         <h2>Hook setup</h2>
-        <p className="muted">Three files go into your DCS Saved Games <code>Scripts\Hooks</code> folder. We pre-bake your ingest URL into them — you don't have to edit anything.</p>
+        <p className="muted">The installer is pre-configured with your server's URL — you don't edit anything.</p>
 
         <div className="actions" style={{ marginTop: 12 }}>
           <a className="btn" href="/api/dcs/installer.zip" download>📦 Download installer (.zip)</a>
         </div>
 
-        <h3 style={{ marginTop: 18 }}>What to do with the zip:</h3>
+        <h3 style={{ marginTop: 18 }}>Install it (the easy way):</h3>
         <ol style={{ lineHeight: 1.8 }}>
-          <li>Unzip the file you just downloaded.</li>
-          <li>Open File Explorer, paste this into the address bar, hit Enter:<br />
-            <code style={{ background: 'var(--bg-2)', padding: '4px 8px', borderRadius: 4, fontSize: '0.9rem' }}>%USERPROFILE%\Saved Games</code></li>
-          <li>Open your DCS variant's folder (<code>DCS</code>, <code>DCS.openbeta</code>, or <code>DCS.server</code>).</li>
-          <li>Go into <code>Scripts\Hooks</code> (create those subfolders if they don't exist).</li>
-          <li>Drop the three files from the zip in. Restart the DCS server.</li>
+          <li>Unzip the file you just downloaded (right-click → <b>Extract All</b>).</li>
+          <li>Double-click <code>Install.cmd</code>.</li>
+          <li>It finds your DCS folder and installs everything automatically. Restart DCS.</li>
         </ol>
+        <Callout type="tip">
+          If Windows shows a blue <b>"Windows protected your PC"</b> box, click <b>More info → Run anyway</b>. The installer is unsigned like most community DCS tools — it only copies the hook files into your DCS <code>Scripts\Hooks</code> folder (you can read <code>install.ps1</code> in Notepad first if you like).
+        </Callout>
+
+        <details style={{ marginTop: 8 }}>
+          <summary style={{ cursor: 'pointer', color: 'var(--muted)', fontSize: '0.9rem' }}>Prefer to install by hand instead?</summary>
+          <ol style={{ lineHeight: 1.8, marginTop: 8 }}>
+            <li>Open File Explorer, paste this into the address bar, hit Enter:<br />
+              <code style={{ background: 'var(--bg-2)', padding: '4px 8px', borderRadius: 4, fontSize: '0.9rem' }}>%USERPROFILE%\Saved Games</code></li>
+            <li>Open your DCS variant's folder (<code>DCS</code>, <code>DCS.openbeta</code>, or <code>DCS.server</code>).</li>
+            <li>Go into <code>Scripts\Hooks</code> (create those subfolders if they don't exist).</li>
+            <li>Copy the three <code>dcsopt_*</code> files from the zip in. Restart DCS.</li>
+          </ol>
+        </details>
 
         <p className="muted" style={{ marginTop: 12 }}>
-          Within ~60 seconds of restart, the "Current status" card at the top of this page should flip to your live data.
+          Within ~60 seconds of restart, the connection badge at the top of this page should flip to <b>Connected</b>.
           If nothing happens after 2 minutes, check <code>Saved Games\&lt;variant&gt;\Logs\dcs.log</code> for lines starting with <code>DCSOPT:</code>.
         </p>
 

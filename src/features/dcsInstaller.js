@@ -17,6 +17,8 @@ const HOOK_DIR = join(__dirname, '..', '..', 'dcs-hook');
 const HOOK_TEMPLATE    = readFileSync(join(HOOK_DIR, 'dcsopt_hook.lua'), 'utf8');
 const MISSION_TEMPLATE = readFileSync(join(HOOK_DIR, 'dcsopt_mission.lua'), 'utf8');
 const DAEMON_TEMPLATE  = readFileSync(join(HOOK_DIR, 'dcsopt_daemon.vbs'), 'utf8');
+const INSTALL_CMD      = readFileSync(join(HOOK_DIR, 'Install.cmd'), 'utf8');
+const INSTALL_PS1      = readFileSync(join(HOOK_DIR, 'install.ps1'), 'utf8');
 
 // Single source of truth for "the latest hook version" — parsed straight out
 // of the .lua so bumping DCSOPT.VERSION there is the only thing to update.
@@ -26,45 +28,49 @@ export const CURRENT_HOOK_VERSION =
 
 function readme(ingestUrl) {
   return [
-    '== DCS:OPT OPS Bot — DCS Server Installer ==',
+    '== DCS:OPT OPS Bot - DCS Server Installer ==',
+    '',
+    '**** EASIEST WAY: just double-click  Install.cmd  ****',
+    '     It finds your DCS folder and installs everything for you.',
+    '     Nothing to configure - your server URL is already baked in.',
     '',
     'CONTENTS:',
-    '  dcsopt_hook.lua      — main GameGUI hook (pre-configured with your URL)',
-    '  dcsopt_mission.lua   — mission-script side (captures kills/traps/bombs)',
-    '  dcsopt_daemon.vbs    — background poster (windowless, exits with DCS)',
+    '  Install.cmd          - double-click this to auto-install (recommended)',
+    '  install.ps1          - the installer logic Install.cmd runs',
+    '  dcsopt_hook.lua      - main GameGUI hook (pre-configured with your URL)',
+    '  dcsopt_mission.lua   - mission-script side (captures kills/traps/bombs)',
+    '  dcsopt_daemon.vbs    - background poster (windowless, exits with DCS)',
     '',
-    'INSTALL:',
-    '  1. Open your DCS Saved Games folder:',
-    '       %USERPROFILE%\\Saved Games',
-    '     (paste that into File Explorer\'s address bar)',
-    '  2. Find the folder for your DCS variant (DCS, DCS.openbeta, DCS.server).',
-    '  3. Go into that folder, then into "Scripts" then "Hooks" (create them if missing).',
-    '  4. Drop ALL THREE files from this zip into that Hooks folder.',
-    '     (If you have files from an older install — vectorbot*.* or other',
-    '      dcsopt_* files — delete those first. The new hook also cleans up',
-    '      leftovers automatically on first run.)',
-    '  5. Restart your DCS server / DCS.',
+    'IF WINDOWS WARNS about Install.cmd (SmartScreen):',
+    '  Click "More info" -> "Run anyway". It is unsigned, like most community',
+    '  DCS tools. You can read install.ps1 in Notepad first if you want - all',
+    '  it does is copy the hook files into your DCS Scripts\\Hooks folder.',
+    '',
+    'MANUAL INSTALL (if you would rather not run the .cmd):',
+    '  1. Open  %USERPROFILE%\\Saved Games  in File Explorer.',
+    '  2. Open your DCS variant folder (DCS, DCS.openbeta, or DCS.server).',
+    '  3. Go into Scripts\\Hooks (create those folders if missing).',
+    '  4. Copy the three dcsopt_* files into that Hooks folder.',
+    '  5. Restart DCS.',
     '',
     'WHAT TO EXPECT:',
-    '  One brief minimized window flash when a mission loads — that is the',
+    '  One brief minimized window flash when a mission loads - that is the',
     '  background poster starting. After that: nothing visible, ever.',
     '',
     'VERIFY:',
-    '  Check the dashboard\'s "DCS Server" page — within ~60 seconds of restart,',
-    '  the status should turn green and show "Online" with the current mission.',
+    '  Open the dashboard "DCS Server" page - within ~60 seconds of restarting',
+    '  DCS the status should turn green (Connected) with the current mission.',
     '',
-    'PRE-CONFIGURED URL (already baked into dcsopt_hook.lua — no editing needed):',
+    'PRE-CONFIGURED URL (already baked into dcsopt_hook.lua - no editing needed):',
     '  ' + ingestUrl,
     '',
     'TROUBLESHOOTING:',
     '  - Check Saved Games\\<your variant>\\Logs\\dcs.log',
-    '  - Search the log for "DCSOPT" — you should see:',
+    '  - Search the log for "DCSOPT" - you should see:',
     '      DCSOPT: hook loaded (v2 daemon architecture)',
     '      DCSOPT: mission tracker installed (installed)',
     '      DCSOPT: posting daemon launched',
-    '  - "dcsopt_daemon.vbs missing" in the log = you only dropped the .lua',
-    '    files. All THREE files go in the same Hooks folder.',
-    '  - If you only see "hook loaded", you missed dcsopt_mission.lua.',
+    '  - If you only see "hook loaded", dcsopt_mission.lua is missing.',
     '',
   ].join('\r\n');
 }
@@ -76,6 +82,8 @@ export function buildInstallerZip(ingestUrl) {
     `url               = ${JSON.stringify(ingestUrl)}`,
   );
   const zipped = zipSync({
+    'Install.cmd':        strToU8(INSTALL_CMD),
+    'install.ps1':        strToU8(INSTALL_PS1),
     'dcsopt_hook.lua':    strToU8(hookConfigured),
     'dcsopt_mission.lua': strToU8(MISSION_TEMPLATE),
     'dcsopt_daemon.vbs':  strToU8(DAEMON_TEMPLATE),
