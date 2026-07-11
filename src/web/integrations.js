@@ -87,8 +87,7 @@ function buildEmbed(b) {
 function buildDigestEmbed(b) {
   const events = Array.isArray(b.events) ? b.events.slice(0, 25) : [];
   const lines = events.map((e) => {
-    const secs = Math.floor(Number(e.start_at) / 1000);
-    const when = Number.isFinite(secs) ? `<t:${secs}:F> · <t:${secs}:R>` : '';
+    const when = fmtWhen(Number(e.start_at)) || '';
     const tag = e.squadron_tag ? `\`${String(e.squadron_tag).slice(0, 20)}\` ` : '';
     const star = e.kind === 'extra_credit' ? '⭐ ' : '';
     return `${star}${tag}**${String(e.title || 'Event').slice(0, 120)}**\n${when}`;
@@ -96,7 +95,7 @@ function buildDigestEmbed(b) {
   return {
     title: String(b.title || '📅 Upcoming Events').slice(0, 256),
     description: (lines.length ? lines.join('\n\n') : '_No upcoming events scheduled._').slice(0, 4000),
-    color: 0x4c8bf5,
+    color: READYROOM_BLUE,
     footer: { text: 'Auto-updated from ReadyRoom' },
     timestamp: new Date().toISOString(),
   };
