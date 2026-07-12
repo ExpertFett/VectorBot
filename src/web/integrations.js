@@ -237,6 +237,7 @@ export function integrationsRouter(client) {
         ...(b.source_url ? { source_url: String(b.source_url) } : {}),
         ...(b.tz && isValidTz(b.tz) ? { tz: b.tz } : {}),
         ...(b.title != null ? { title: String(b.title).slice(0, 80) } : {}),
+        ...(b.event_list != null ? { event_list: !!b.event_list } : {}),
       });
       // Default the pinned-calendar channel to the events channel (only if one
       // wasn't already chosen via /calendar setup — resetting it would drop the

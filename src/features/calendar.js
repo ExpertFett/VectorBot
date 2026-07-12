@@ -37,6 +37,7 @@ function parseSource(cfg) {
     source_url: s.source_url || null,
     tz: s.tz && isValidTz(s.tz) ? s.tz : 'America/Denver',
     title: s.title || null,
+    event_list: !!s.event_list,   // append a Discord-timestamp event list under the image
   };
 }
 
@@ -55,6 +56,35 @@ function calendarPngUrl(cfg, source, offset) {
   const q = new URLSearchParams({ tz: source.tz, month: String(offset) });
   if (source.title) q.set('title', source.title);
   return `${d.root}/share/${d.token}/calendar.png?${q.toString()}`;
+}
+
+// Optional text companion under the pinned image: this month's events as Discord
+// <t:…> timestamps, which each viewer sees in THEIR OWN local time (an image
+// can't do that — its zone is baked in at render). Fetches Ready Room's JSON
+// events feed and keeps only events whose local day falls in the shown month.
+// Best-effort: returns '' on any failure so it never blocks the image post.
+async function buildEventListText(cfg, source, year, month) {
+  const d = deriveShare(cfg, source);
+  if (!d) return '';
+  const from = Date.UTC(year, month, 1) - 2 * 86_400_000;
+  const to = Date.UTC(year, month + 1, 1) + 2 * 86_400_000;
+  let events = [];
+  try {
+    const res = await fetch(`${d.root}/share/${d.token}/events?from=${from}&to=${to}`, { headers: { accept: 'application/json' } });
+    if (!res.ok) return '';
+    events = (await res.json()).events || [];
+  } catch { return ''; }
+  const rows = events
+    .filter((e) => { const p = tzParts(e.start_at, source.tz); return p.y === year && p.m === month + 1; })
+    .sort((a, b) => a.start_at - b.start_at)
+    .slice(0, 20)
+    .map((e) => {
+      const secs = Math.floor(e.start_at / 1000);
+      const star = e.kind === 'extra_credit' ? '⭐ ' : '';
+      return `${star}<t:${secs}:f> — **${String(e.title || 'Event').slice(0, 80)}**`;
+    });
+  if (!rows.length) return '';
+  return `\n\n**Events this month** · times shown in your local zone\n${rows.join('\n')}`;
 }
 
 async function resolveChannel(client, id) {
@@ -79,7 +109,9 @@ export async function regenerateCalendar(client, guildId, { monthOffset = 0 } = 
 
   const { year, month } = monthInTz(Date.now(), source.tz, monthOffset);
   const file = { attachment: png, name: `calendar-${year}-${pad2(month + 1)}.png` };
-  const content = `📅 **${MONTHS[month]} ${year}**${source.title ? ` — ${source.title}` : ''}`;
+  let content = `📅 **${MONTHS[month]} ${year}**${source.title ? ` — ${source.title}` : ''}`;
+  if (source.event_list) content += await buildEventListText(cfg, source, year, month);
+  content = content.slice(0, 2000);   // Discord message content hard limit
 
   if (cfg.calendar_message_id) {
     const msg = await channel.messages.fetch(cfg.calendar_message_id).catch(() => null);
