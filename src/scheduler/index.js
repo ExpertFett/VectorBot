@@ -13,6 +13,7 @@ import { postEvent } from '../features/events.js';
 import { pollSocial } from '../features/social.js';
 import { updateStatChannels } from '../features/stats.js';
 import { maybeDailyBackup } from '../features/backup.js';
+import { runDueCalendars } from '../features/calendar.js';
 import { reportError } from '../util/report.js';
 import { getBotForGuild } from '../customBots/index.js';
 
@@ -20,11 +21,13 @@ const TICK_MS = 20_000;
 const FEED_EVERY_TICKS = 15; // ~5 minutes (social incl. YouTube)
 const STATS_EVERY_TICKS = 30; // ~10 minutes (channel-rename rate limits)
 const BACKUP_EVERY_TICKS = 90; // ~30 minutes (actual backup only runs once/day)
+const CAL_EVERY_TICKS = 90; // ~30 minutes (each guild's calendar renders at most once/local-day or /6h)
 const RECUR_GRACE_MS = 6 * 3600_000; // keep a recurring sheet up ~6h past start, then roll over
 const DAY_MS = 86_400_000;
 let feedCounter = 0;
 let statsCounter = 0;
 let backupCounter = BACKUP_EVERY_TICKS - 3; // check shortly after startup
+let calCounter = CAL_EVERY_TICKS - 5; // check shortly after startup
 
 async function resolveChannel(client, id) {
   return client.channels.cache.get(id) || (await client.channels.fetch(id).catch(() => null));
@@ -126,6 +129,13 @@ async function tick(client) {
   if (++backupCounter >= BACKUP_EVERY_TICKS) {
     backupCounter = 0;
     await maybeDailyBackup(client).catch((e) => reportError(client, 'backup', e));
+  }
+
+  // Wall calendars (checked ~every 30 min; each guild renders once per local
+  // day or if its image is >6h stale — the gate lives in runDueCalendars).
+  if (++calCounter >= CAL_EVERY_TICKS) {
+    calCounter = 0;
+    await runDueCalendars(client).catch((e) => reportError(client, 'calendar', e));
   }
 }
 

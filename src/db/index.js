@@ -387,6 +387,10 @@ db.exec(`
 ensureColumn('guild_config', 'readyroom_ingest_url', 'TEXT');   // per-guild ReadyRoom wing ingest URL (sortie fan-out IN)
 ensureColumn('guild_config', 'readyroom_outbound_token', 'TEXT');  // per-guild secret ReadyRoom uses to publish to this guild (OUT)
 ensureColumn('guild_config', 'readyroom_events_channel_id', 'TEXT'); // channel to post ReadyRoom event embeds into
+ensureColumn('guild_config', 'calendar_channel_id', 'TEXT');    // #calendar channel for the pinned wall-calendar image
+ensureColumn('guild_config', 'calendar_message_id', 'TEXT');    // the one pinned message we edit in place
+ensureColumn('guild_config', 'calendar_source', 'TEXT');        // JSON {type, source_url, tz, title, horizon_days}
+ensureColumn('guild_config', 'calendar_last_run', 'INTEGER');   // ms of last successful render (nightly gate)
 ensureColumn('tickets', 'claimed_by', 'TEXT');                  // staff who claimed the ticket
 ensureColumn('events', 'embed', 'TEXT');                        // custom event embed template (JSON)
 ensureColumn('events', 'waitlist', 'INTEGER NOT NULL DEFAULT 0');     // overflow goes to a waitlist
@@ -437,6 +441,7 @@ const ALLOWED_CONFIG_COLUMNS = new Set([
   'ingest_token', 'server_status', 'status_channel_id', 'status_message_id', 'dcs_feed_channel_id', 'status_embed',
   'bullseye_lat', 'bullseye_lon', 'recruitment', 'onboarding', 'readyroom_ingest_url',
   'readyroom_outbound_token', 'readyroom_events_channel_id',
+  'calendar_channel_id', 'calendar_message_id', 'calendar_source', 'calendar_last_run',
   'custom_bot_token',
 ]);
 
@@ -984,6 +989,32 @@ export function setServerStatus(guildId, status) {
 export function setStatusMessage(guildId, channelId, messageId) {
   setConfigValue(guildId, 'status_channel_id', channelId);
   setConfigValue(guildId, 'status_message_id', messageId);
+}
+
+// --- wall calendar (pinned month-grid image) ---
+export function setCalendarSource(guildId, source) {
+  setConfigValue(guildId, 'calendar_source', JSON.stringify(source));
+}
+export function setCalendarChannel(guildId, channelId) {
+  setConfigValue(guildId, 'calendar_channel_id', channelId);
+  setConfigValue(guildId, 'calendar_message_id', null); // force a fresh post in the new channel
+}
+export function setCalendarMessage(guildId, channelId, messageId) {
+  setConfigValue(guildId, 'calendar_channel_id', channelId);
+  setConfigValue(guildId, 'calendar_message_id', messageId);
+}
+export function setCalendarLastRun(guildId, ms) {
+  setConfigValue(guildId, 'calendar_last_run', ms);
+}
+export function clearCalendar(guildId) {
+  setConfigValue(guildId, 'calendar_channel_id', null);
+  setConfigValue(guildId, 'calendar_message_id', null);
+}
+// Guilds with a wall calendar configured — used by the nightly scheduler gate.
+export function getCalendarGuilds() {
+  return db.prepare(
+    'SELECT guild_id, calendar_source, calendar_last_run FROM guild_config WHERE calendar_channel_id IS NOT NULL'
+  ).all();
 }
 
 // --- carrier traps ---
