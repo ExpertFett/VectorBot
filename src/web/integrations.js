@@ -7,8 +7,9 @@
 //   DELETE /readyroom/publish-event/:messageId  delete embed
 
 import { Router } from 'express';
-import { getConfig, setConfigValue, setReadyroomEventCallback, getGuildByReadyroomOutboundToken } from '../db/index.js';
+import { getConfig, setConfigValue, setReadyroomEventCallback, getGuildByReadyroomOutboundToken, setCalendarSource, setCalendarChannel } from '../db/index.js';
 import { buildReadyroomPanel } from '../features/readyroomPanel.js';
+import { regenerateCalendar, isValidTz } from '../features/calendar.js';
 
 // ReadyRoom sends its wing ingest URL with each publish so two-way sign-up sync
 // works without a separate manual setup. We (1) store it PER EVENT — the
@@ -212,6 +213,41 @@ export function integrationsRouter(client) {
     } catch (err) {
       console.error('[integrations] digest edit failed:', err.message);
       res.status(500).json({ error: 'discord_edit_failed' });
+    }
+  });
+
+  // CALENDAR — post (or refresh) the ReadyRoom month-grid calendar IMAGE as a
+  // pinned message, WITHOUT the /calendar slash command. ReadyRoom drives it:
+  // it passes its /share/<token> source so we can render even if the sortie
+  // ingest URL was never wired, and we default the pinned-calendar channel to
+  // the already-configured events channel. Repeat calls edit the same pinned
+  // message. This also bootstraps the nightly auto-refresh (calendar_source +
+  // calendar_channel_id get stored).
+  router.post('/readyroom/calendar', async (req, res) => {
+    const channel = await resolveChannel(req, res, client); // events channel + bearer auth
+    if (!channel) return;
+    const guildId = channel.guild.id;
+    const b = req.body || {};
+    try {
+      const cfg = getConfig(guildId);
+      let prev = {};
+      try { prev = cfg.calendar_source ? JSON.parse(cfg.calendar_source) : {}; } catch { /* ignore */ }
+      setCalendarSource(guildId, {
+        ...prev,
+        ...(b.source_url ? { source_url: String(b.source_url) } : {}),
+        ...(b.tz && isValidTz(b.tz) ? { tz: b.tz } : {}),
+        ...(b.title != null ? { title: String(b.title).slice(0, 80) } : {}),
+      });
+      // Default the pinned-calendar channel to the events channel (only if one
+      // wasn't already chosen via /calendar setup — resetting it would drop the
+      // existing pinned message and re-post instead of editing).
+      if (!cfg.calendar_channel_id) setCalendarChannel(guildId, channel.id);
+      const r = await regenerateCalendar(channel.client, guildId, { monthOffset: Number(b.month) || 0 });
+      if (!r?.ok) return res.status(409).json({ error: r?.reason || 'calendar_failed' });
+      res.json({ ok: true, edited: !!r.edited, channel_id: cfg.calendar_channel_id || channel.id });
+    } catch (err) {
+      console.error('[integrations] calendar post failed:', err.message);
+      res.status(502).json({ error: 'render_failed', message: err.message });
     }
   });
 
