@@ -20,7 +20,7 @@ local DCSOPT = {}
 
 -- Bump this whenever the hook's behaviour changes. The bot compares it to its
 -- own DCS_HOOK_VERSION and nudges the user to re-download if they're behind.
-DCSOPT.VERSION = "2.1.0"
+DCSOPT.VERSION = "2.1.1"
 
 DCSOPT.config = {
   -- Paste your per-server Ingest URL from the dashboard's "DCS Server" page:
@@ -38,6 +38,7 @@ local HOOKS_DIR = lfs.writedir() .. "Scripts\\Hooks\\"
 local QUEUE_DIR = HOOKS_DIR .. "dcsopt_queue\\"
 
 local installed     = false
+local lastInstallErr = nil   -- de-dupes the "not installed yet" retry log
 local payloadSeq    = 0
 local lastStatus    = 0
 local lastDrain     = 0
@@ -223,8 +224,26 @@ local function install()
   local missionLua = readMissionScript()
   if not missionLua then return end
   local ok, res = pcall(function() return net.dostring_in("mission", missionLua) end)
-  if ok then installed = true; logmsg("mission tracker installed (" .. tostring(res) .. ")")
-  else logerr("inject failed: " .. tostring(res)) end
+  -- pcall only tells us net.dostring_in itself didn't throw; a Lua error INSIDE
+  -- the mission sandbox comes back as the returned STRING.  The mission script
+  -- ends with `return "installed"`, so that sentinel is the only proof it ran.
+  -- Trusting `ok` alone latched installed=true on the very first call (fired at
+  -- hook load, before any mission exists -> "attempt to index global 'world'"),
+  -- after which every retry short-circuited and the tracker was NEVER injected
+  -- for the real mission: no kill/trap/bomb/sortie events, silently, forever.
+  res = tostring(res)
+  if ok and res == "installed" then
+    installed = true
+    logmsg("mission tracker installed")
+  elseif ok then
+    -- Expected before the mission env exists; stays false so we retry.
+    if res ~= lastInstallErr then
+      lastInstallErr = res
+      logmsg("mission tracker not installed yet (" .. res:sub(1, 160) .. ")")
+    end
+  else
+    logerr("inject failed: " .. res)
+  end
 end
 
 local function drainEvents()
@@ -243,6 +262,7 @@ local callbacks = {}
 
 function callbacks.onSimulationStart()
   installed = false
+  lastInstallErr = nil
   lastStatus = os.time()
   lastHeartbeat = 0
   install()
