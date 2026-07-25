@@ -11,6 +11,17 @@
 -- and spam JSON files with the error text. Table-attached methods are
 -- reliable because DCSOPT itself is a known global.
 
+-- This file lives in Scripts\Hooks so the hook can read it, which means DCS
+-- ALSO auto-runs it in the GameGUI env at startup -- and the hook's own first
+-- install() attempt can fire before a mission exists. Neither of those has
+-- `world`. Bail out immediately there: without this guard the script ran far
+-- enough to set DCSOPT.installed = true below, then died at
+-- world.addEventHandler(), leaving a table that claims to be installed with no
+-- handler registered. Every later injection then short-circuited on
+-- "already-installed" and the tracker was never really live -- no kill / trap /
+-- bomb / sortie events, silently.
+if not world then return "not-mission-env" end
+
 if DCSOPT and DCSOPT.installed then return "already-installed" end
 
 DCSOPT = {}

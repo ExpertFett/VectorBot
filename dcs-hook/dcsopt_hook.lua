@@ -20,7 +20,7 @@ local DCSOPT = {}
 
 -- Bump this whenever the hook's behaviour changes. The bot compares it to its
 -- own DCS_HOOK_VERSION and nudges the user to re-download if they're behind.
-DCSOPT.VERSION = "2.1.1"
+DCSOPT.VERSION = "2.1.2"
 
 DCSOPT.config = {
   -- Paste your per-server Ingest URL from the dashboard's "DCS Server" page:
@@ -219,30 +219,54 @@ local function readMissionScript()
   return data
 end
 
+-- Is the mission Lua env actually up? Injecting before it is was the root of
+-- the "tracker never installs" bug -- see install().
+local function missionEnvReady()
+  local ok, res = pcall(function()
+    return net.dostring_in("mission", "return (world ~= nil) and 'yes' or 'no'")
+  end)
+  return ok and tostring(res) == "yes"
+end
+
+-- "already-installed" is only trustworthy if the tracker is genuinely live.
+local function trackerHealthy()
+  local ok, res = pcall(function()
+    return net.dostring_in("mission",
+      "return (DCSOPT and DCSOPT.handler and DCSOPT.drain) and 'ok' or 'broken'")
+  end)
+  return ok and tostring(res) == "ok"
+end
+
 local function install()
   if installed then return end
+  -- Never inject before the mission env exists. pcall only tells us
+  -- net.dostring_in didn't throw -- a Lua error INSIDE the sandbox comes back
+  -- as the returned STRING, so `ok` alone is not proof the script ran.
+  if not missionEnvReady() then return end
   local missionLua = readMissionScript()
   if not missionLua then return end
   local ok, res = pcall(function() return net.dostring_in("mission", missionLua) end)
-  -- pcall only tells us net.dostring_in itself didn't throw; a Lua error INSIDE
-  -- the mission sandbox comes back as the returned STRING.  The mission script
-  -- ends with `return "installed"`, so that sentinel is the only proof it ran.
-  -- Trusting `ok` alone latched installed=true on the very first call (fired at
-  -- hook load, before any mission exists -> "attempt to index global 'world'"),
-  -- after which every retry short-circuited and the tracker was NEVER injected
-  -- for the real mission: no kill/trap/bomb/sortie events, silently, forever.
+  if not ok then logerr("inject failed: " .. tostring(res)); return end
   res = tostring(res)
-  if ok and res == "installed" then
+
+  if res == "installed" or (res == "already-installed" and trackerHealthy()) then
     installed = true
-    logmsg("mission tracker installed")
-  elseif ok then
-    -- Expected before the mission env exists; stays false so we retry.
-    if res ~= lastInstallErr then
-      lastInstallErr = res
-      logmsg("mission tracker not installed yet (" .. res:sub(1, 160) .. ")")
-    end
-  else
-    logerr("inject failed: " .. res)
+    logmsg("mission tracker installed (" .. res .. ")")
+    return
+  end
+
+  if res == "already-installed" then
+    -- Poisoned half-load left by an older build: the table claims installed
+    -- but no handler was ever registered. Clear it so the next frame re-injects
+    -- cleanly instead of short-circuiting forever.
+    logmsg("tracker half-loaded (no handler) - resetting for clean re-inject")
+    pcall(function() net.dostring_in("mission", "DCSOPT = nil") end)
+    return
+  end
+
+  if res ~= lastInstallErr then
+    lastInstallErr = res
+    logmsg("mission tracker not installed yet (" .. res:sub(1, 160) .. ")")
   end
 end
 
