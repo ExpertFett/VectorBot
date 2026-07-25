@@ -20,7 +20,7 @@ local DCSOPT = {}
 
 -- Bump this whenever the hook's behaviour changes. The bot compares it to its
 -- own DCS_HOOK_VERSION and nudges the user to re-download if they're behind.
-DCSOPT.VERSION = "2.0.0"
+DCSOPT.VERSION = "2.1.0"
 
 DCSOPT.config = {
   -- Paste your per-server Ingest URL from the dashboard's "DCS Server" page:

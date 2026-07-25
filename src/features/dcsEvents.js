@@ -10,6 +10,13 @@ function bombGrade(d) {
   return 'Miss';
 }
 
+const COMPASS_16 = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+                    'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+// 16-point compass label for a bearing in degrees (0 = N, cw).
+function compass16(brg) {
+  return COMPASS_16[Math.floor((((brg % 360) + 360) % 360) / 22.5 + 0.5) % 16];
+}
+
 function fmtDuration(sec) {
   const m = Math.round(sec / 60);
   if (m < 60) return `${m}m`;
@@ -53,7 +60,11 @@ export async function handleDcsEvent(client, guildId, ev) {
     const d = Math.round(ev.distance * 10) / 10;
     const grade = bombGrade(d);
     addBombScore(guildId, { pilot: String(ev.shooter).slice(0, 80), weapon: ev.weapon ? String(ev.weapon).slice(0, 80) : null, distance: d, grade });
-    await feed(client, guildId, `💣 **${ev.shooter}** — ${ev.weapon || 'ordnance'} — **${d} m** from target (**${grade}**)`);
+    // Optional bearing from target -> impact (0-360 cw from N), added by hook v2.1+.
+    const dirTag = (typeof ev.bearing === 'number' && Number.isFinite(ev.bearing))
+      ? ` ${compass16(ev.bearing)} (${Math.round(ev.bearing)}°)`
+      : '';
+    await feed(client, guildId, `💣 **${ev.shooter}** — ${ev.weapon || 'ordnance'} — **${d} m**${dirTag} from target (**${grade}**)`);
   } else if (ev.kind === 'sortie' && ev.pilot) {
     const seconds = Math.max(0, Number(ev.seconds) || 0);
     addSortie(guildId, { pilot: String(ev.pilot).slice(0, 80), airframe: ev.airframe ? String(ev.airframe).slice(0, 80) : null, seconds });

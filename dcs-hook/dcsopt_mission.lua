@@ -117,6 +117,20 @@ function DCSOPT.handler:onEvent(event)
 end
 world.addEventHandler(DCSOPT.handler)
 
+-- Grade band label for a miss distance (m). Kept in sync with bombGrade() in
+-- src/features/dcsEvents.js so the in-game toast matches the Discord feed.
+local COMPASS_16 = {"N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"}
+local function bombLabel(m)
+  if m <= 10 then return "SHACK"
+  elseif m <= 25 then return "Excellent"
+  elseif m <= 50 then return "Good"
+  elseif m <= 100 then return "Fair"
+  else return "Miss" end
+end
+local function compass16(brg)
+  return COMPASS_16[math.floor((brg / 22.5) + 0.5) % 16 + 1]
+end
+
 local function poll()
   local i = 1
   while i <= #DCSOPT.tracked do
@@ -129,16 +143,33 @@ local function poll()
       i = i + 1
     else
       local dist = "null"
+      local bearing = "null"
       local tgt = "null"
       if DCSOPT.target and t.last then
+        -- DCS map frame: x = north (m), z = east (m). Bearing FROM target TO
+        -- impact = the direction the pilot missed, 0-360 cw from north.
         local dx = t.last.x - DCSOPT.target.x
         local dz = t.last.z - DCSOPT.target.z
-        dist = string.format("%.1f", math.sqrt(dx * dx + dz * dz))
-        tgt = jstr(DCSOPT.target.name)
+        local dm = math.sqrt(dx * dx + dz * dz)
+        local brg = math.deg(math.atan2(dz, dx))
+        if brg < 0 then brg = brg + 360 end
+        dist    = string.format("%.1f", dm)
+        bearing = string.format("%.1f", brg)
+        tgt     = jstr(DCSOPT.target.name)
+        -- In-game toast to everyone in the mission. Only fires when a TGT
+        -- marker is present AND the impact is within 100 m (avoids spamming
+        -- huge misses that weren't real bombing attempts).
+        if dm <= 100 then
+          pcall(function()
+            trigger.action.outText(string.format(
+              "BOMB %s -- %.0fm %s at %.0fdeg -- %s",
+              t.shooter, dm, compass16(brg), brg, bombLabel(dm)), 12, false)
+          end)
+        end
       end
       table.insert(DCSOPT.queue, string.format(
-        '{"kind":"bomb","shooter":%s,"weapon":%s,"distance":%s,"target":%s,"time":%.1f}',
-        jstr(t.shooter), jstr(t.wtype), dist, tgt, timer.getTime()))
+        '{"kind":"bomb","shooter":%s,"weapon":%s,"distance":%s,"bearing":%s,"target":%s,"time":%.1f}',
+        jstr(t.shooter), jstr(t.wtype), dist, bearing, tgt, timer.getTime()))
       table.remove(DCSOPT.tracked, i)
     end
   end
