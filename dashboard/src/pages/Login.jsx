@@ -33,7 +33,9 @@ const INTEGRATIONS = [
 ];
 
 export default function Login({ noAccess, user }) {
-  const error = new URLSearchParams(window.location.search).get('error');
+  const params = new URLSearchParams(window.location.search);
+  const error = params.get('error');
+  const guildCount = params.get('g');   // total servers Discord reported (no_servers case)
 
   const switchAccount = async () => {
     try { await api.logout(); } catch { /* ignore */ }
@@ -65,7 +67,25 @@ export default function Login({ noAccess, user }) {
           scoreboards, roster management, recruitment and full server moderation, all controlled from one web dashboard.
         </p>
         <a className="btn-discord" href="/auth/login"><DiscordMark /> Log in with Discord</a>
-        {error && <p className="error">Login error: {error.replace(/_/g, ' ')}</p>}
+        {error === 'no_servers' ? (
+          <div className="error" style={{ maxWidth: 560, textAlign: 'left', lineHeight: 1.5 }}>
+            <b>You don’t manage any servers we can set up.</b><br />
+            Discord reported <b>{guildCount ?? '0'}</b> server{guildCount === '1' ? '' : 's'} on your account
+            {guildCount && guildCount !== '0'
+              ? <> — but you don’t have <b>Manage Server</b> (or Administrator, or ownership) on any of them.</>
+              : <> — that usually means you authorized with the wrong Discord account, or Discord returned nothing.</>}
+            <div style={{ marginTop: 8 }}>
+              <b>To fix:</b> in the server you want to manage, open <b>Server Settings → Roles</b> and make sure your
+              role has <b>Manage Server</b> turned on (or that you’re the server owner). Then come back and log in again.
+              If you have more than one Discord account, make sure you’re signed into the right one.
+            </div>
+            <div style={{ marginTop: 8 }}>
+              <button className="btn" onClick={switchAccount}>Try a different account</button>
+            </div>
+          </div>
+        ) : error ? (
+          <p className="error">Login error: {error.replace(/_/g, ' ')}</p>
+        ) : null}
         <p className="hero-note">Free to add · You’ll need <b>Manage Server</b> on the Discord you want to set up.</p>
       </section>
 

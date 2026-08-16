@@ -78,7 +78,10 @@ authRouter.get('/callback', async (req, res) => {
       }
       console.log('[auth] login ok: user=%s sid=%s manageable=%d',
         user.username, req.sessionID?.slice(0, 8), manageable.length);
-      res.redirect(manageable.length ? '/' : '/?error=no_servers');
+      // On the no-servers case, pass the total guild count so the error page
+      // can tell the user whether Discord saw their servers at all (guilds>0,
+      // just none they manage) vs. returned nothing (guilds=0, scope/propagation).
+      res.redirect(manageable.length ? '/' : `/?error=no_servers&g=${guilds.length}`);
     });
   } catch (err) {
     console.error('OAuth callback error:', err.message);
