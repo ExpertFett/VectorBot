@@ -21,6 +21,13 @@ export function buildAuthUrl(state) {
     redirect_uri: getRedirectUri(),
     response_type: 'code',
     scope: 'identify guilds',
+    // Force a fresh consent every login. Without this, a user who previously
+    // authorized this application under a DIFFERENT scope set (e.g. `bot` when
+    // they invited the bot) can get handed a token that's missing the `guilds`
+    // scope — so /users/@me/guilds comes back empty and they see "no servers"
+    // despite having Manage Server. prompt=consent makes Discord re-issue the
+    // token with exactly the scopes we ask for here.
+    prompt: 'consent',
     state,
   });
   return `${DISCORD_API}/oauth2/authorize?${params}`;
