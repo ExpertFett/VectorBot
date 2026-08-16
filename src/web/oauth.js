@@ -51,7 +51,25 @@ async function discordGet(path, accessToken) {
 }
 
 export const fetchUser = (token) => discordGet('/users/@me', token);
-export const fetchUserGuilds = (token) => discordGet('/users/@me/guilds', token);
+
+// Fetch ALL of the user's guilds, paginating past Discord's 200-per-page cap.
+// Without this, a user in 200+ servers whose managed guild sorts beyond the
+// first page would look like they manage nothing — the "you don't have Manage
+// Server on any servers" bug. We page with ?after=<lastId> until a short page.
+export async function fetchUserGuilds(token) {
+  const all = [];
+  let after = null;
+  for (let i = 0; i < 20; i++) {            // hard cap: 20 pages = 4000 guilds
+    const q = new URLSearchParams({ limit: '200' });
+    if (after) q.set('after', after);
+    const page = await discordGet(`/users/@me/guilds?${q}`, token);
+    if (!Array.isArray(page) || page.length === 0) break;
+    all.push(...page);
+    if (page.length < 200) break;           // last page
+    after = page[page.length - 1].id;       // guilds come back id-ascending
+  }
+  return all;
+}
 
 // Does this OAuth guild object grant the user Manage Server (or Admin/owner)?
 export function canManageGuild(guild) {

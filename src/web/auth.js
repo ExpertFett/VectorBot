@@ -44,6 +44,15 @@ authRouter.get('/callback', async (req, res) => {
       icon: g.icon ? `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png` : null,
     }));
 
+    // Diagnostic: if a user reports "no servers" despite managing one, this
+    // tells us whether Discord returned the guild at all (pagination/propagation)
+    // vs. returned it but the perms didn't parse (filter bug). Sample a few.
+    console.log('[auth] %s: %d guild(s) total, %d manageable', user.username, guilds.length, manageable.length);
+    if (manageable.length === 0 && guilds.length > 0) {
+      const sample = guilds.slice(0, 5).map((g) => `${g.name}(owner=${g.owner},perms=${g.permissions})`).join(' | ');
+      console.log('[auth]   none passed the Manage-Server filter. Sample: %s', sample);
+    }
+
     req.session.user = {
       id: user.id,
       username: user.global_name || user.username,
