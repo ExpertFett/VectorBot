@@ -9,6 +9,7 @@ import { startScheduler } from './scheduler/index.js';
 import { reportError } from './util/report.js';
 import { initCustomBotRuntime, loadAllCustomBots } from './customBots/index.js';
 import { initMusic } from './features/music.js';
+import { startGatewayWatchdog } from './util/gatewayWatchdog.js';
 import { ensureYtDlp } from '../scripts/install-yt-dlp.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -101,6 +102,10 @@ if (process.env.DISABLE_MUSIC === '1') {
 }
 
 process.on('unhandledRejection', (err) => reportError(client, 'unhandledRejection', err));
+
+// Detect a dead/zombie gateway and restart clean — the fix for "notifications
+// silently stopped again" while the bot still shows online.
+startGatewayWatchdog(client);
 
 client.once('ready', () => {
   // Spawn any custom bots configured per-guild. Failures are reported but
