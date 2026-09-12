@@ -54,13 +54,17 @@ import { postOnboardPanel } from '../features/onboarding.js';
 import { publishWelcomePage, clearWelcomePage } from '../features/welcomePage.js';
 import { computeAnalytics } from '../features/analytics.js';
 import { buildInstallerZip, CURRENT_HOOK_VERSION } from '../features/dcsInstaller.js';
+import { canTrackInvites } from '../features/invites.js';
 import { parseMizSlots } from '../features/mizParser.js';
 import { STAT_TYPES, computeStat } from '../features/stats.js';
 import { requireAuth } from './auth.js';
 
 const NAME_RE = /^[a-z0-9_-]{1,32}$/;
 // Invite permissions incl. Manage Channels (tickets/stats), Manage Roles, moderation, etc.
-const INVITE_PERMISSIONS = '1099780156438';
+// Includes Manage Server (0x20) — REQUIRED for the invite tracker, which reads
+// the server's invite list via guild.invites.fetch(). Without it the tracker
+// silently can't attribute joins.
+const INVITE_PERMISSIONS = '1099780156470';
 
 const parseJson = (s) => { try { return s ? JSON.parse(s) : null; } catch { return null; } };
 const serialize = (v) => (v ? JSON.stringify(v) : null);
@@ -779,10 +783,16 @@ export function apiRouter(client) {
   });
 
   // --- invite tracker ---
-  router.get('/invites', (req, res) => {
+  router.get('/invites', async (req, res) => {
     const guild = getBotForGuild(req.guildId, client).guilds.cache.get(req.guildId);
     const tag = (id) => guild?.members.cache.get(id)?.user?.tag || null;
-    res.json(getInviteLeaderboard(req.guildId).map((r) => ({ ...r, tag: tag(r.inviter_id) })));
+    // Check whether the bot can actually read invites (needs Manage Server).
+    // If not, the leaderboard will never fill — surface that to the dashboard.
+    const can_track = guild ? await canTrackInvites(guild) : false;
+    res.json({
+      can_track,
+      leaderboard: getInviteLeaderboard(req.guildId).map((r) => ({ ...r, tag: tag(r.inviter_id) })),
+    });
   });
 
   // --- personalizer ---

@@ -2,19 +2,23 @@ import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import PageHeader from '../components/PageHeader.jsx';
 import EmptyState from '../components/EmptyState.jsx';
+import Callout from '../components/Callout.jsx';
 
 export default function Invites() {
-  const [list, setList] = useState(null);
+  const [data, setData] = useState(null);
   const [guild, setGuild] = useState(null);
   const [logChannel, setLogChannel] = useState('');
   const [status, setStatus] = useState('');
 
   useEffect(() => {
     Promise.all([api.getInvites(), api.guild(), api.getConfig()])
-      .then(([l, g, c]) => { setList(l); setGuild(g); setLogChannel(c.invite_log_channel || ''); })
+      .then(([d, g, c]) => { setData(d); setGuild(g); setLogChannel(c.invite_log_channel || ''); })
       .catch((e) => setStatus(e.message));
   }, []);
-  if (!list || !guild) return <div className="muted page">{status || 'Loading…'}</div>;
+  if (!data || !guild) return <div className="muted page">{status || 'Loading…'}</div>;
+  // Tolerate both the old array shape and the new { can_track, leaderboard }.
+  const list = Array.isArray(data) ? data : (data.leaderboard || []);
+  const canTrack = Array.isArray(data) ? true : data.can_track;
 
   const saveChannel = async () => {
     setStatus('Saving…');
@@ -27,6 +31,13 @@ export default function Invites() {
       <PageHeader title="Invite Tracker" sub="See who’s bringing the most members into your server.">
         <span className="status">{status}</span>
       </PageHeader>
+
+      {!canTrack && (
+        <Callout type="warn">
+          <b>The bot can’t read this server’s invites — the tracker won’t work.</b> It’s missing the <b>Manage Server</b> permission.
+          Fix it in Discord: <b>Server Settings → Roles →</b> the bot’s role → turn on <b>Manage Server</b>. Then reload this page.
+        </Callout>
+      )}
 
       <section className="card">
         <h2>Join-log channel</h2>

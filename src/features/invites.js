@@ -7,9 +7,19 @@ export async function cacheGuildInvites(guild) {
   try {
     const invites = await guild.invites.fetch();
     cache.set(guild.id, new Map(invites.map((i) => [i.code, i.uses ?? 0])));
-  } catch {
-    // Missing Manage Server permission — invite tracking won't work until granted.
+  } catch (err) {
+    // Almost always: the bot lacks Manage Server in this guild, so it can't
+    // read the invite list. Log it (once per guild per boot) instead of failing
+    // silently, so "invite tracker isn't working" is diagnosable from the logs.
+    console.warn(`[invites] cannot read invites for "${guild.name}" (${guild.id}) — grant the bot Manage Server. (${err.message})`);
   }
+}
+
+// Whether the bot can currently read invites in this guild (Manage Server).
+// Used by the dashboard to warn the admin if the permission is missing.
+export async function canTrackInvites(guild) {
+  try { await guild.invites.fetch(); return true; }
+  catch { return false; }
 }
 
 export async function cacheAllInvites(client) {
