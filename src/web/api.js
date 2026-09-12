@@ -119,6 +119,25 @@ export function apiRouter(client) {
     res.json(out);
   });
 
+  // Live bot health — no guild needed. Reads the gateway state directly so the
+  // dashboard can show at a glance whether the bot is truly connected (vs. the
+  // "process alive but gateway zombie" state where notifications silently die).
+  // If the whole process is down, this request simply won't respond — which the
+  // dashboard also reads as unhealthy.
+  router.get('/health', (req, res) => {
+    if (!req.session?.user) return res.status(401).json({ error: 'unauthorized' });
+    const ready = client.isReady?.() ?? false;
+    res.json({
+      ready,
+      ws_status: client.ws?.status ?? null,   // 0 = Ready (discord.js Status enum)
+      ping_ms: Number.isFinite(client.ws?.ping) && client.ws.ping >= 0 ? Math.round(client.ws.ping) : null,
+      uptime_ms: client.uptime ?? null,        // ms since this process's gateway became ready
+      ready_at: client.readyAt ? client.readyAt.getTime() : null, // last (re)connect = last restart
+      guilds: client.guilds?.cache?.size ?? 0,
+      server_time: Date.now(),
+    });
+  });
+
   // Logged-in routes below (no specific server required yet).
   router.use(requireAuth);
 

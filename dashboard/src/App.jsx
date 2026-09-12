@@ -34,6 +34,7 @@ import Setup from './pages/Setup.jsx';
 import SetupWizard from './pages/SetupWizard.jsx';
 import Brand from './components/Brand.jsx';
 import DiscordButton from './components/DiscordButton.jsx';
+import HealthChip from './components/HealthChip.jsx';
 
 // Sidebar navigation grouped into sections. Each link:
 //   [path, icon, label, requiredAction?]
@@ -156,6 +157,7 @@ export default function App() {
             );
           })}
         </nav>
+        <HealthChip />
         <div className="user">
           {user.avatar && <img src={user.avatar} alt="" />}
           <span className="uname">{user.username}</span>
