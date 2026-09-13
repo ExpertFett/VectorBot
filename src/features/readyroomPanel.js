@@ -12,7 +12,7 @@
 //   plus a Withdraw button on the main message (rr:<eid>:wd)
 
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags } from 'discord.js';
-import { getConfig, getReadyroomEventCallback } from '../db/index.js';
+import { getConfig, getReadyroomEventCallback, setReadyroomEventCallback } from '../db/index.js';
 
 const KIND_COLOR = { extra_credit: 0xf0b429, mission: 0x8a63ff };
 const DEFAULT_COLOR = 0x4c8bf5;
@@ -125,24 +125,50 @@ export function buildSlotPicker(p, groupIndex, userId) {
 
 // ---- bot -> ReadyRoom forwarding ----------------------------------------
 const ENV_URL = process.env.READYROOM_INGEST_URL || null;
-// Resolve which ReadyRoom ingest URL to call: the per-event callback (the
-// authoritative one for THIS event's wing) first, then the guild-wide ingest
-// URL, then the env fallback. Per-event is what lets one guild serve events
-// from multiple wings.
-function readyroomUrl(guildId, eventId) {
-  const perEvent = getReadyroomEventCallback(guildId, eventId);
-  if (perEvent) return perEvent;
-  try { const c = getConfig(guildId); if (c?.readyroom_ingest_url) return c.readyroom_ingest_url; } catch { /* fall through */ }
-  return ENV_URL;
-}
-async function callReadyroom(guildId, body) {
-  const url = readyroomUrl(guildId, body?.readyroom_event_id);
-  if (!url) return { ok: false, error: 'no_readyroom_url' };
+
+// One POST to a candidate ReadyRoom ingest URL.
+async function postReadyroom(url, body) {
   try {
     const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json().catch(() => ({}));
     return { status: res.status, ...data };
   } catch (e) { return { ok: false, error: e.message }; }
+}
+
+// A "stale link" result (bad/expired token, event not in that wing, or a network
+// failure) means we hit the wrong or dead destination — worth trying the next
+// candidate. A real answer (ok, slot_full, qual_required, unknown_role) is
+// FINAL and must not trigger a retry against another wing.
+const isStaleLink = (r) => r.error === 'bad_token' || r.error === 'event_not_found' || (!r.status && !r.ok);
+
+// Forward an action to ReadyRoom, AUTO-RECONNECTING if the per-event callback
+// has gone stale (token rotated, or the wing was consolidated/cleaned up): fall
+// back to the guild's current ReadyRoom link, and on success repair the stored
+// per-event callback so future clicks go straight there — no manual "Repost".
+// Candidates are most-specific first: the per-event callback, then the guild's
+// configured ingest URL, then the env fallback.
+async function callReadyroom(guildId, body) {
+  const eventId = body?.readyroom_event_id;
+  const perEvent = getReadyroomEventCallback(guildId, eventId);
+  let guildUrl = null;
+  try { guildUrl = getConfig(guildId)?.readyroom_ingest_url || null; } catch { /* no guild config */ }
+  const candidates = [...new Set([perEvent, guildUrl, ENV_URL].filter(Boolean))];
+  if (!candidates.length) return { ok: false, error: 'no_readyroom_url' };
+
+  let last = { ok: false, error: 'no_readyroom_url' };
+  for (const url of candidates) {
+    const resp = await postReadyroom(url, body);
+    if (!isStaleLink(resp)) {
+      // Final answer. If a FALLBACK url (not the stored per-event one) worked,
+      // heal the callback so the next click skips straight to it.
+      if (resp.ok && eventId && url !== perEvent) {
+        try { setReadyroomEventCallback(guildId, eventId, url); } catch { /* best effort */ }
+      }
+      return resp;
+    }
+    last = resp;
+  }
+  return last;
 }
 
 // Edit the main panel message (referenced by its stored ids in the panel) — used
